@@ -19,6 +19,9 @@ RULES:
 5. NYC bounds on raw lat/lon: TRY_CAST(latitude AS DOUBLE) BETWEEN 40.4 AND 41.0 AND TRY_CAST(longitude AS DOUBLE) BETWEEN -74.3 AND -73.6. Never put uncast latitude/longitude in numeric BETWEEN.
 6. nyc_311.borough is UPPERCASE ('BROOKLYN'); census_tracts.boroname is Title Case ('Brooklyn'). Don't equate them as strings — spatial join via lat/lon if you need to bridge.
 7. ACS demographics live in census_tract_demographics with _2018 and _2023 suffixes. Rates are not pre-computed. Use FROM_ISO8601_TIMESTAMP() for ISO date strings in nyc_311.
+8. Proximity / buffer on WGS84 lon/lat ("within N feet/meters/miles of a point or intersection"): coordinates are geographic degrees — ST_Distance(ST_Point(lon1,lat1), ST_Point(lon2,lat2)) on Geometry is planar (wrong units; not meters). Use great-circle distance in meters via spherical geography:
+   ST_Distance(to_spherical_geography(ST_Point(lon1, lat1)), to_spherical_geography(ST_Point(lon2, lat2))) <= radius_meters.
+   Use TRY_CAST for row lon/lat from VARCHAR. Anchor point (intersection, address): ST_Point(anchor_lon, anchor_lat) with doubles from geocoding / known coordinates in WITH clause. Convert feet→meters (* 0.3048), miles→meters (* 1609.344). Optionally tighten with a lon/lat bounding box first for partitions, then apply this distance predicate.
 
 SCHEMA:
 ${renderSchemaForPrompt()}`;

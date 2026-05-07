@@ -118,6 +118,7 @@ export const TABLE_SCHEMAS: Record<string, TableSchema> = {
       "exclude blanks with latitude <> '' AND longitude <> ''. " +
       "Parse dates with TRY(DATE_PARSE(crash_date, '%m/%d/%Y')) or CAST(... AS DATE) only after verifying format; prefer partition year/month for year-scoped counts. " +
       "Spatial joins: ST_POINT(TRY_CAST(longitude AS DOUBLE), TRY_CAST(latitude AS DOUBLE)) with ST_CONTAINS(ST_GEOMETRY_FROM_TEXT(t.geometry_wkt), ...). " +
+      "Within-radius (feet/meters) from a lat/lon anchor: ST_Distance(to_spherical_geography(ST_Point(row_lon, row_lat)), to_spherical_geography(ST_Point(anchor_lon, anchor_lat))) <= meters — never planar ST_Distance on raw ST_Point for radius filters. " +
       "Casualty columns are STRING — use TRY_CAST(... AS INTEGER). " +
       "Always filter by partition (year, month) for cost efficiency.",
     columns: [
@@ -149,6 +150,7 @@ export const TABLE_SCHEMAS: Record<string, TableSchema> = {
       "'STATEN ISLAND', or 'Unspecified') — no spatial join needed for borough-level analysis. " +
       "Has raw lat/lon for finer geography (VARCHAR — TRY_CAST before numeric BETWEEN). " +
       "Filter NYC bounds: TRY_CAST(latitude AS DOUBLE) BETWEEN 40.4 AND 41.0 AND TRY_CAST(longitude AS DOUBLE) BETWEEN -74.3 AND -73.6. " +
+      "Within radius of a point (feet/meters): ST_Distance(to_spherical_geography(ST_Point(lon, lat)), to_spherical_geography(ST_Point(anchor_lon, anchor_lat))) <= meters (never planar ST_Distance on Geometry points for radius). " +
       "Key categorical columns: complaint_type, agency, status, open_data_channel_type. " +
       "Resolution time = closed_date - created_date; many requests have NULL closed_date if still open.",
     columns: [
