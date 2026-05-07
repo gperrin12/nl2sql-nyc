@@ -15,6 +15,8 @@ export const TABLE_SCHEMAS: Record<string, TableSchema> = {
     description:
       "Taxi trip data (yellow and green taxis) with neighborhood-level geography. " +
       "Uses pulocationid and dolocationid (~200 taxi zones); join to taxi_zones for geometry. " +
+      "There are NO latitude/longitude columns—never reference lat/lon on this table; zone polygons live only on taxi_zones via geometry_wkt. " +
+      "pulocationid / dolocationid are VARCHAR in Athena — taxi_zones.locationid may be INTEGER or VARCHAR by catalog; JOIN and IN (SELECT ...) require the same type on both sides (TRY_CAST both to BIGINT or CAST both to VARCHAR) or you get TYPE_MISMATCH (row(integer) vs row(locationid varchar)). " +
       "No raw lat/lon—locations are aggregated to zone IDs. " +
       "Partitioned by type (yellow/green/fhv/fhvhv), year (STRING), month (STRING).",
     columns: [
@@ -46,9 +48,11 @@ export const TABLE_SCHEMAS: Record<string, TableSchema> = {
   taxi_zones: {
     description:
       "Taxi zone boundaries (263 zones across NYC). " +
-      "Join key: locationid (joins to gtp_tlc_data.pulocationid / dolocationid). " +
-      "Geometry stored as WKT in geometry_wkt — wrap with ST_GEOMETRY_FROM_TEXT() for spatial functions. " +
-      "Coordinates are WGS84 (lon/lat).",
+      "NO latitude/longitude columns — only polygon geometry in geometry_wkt (plus zone name, locationid, borough). " +
+      "Never reference tz.latitude, tz.longitude, or similar; they do not exist (COLUMN_NOT_FOUND). " +
+      "For a zone center or distance-from-point use ST_CENTROID(ST_GEOMETRY_FROM_TEXT(tz.geometry_wkt)) or the full polygon with ST_GEOMETRY_FROM_TEXT(tz.geometry_wkt); combine with to_spherical_geography / ST_Distance as needed. " +
+      "Join key: locationid type varies by catalog (INTEGER or VARCHAR); gtp_tlc_data zone IDs are VARCHAR — always CAST/TRY_CAST both sides to a common type for JOIN / IN / EXISTS (see system RULE 10). " +
+      "Coordinates are WGS84 (lon/lat) inside the WKT — use ST_X/ST_Y on centroid points if you need numeric lon/lat.",
     columns: [
       "objectid", "shape_leng", "shape_area",
       "zone", "locationid", "borough",
@@ -58,11 +62,13 @@ export const TABLE_SCHEMAS: Record<string, TableSchema> = {
   census_tracts: {
     description:
       "NYC census tracts (2020 Census, ~2,300 polygons), NYC DCP shoreline-clipped version. " +
-      "Join key: geoid (11-digit federal tract ID, joins to census_tract_demographics.geoid). " +
+      "Join key: geoid (joins to census_tract_demographics.geoid). Always qualify as tract_alias.geoid when joining (bare geoid causes AMBIGUOUS_NAME). " +
       "Geometry stored as WKT in geometry_wkt — wrap with ST_GEOMETRY_FROM_TEXT() for spatial functions. " +
       "Coordinates are WGS84 (lon/lat). " +
-      "Use for point-in-polygon joins from any lat/lon source (e.g. nypd_collisions, nyc_311, par): " +
-      "ST_CONTAINS(ST_GEOMETRY_FROM_TEXT(t.geometry_wkt), ST_POINT(CAST(longitude AS DOUBLE), CAST(latitude AS DOUBLE))).",
+      "Use for point-in-polygon joins from any lat/lon source (e.g. nypd_collisions, nyc_311, par). " +
+      "CRITICAL: ST_Point takes (longitude, latitude) — X then Y. ST_Point(latitude, longitude) swaps coords and matches NO NYC tracts (silent zero rows). " +
+      "Prefer ST_Within(ST_Point(TRY_CAST(longitude_col AS DOUBLE), TRY_CAST(latitude_col AS DOUBLE)), ST_GEOMETRY_FROM_TEXT(ct.geometry_wkt)) (point inside polygon). Equivalent: ST_CONTAINS(ST_GEOMETRY_FROM_TEXT(ct.geometry_wkt), ST_Point(lon, lat)) with polygon FIRST. " +
+      "For neighborhood-level rollups with census population use NTA fields nta2020 + ntaname (~195 areas); do not match nyc_311.borough to boroname (different casing/format).",
     columns: [
       "boroct2020", "ct2020", "boroname", "borocode", "ctlabel",
       "nta2020", "ntaname", "cdta2020", "cdtaname",
@@ -73,7 +79,9 @@ export const TABLE_SCHEMAS: Record<string, TableSchema> = {
     description:
       "ACS 5-year demographic estimates per census tract for two non-overlapping vintages: " +
       "_2018 suffix = 2014-2018 ACS, _2023 suffix = 2019-2023 ACS. " +
-      "Join key: geoid (joins to census_tracts.geoid). " +
+      "Join key: geoid (joins to census_tracts.geoid). Always qualify as demo_alias.geoid / tract_alias.geoid in ON and SELECT when both tables are in scope. " +
+      "If joins unexpectedly drop rows, normalize keys: TRIM(CAST(ct.geoid AS VARCHAR)) = TRIM(CAST(demo.geoid AS VARCHAR)). " +
+      "For per-capita rates alongside recent 311/calendar years (e.g. 2024), prefer total_pop_2023 as denominator (_2023 = 2019-2023 ACS vintage); total_pop_2018 is older vintage. " +
       "All values stored as STRING — use TRY_CAST(col AS BIGINT) or TRY_CAST(col AS DOUBLE) at query time. " +
       "Census uses negative sentinels (~-666666666) for unavailable estimates; the loader nulls these out, " +
       "but always wrap aggregations defensively. " +
@@ -112,16 +120,19 @@ export const TABLE_SCHEMAS: Record<string, TableSchema> = {
     description:
       "NYPD Motor Vehicle Collisions (~2M rows, 2012-present). " +
       "Partitioned by year (STRING) and month (STRING, zero-padded). " +
-      "Has raw lat/lon — use ST_POINT(CAST(longitude AS DOUBLE), CAST(latitude AS DOUBLE)) " +
-      "for spatial joins to taxi_zones or census_tracts via ST_CONTAINS. " +
-      "Filter out NULL/zero coordinates and bound to NYC: " +
-      "latitude BETWEEN 40.4 AND 41.0 AND longitude BETWEEN -74.3 AND -73.6. " +
+      "Filter partitions with string literals: year = '2025' AND month BETWEEN '01' AND '12' (never compare year/month to bare numbers). " +
+      "latitude, longitude, crash_date, crash_time are VARCHAR in Athena — never use them in numeric BETWEEN. " +
+      "NYC bounds: TRY_CAST(latitude AS DOUBLE) BETWEEN 40.4 AND 41.0 AND TRY_CAST(longitude AS DOUBLE) BETWEEN -74.3 AND -73.6; " +
+      "exclude blanks with latitude <> '' AND longitude <> ''. " +
+      "Parse dates with TRY(DATE_PARSE(crash_date, '%m/%d/%Y')) or CAST(... AS DATE) only after verifying format; prefer partition year/month for year-scoped counts. " +
+      "Spatial joins: ST_POINT(TRY_CAST(longitude AS DOUBLE), TRY_CAST(latitude AS DOUBLE)) with ST_CONTAINS(ST_GEOMETRY_FROM_TEXT(t.geometry_wkt), ...). " +
+      "Within-radius (feet/meters) from a lat/lon anchor: ST_Distance(to_spherical_geography(ST_Point(row_lon, row_lat)), to_spherical_geography(ST_Point(anchor_lon, anchor_lat))) <= meters — never planar ST_Distance on raw ST_Point for radius filters. " +
       "Casualty columns are STRING — use TRY_CAST(... AS INTEGER). " +
       "Always filter by partition (year, month) for cost efficiency.",
     columns: [
       "collision_id", "crash_date", "crash_time",
       "borough", "zip_code",
-      "latitude", "longitude", "location_latitude", "location_longitude",
+      "latitude", "longitude",
       "on_street_name", "cross_street_name", "off_street_name",
       "number_of_persons_injured", "number_of_persons_killed",
       "number_of_pedestrians_injured", "number_of_pedestrians_killed",
@@ -145,9 +156,12 @@ export const TABLE_SCHEMAS: Record<string, TableSchema> = {
       "are ISO-8601 strings — parse with FROM_ISO8601_TIMESTAMP(). " +
       "Borough column is populated natively (UPPERCASE: 'BROOKLYN', 'MANHATTAN', 'QUEENS', 'BRONX', " +
       "'STATEN ISLAND', or 'Unspecified') — no spatial join needed for borough-level analysis. " +
-      "Has raw lat/lon for finer geography. " +
-      "Filter NYC bounds: latitude BETWEEN 40.4 AND 41.0 AND longitude BETWEEN -74.3 AND -73.6. " +
+      "Has raw latitude / longitude only for finer geography (VARCHAR — TRY_CAST before numeric BETWEEN); many loaders omit NYC Open Data's alternate coord columns — never reference location_latitude or location_longitude unless they exist in your Athena DDL. " +
+      "Filter NYC bounds: TRY_CAST(latitude AS DOUBLE) BETWEEN 40.4 AND 41.0 AND TRY_CAST(longitude AS DOUBLE) BETWEEN -74.3 AND -73.6. " +
+      "Within radius of a point (feet/meters): ST_Distance(to_spherical_geography(ST_Point(lon, lat)), to_spherical_geography(ST_Point(anchor_lon, anchor_lat))) <= meters (never planar ST_Distance on Geometry points for radius). " +
       "Key categorical columns: complaint_type, agency, status, open_data_channel_type. " +
+      "311 complaint_type values are specific strings (e.g. 'Noise - Residential', 'Noise - Street/Sidewalk'); never use complaint_type = 'Noise' alone — use LOWER(complaint_type) LIKE '%noise%' (still excludes non-Noise categories). " +
+      "Many rows lack coordinates; INNER JOIN to census polygons only on rows with non-null lat/lon inside NYC bounds — others drop entirely. For borough-level per capita use borough + ACS borough aggregates or accept tract-limited coverage. " +
       "Resolution time = closed_date - created_date; many requests have NULL closed_date if still open.",
     columns: [
       "unique_key", "created_date", "closed_date",
@@ -166,7 +180,7 @@ export const TABLE_SCHEMAS: Record<string, TableSchema> = {
       "vehicle_type", "taxi_company_borough", "taxi_pick_up_location",
       "bridge_highway_name", "bridge_highway_direction",
       "road_ramp", "bridge_highway_segment",
-      "latitude", "longitude", "location_latitude", "location_longitude",
+      "latitude", "longitude",
       "year", "month",
     ],
   },
