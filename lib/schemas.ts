@@ -65,8 +65,9 @@ export const TABLE_SCHEMAS: Record<string, TableSchema> = {
       "Join key: geoid (joins to census_tract_demographics.geoid). Always qualify as tract_alias.geoid when joining (bare geoid causes AMBIGUOUS_NAME). " +
       "Geometry stored as WKT in geometry_wkt — wrap with ST_GEOMETRY_FROM_TEXT() for spatial functions. " +
       "Coordinates are WGS84 (lon/lat). " +
-      "Use for point-in-polygon joins from any lat/lon source (e.g. nypd_collisions, nyc_311, par): " +
-      "ST_CONTAINS(ST_GEOMETRY_FROM_TEXT(t.geometry_wkt), ST_POINT(CAST(longitude AS DOUBLE), CAST(latitude AS DOUBLE))). " +
+      "Use for point-in-polygon joins from any lat/lon source (e.g. nypd_collisions, nyc_311, par). " +
+      "CRITICAL: ST_Point takes (longitude, latitude) — X then Y. ST_Point(latitude, longitude) swaps coords and matches NO NYC tracts (silent zero rows). " +
+      "Prefer ST_Within(ST_Point(TRY_CAST(longitude_col AS DOUBLE), TRY_CAST(latitude_col AS DOUBLE)), ST_GEOMETRY_FROM_TEXT(ct.geometry_wkt)) (point inside polygon). Equivalent: ST_CONTAINS(ST_GEOMETRY_FROM_TEXT(ct.geometry_wkt), ST_Point(lon, lat)) with polygon FIRST. " +
       "For neighborhood-level rollups with census population use NTA fields nta2020 + ntaname (~195 areas); do not match nyc_311.borough to boroname (different casing/format).",
     columns: [
       "boroct2020", "ct2020", "boroname", "borocode", "ctlabel",
@@ -79,6 +80,7 @@ export const TABLE_SCHEMAS: Record<string, TableSchema> = {
       "ACS 5-year demographic estimates per census tract for two non-overlapping vintages: " +
       "_2018 suffix = 2014-2018 ACS, _2023 suffix = 2019-2023 ACS. " +
       "Join key: geoid (joins to census_tracts.geoid). Always qualify as demo_alias.geoid / tract_alias.geoid in ON and SELECT when both tables are in scope. " +
+      "If joins unexpectedly drop rows, normalize keys: TRIM(CAST(ct.geoid AS VARCHAR)) = TRIM(CAST(demo.geoid AS VARCHAR)). " +
       "For per-capita rates alongside recent 311/calendar years (e.g. 2024), prefer total_pop_2023 as denominator (_2023 = 2019-2023 ACS vintage); total_pop_2018 is older vintage. " +
       "All values stored as STRING — use TRY_CAST(col AS BIGINT) or TRY_CAST(col AS DOUBLE) at query time. " +
       "Census uses negative sentinels (~-666666666) for unavailable estimates; the loader nulls these out, " +
@@ -155,6 +157,7 @@ export const TABLE_SCHEMAS: Record<string, TableSchema> = {
       "Borough column is populated natively (UPPERCASE: 'BROOKLYN', 'MANHATTAN', 'QUEENS', 'BRONX', " +
       "'STATEN ISLAND', or 'Unspecified') — no spatial join needed for borough-level analysis. " +
       "Has raw lat/lon for finer geography (VARCHAR — TRY_CAST before numeric BETWEEN). " +
+      "When latitude/longitude are blank, fall back: TRY_CAST(COALESCE(NULLIF(TRIM(latitude), ''), NULLIF(TRIM(location_latitude), '')) AS DOUBLE) and same pattern for longitude vs location_longitude — avoids losing geocoded rows that only populate location_* fields. " +
       "Filter NYC bounds: TRY_CAST(latitude AS DOUBLE) BETWEEN 40.4 AND 41.0 AND TRY_CAST(longitude AS DOUBLE) BETWEEN -74.3 AND -73.6. " +
       "Within radius of a point (feet/meters): ST_Distance(to_spherical_geography(ST_Point(lon, lat)), to_spherical_geography(ST_Point(anchor_lon, anchor_lat))) <= meters (never planar ST_Distance on Geometry points for radius). " +
       "Key categorical columns: complaint_type, agency, status, open_data_channel_type. " +
