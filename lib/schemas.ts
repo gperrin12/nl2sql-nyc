@@ -66,7 +66,8 @@ export const TABLE_SCHEMAS: Record<string, TableSchema> = {
       "Geometry stored as WKT in geometry_wkt — wrap with ST_GEOMETRY_FROM_TEXT() for spatial functions. " +
       "Coordinates are WGS84 (lon/lat). " +
       "Use for point-in-polygon joins from any lat/lon source (e.g. nypd_collisions, nyc_311, par): " +
-      "ST_CONTAINS(ST_GEOMETRY_FROM_TEXT(t.geometry_wkt), ST_POINT(CAST(longitude AS DOUBLE), CAST(latitude AS DOUBLE))).",
+      "ST_CONTAINS(ST_GEOMETRY_FROM_TEXT(t.geometry_wkt), ST_POINT(CAST(longitude AS DOUBLE), CAST(latitude AS DOUBLE))). " +
+      "For neighborhood-level rollups with census population use NTA fields nta2020 + ntaname (~195 areas); do not match nyc_311.borough to boroname (different casing/format).",
     columns: [
       "boroct2020", "ct2020", "boroname", "borocode", "ctlabel",
       "nta2020", "ntaname", "cdta2020", "cdtaname",
@@ -78,6 +79,7 @@ export const TABLE_SCHEMAS: Record<string, TableSchema> = {
       "ACS 5-year demographic estimates per census tract for two non-overlapping vintages: " +
       "_2018 suffix = 2014-2018 ACS, _2023 suffix = 2019-2023 ACS. " +
       "Join key: geoid (joins to census_tracts.geoid). Always qualify as demo_alias.geoid / tract_alias.geoid in ON and SELECT when both tables are in scope. " +
+      "For per-capita rates alongside recent 311/calendar years (e.g. 2024), prefer total_pop_2023 as denominator (_2023 = 2019-2023 ACS vintage); total_pop_2018 is older vintage. " +
       "All values stored as STRING — use TRY_CAST(col AS BIGINT) or TRY_CAST(col AS DOUBLE) at query time. " +
       "Census uses negative sentinels (~-666666666) for unavailable estimates; the loader nulls these out, " +
       "but always wrap aggregations defensively. " +
@@ -156,6 +158,8 @@ export const TABLE_SCHEMAS: Record<string, TableSchema> = {
       "Filter NYC bounds: TRY_CAST(latitude AS DOUBLE) BETWEEN 40.4 AND 41.0 AND TRY_CAST(longitude AS DOUBLE) BETWEEN -74.3 AND -73.6. " +
       "Within radius of a point (feet/meters): ST_Distance(to_spherical_geography(ST_Point(lon, lat)), to_spherical_geography(ST_Point(anchor_lon, anchor_lat))) <= meters (never planar ST_Distance on Geometry points for radius). " +
       "Key categorical columns: complaint_type, agency, status, open_data_channel_type. " +
+      "311 complaint_type values are specific strings (e.g. 'Noise - Residential', 'Noise - Street/Sidewalk'); never use complaint_type = 'Noise' alone — use LOWER(complaint_type) LIKE '%noise%' (still excludes non-Noise categories). " +
+      "Many rows lack coordinates; INNER JOIN to census polygons only on rows with non-null lat/lon inside NYC bounds — others drop entirely. For borough-level per capita use borough + ACS borough aggregates or accept tract-limited coverage. " +
       "Resolution time = closed_date - created_date; many requests have NULL closed_date if still open.",
     columns: [
       "unique_key", "created_date", "closed_date",
