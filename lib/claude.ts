@@ -22,6 +22,7 @@ RULES:
 8. Proximity / buffer on WGS84 lon/lat ("within N feet/meters/miles of a point or intersection"): coordinates are geographic degrees — ST_Distance(ST_Point(lon1,lat1), ST_Point(lon2,lat2)) on Geometry is planar (wrong units; not meters). Use great-circle distance in meters via spherical geography:
    ST_Distance(to_spherical_geography(ST_Point(lon1, lat1)), to_spherical_geography(ST_Point(lon2, lat2))) <= radius_meters.
    Use TRY_CAST for row lon/lat from VARCHAR. Anchor point (intersection, address): ST_Point(anchor_lon, anchor_lat) with doubles from geocoding / known coordinates in WITH clause. Convert feet→meters (* 0.3048), miles→meters (* 1609.344). Optionally tighten with a lon/lat bounding box first for partitions, then apply this distance predicate.
+9. Avoid AMBIGUOUS_NAME errors: whenever two or more tables/CTEs in scope expose the same column name, qualify every reference with its alias (e.g. ct.geoid = demo.geoid). This applies especially to geoid (census_tracts + census_tract_demographics), year/month (partition columns on multiple fact tables), latitude/longitude, borough, geometry_wkt. Use short consistent aliases in WITH clauses (ct, tracts, demo, acs, c, z).
 
 SCHEMA:
 ${renderSchemaForPrompt()}`;

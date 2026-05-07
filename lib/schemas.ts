@@ -58,7 +58,7 @@ export const TABLE_SCHEMAS: Record<string, TableSchema> = {
   census_tracts: {
     description:
       "NYC census tracts (2020 Census, ~2,300 polygons), NYC DCP shoreline-clipped version. " +
-      "Join key: geoid (11-digit federal tract ID, joins to census_tract_demographics.geoid). " +
+      "Join key: geoid (joins to census_tract_demographics.geoid). Always qualify as tract_alias.geoid when joining (bare geoid causes AMBIGUOUS_NAME). " +
       "Geometry stored as WKT in geometry_wkt — wrap with ST_GEOMETRY_FROM_TEXT() for spatial functions. " +
       "Coordinates are WGS84 (lon/lat). " +
       "Use for point-in-polygon joins from any lat/lon source (e.g. nypd_collisions, nyc_311, par): " +
@@ -73,7 +73,7 @@ export const TABLE_SCHEMAS: Record<string, TableSchema> = {
     description:
       "ACS 5-year demographic estimates per census tract for two non-overlapping vintages: " +
       "_2018 suffix = 2014-2018 ACS, _2023 suffix = 2019-2023 ACS. " +
-      "Join key: geoid (joins to census_tracts.geoid). " +
+      "Join key: geoid (joins to census_tracts.geoid). Always qualify as demo_alias.geoid / tract_alias.geoid in ON and SELECT when both tables are in scope. " +
       "All values stored as STRING — use TRY_CAST(col AS BIGINT) or TRY_CAST(col AS DOUBLE) at query time. " +
       "Census uses negative sentinels (~-666666666) for unavailable estimates; the loader nulls these out, " +
       "but always wrap aggregations defensively. " +
