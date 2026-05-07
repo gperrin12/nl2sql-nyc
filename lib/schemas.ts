@@ -132,7 +132,7 @@ export const TABLE_SCHEMAS: Record<string, TableSchema> = {
     columns: [
       "collision_id", "crash_date", "crash_time",
       "borough", "zip_code",
-      "latitude", "longitude", "location_latitude", "location_longitude",
+      "latitude", "longitude",
       "on_street_name", "cross_street_name", "off_street_name",
       "number_of_persons_injured", "number_of_persons_killed",
       "number_of_pedestrians_injured", "number_of_pedestrians_killed",
@@ -156,8 +156,7 @@ export const TABLE_SCHEMAS: Record<string, TableSchema> = {
       "are ISO-8601 strings — parse with FROM_ISO8601_TIMESTAMP(). " +
       "Borough column is populated natively (UPPERCASE: 'BROOKLYN', 'MANHATTAN', 'QUEENS', 'BRONX', " +
       "'STATEN ISLAND', or 'Unspecified') — no spatial join needed for borough-level analysis. " +
-      "Has raw lat/lon for finer geography (VARCHAR — TRY_CAST before numeric BETWEEN). " +
-      "When latitude/longitude are blank, fall back: TRY_CAST(COALESCE(NULLIF(TRIM(latitude), ''), NULLIF(TRIM(location_latitude), '')) AS DOUBLE) and same pattern for longitude vs location_longitude — avoids losing geocoded rows that only populate location_* fields. " +
+      "Has raw latitude / longitude only for finer geography (VARCHAR — TRY_CAST before numeric BETWEEN); many loaders omit NYC Open Data's alternate coord columns — never reference location_latitude or location_longitude unless they exist in your Athena DDL. " +
       "Filter NYC bounds: TRY_CAST(latitude AS DOUBLE) BETWEEN 40.4 AND 41.0 AND TRY_CAST(longitude AS DOUBLE) BETWEEN -74.3 AND -73.6. " +
       "Within radius of a point (feet/meters): ST_Distance(to_spherical_geography(ST_Point(lon, lat)), to_spherical_geography(ST_Point(anchor_lon, anchor_lat))) <= meters (never planar ST_Distance on Geometry points for radius). " +
       "Key categorical columns: complaint_type, agency, status, open_data_channel_type. " +
@@ -181,7 +180,7 @@ export const TABLE_SCHEMAS: Record<string, TableSchema> = {
       "vehicle_type", "taxi_company_borough", "taxi_pick_up_location",
       "bridge_highway_name", "bridge_highway_direction",
       "road_ramp", "bridge_highway_segment",
-      "latitude", "longitude", "location_latitude", "location_longitude",
+      "latitude", "longitude",
       "year", "month",
     ],
   },
