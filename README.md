@@ -3,6 +3,10 @@
 Natural language → Athena SQL across NYC TLC taxi trips, 311 service requests,
 NYPD collisions, taxi zones, and census tracts with ACS demographics.
 
+## Roadmap
+
+See [`ROADMAP.md`](./ROADMAP.md).
+
 ## Stack
 
 - **Next.js 14** (App Router)
