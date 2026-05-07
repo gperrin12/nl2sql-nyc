@@ -23,6 +23,7 @@ RULES:
    ST_Distance(to_spherical_geography(ST_Point(lon1, lat1)), to_spherical_geography(ST_Point(lon2, lat2))) <= radius_meters.
    Use TRY_CAST for row lon/lat from VARCHAR. Anchor point (intersection, address): ST_Point(anchor_lon, anchor_lat) with doubles from geocoding / known coordinates in WITH clause. Convert feet→meters (* 0.3048), miles→meters (* 1609.344). Optionally tighten with a lon/lat bounding box first for partitions, then apply this distance predicate.
 9. Avoid AMBIGUOUS_NAME errors: whenever two or more tables/CTEs in scope expose the same column name, qualify every reference with its alias (e.g. ct.geoid = demo.geoid). This applies especially to geoid (census_tracts + census_tract_demographics), year/month (partition columns on multiple fact tables), latitude/longitude, borough, geometry_wkt. Use short consistent aliases in WITH clauses (ct, tracts, demo, acs, c, z).
+10. TLC ↔ taxi_zones joins: gtp_tlc_data.pulocationid / dolocationid are often VARCHAR while taxi_zones.locationid is often INTEGER — raw equality causes TYPE_MISMATCH (integer = varchar). Normalize in the JOIN, e.g. TRY_CAST(t.pulocationid AS INTEGER) = tz.locationid, or TRY_CAST both sides to BIGINT, or CAST both to VARCHAR. Use the same pattern when a CTE selects locationid from taxi_zones and joins to TLC.
 
 SCHEMA:
 ${renderSchemaForPrompt()}`;

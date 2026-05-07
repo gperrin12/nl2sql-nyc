@@ -15,6 +15,7 @@ export const TABLE_SCHEMAS: Record<string, TableSchema> = {
     description:
       "Taxi trip data (yellow and green taxis) with neighborhood-level geography. " +
       "Uses pulocationid and dolocationid (~200 taxi zones); join to taxi_zones for geometry. " +
+      "pulocationid / dolocationid are VARCHAR in Athena — joining to taxi_zones.locationid (often INTEGER) requires TRY_CAST(... AS INTEGER) = tz.locationid (or CAST both sides to the same type) to avoid TYPE_MISMATCH. " +
       "No raw lat/lon—locations are aggregated to zone IDs. " +
       "Partitioned by type (yellow/green/fhv/fhvhv), year (STRING), month (STRING).",
     columns: [
@@ -46,7 +47,7 @@ export const TABLE_SCHEMAS: Record<string, TableSchema> = {
   taxi_zones: {
     description:
       "Taxi zone boundaries (263 zones across NYC). " +
-      "Join key: locationid (joins to gtp_tlc_data.pulocationid / dolocationid). " +
+      "Join key: locationid (often INTEGER; joins to gtp_tlc_data.pulocationid / dolocationid which are VARCHAR — align types with TRY_CAST). " +
       "Geometry stored as WKT in geometry_wkt — wrap with ST_GEOMETRY_FROM_TEXT() for spatial functions. " +
       "Coordinates are WGS84 (lon/lat).",
     columns: [
