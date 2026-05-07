@@ -16,7 +16,7 @@ export const TABLE_SCHEMAS: Record<string, TableSchema> = {
       "Taxi trip data (yellow and green taxis) with neighborhood-level geography. " +
       "Uses pulocationid and dolocationid (~200 taxi zones); join to taxi_zones for geometry. " +
       "There are NO latitude/longitude columns—never reference lat/lon on this table; zone polygons live only on taxi_zones via geometry_wkt. " +
-      "pulocationid / dolocationid are VARCHAR in Athena — joining to taxi_zones.locationid (often INTEGER) requires TRY_CAST(... AS INTEGER) = tz.locationid (or CAST both sides to the same type) to avoid TYPE_MISMATCH. " +
+      "pulocationid / dolocationid are VARCHAR in Athena — taxi_zones.locationid may be INTEGER or VARCHAR by catalog; JOIN and IN (SELECT ...) require the same type on both sides (TRY_CAST both to BIGINT or CAST both to VARCHAR) or you get TYPE_MISMATCH (row(integer) vs row(locationid varchar)). " +
       "No raw lat/lon—locations are aggregated to zone IDs. " +
       "Partitioned by type (yellow/green/fhv/fhvhv), year (STRING), month (STRING).",
     columns: [
@@ -51,7 +51,7 @@ export const TABLE_SCHEMAS: Record<string, TableSchema> = {
       "NO latitude/longitude columns — only polygon geometry in geometry_wkt (plus zone name, locationid, borough). " +
       "Never reference tz.latitude, tz.longitude, or similar; they do not exist (COLUMN_NOT_FOUND). " +
       "For a zone center or distance-from-point use ST_CENTROID(ST_GEOMETRY_FROM_TEXT(tz.geometry_wkt)) or the full polygon with ST_GEOMETRY_FROM_TEXT(tz.geometry_wkt); combine with to_spherical_geography / ST_Distance as needed. " +
-      "Join key: locationid (often INTEGER; joins to gtp_tlc_data.pulocationid / dolocationid which are VARCHAR — align types with TRY_CAST). " +
+      "Join key: locationid type varies by catalog (INTEGER or VARCHAR); gtp_tlc_data zone IDs are VARCHAR — always CAST/TRY_CAST both sides to a common type for JOIN / IN / EXISTS (see system RULE 10). " +
       "Coordinates are WGS84 (lon/lat) inside the WKT — use ST_X/ST_Y on centroid points if you need numeric lon/lat.",
     columns: [
       "objectid", "shape_leng", "shape_area",
