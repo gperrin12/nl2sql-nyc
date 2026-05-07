@@ -186,6 +186,29 @@ export const TABLE_SCHEMAS: Record<string, TableSchema> = {
   },
 };
 
+/** Render schema entries for a subset of tables (for agent tool responses). */
+export function renderTablesForPrompt(tableNames: string[]): string {
+  const parts: string[] = [];
+  for (const name of tableNames) {
+    const info = TABLE_SCHEMAS[name];
+    if (!info) {
+      parts.push(`Table: ${name}\n(unknown table name — use list_tables)\n`);
+      continue;
+    }
+    parts.push(
+      `Table: ${name}\n` +
+      `Description: ${info.description}\n` +
+      `Columns: ${info.columns.join(", ")}\n`
+    );
+  }
+  return parts.join("\n");
+}
+
+/** Stable ordered list of table keys for tool responses. */
+export function listWarehouseTableNames(): string[] {
+  return Object.keys(TABLE_SCHEMAS);
+}
+
 /** Render the schema dictionary as a string for the system prompt. */
 export function renderSchemaForPrompt(): string {
   const parts: string[] = [];

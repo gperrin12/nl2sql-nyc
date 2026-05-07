@@ -1,15 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { generateSql } from "@/lib/claude";
-import { generateSqlWithAgent } from "@/lib/sql-agent/run";
+import { generateSqlWithRepair } from "@/lib/claude";
 import { checkSql } from "@/lib/guardrails";
 import { startQuery } from "@/lib/athena";
 import { isAuthenticated } from "@/lib/auth";
 
 const BodySchema = z.object({
   question: z.string().min(1).max(2000),
+  sql: z.string().min(1).max(32000),
+  feedback: z.string().min(1).max(8000),
 });
 
+/** Agentic repair pass: revise SQL using Athena errors or analyst notes, then re-run Athena. */
 export async function POST(req: NextRequest) {
   if (!(await isAuthenticated())) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -18,24 +20,20 @@ export async function POST(req: NextRequest) {
   let parsed: z.infer<typeof BodySchema>;
   try {
     parsed = BodySchema.parse(await req.json());
-  } catch (e) {
+  } catch {
     return NextResponse.json({ error: "Bad request" }, { status: 400 });
   }
 
-  const useAgent = process.env.CLAUDE_SQL_AGENT === "true";
-
-  // 1. Ask Claude for SQL (single-shot or tool-using agent)
   let generation;
   try {
-    generation = useAgent ? await generateSqlWithAgent(parsed.question) : await generateSql(parsed.question);
+    generation = await generateSqlWithRepair(parsed.question, parsed.sql, parsed.feedback);
   } catch (e) {
     return NextResponse.json(
-      { error: "SQL generation failed", detail: errorMessage(e) },
+      { error: "SQL repair generation failed", detail: errorMessage(e) },
       { status: 502 }
     );
   }
 
-  // 2. Guardrail check
   const check = checkSql(generation.sql);
   if (!check.ok) {
     return NextResponse.json(
@@ -48,7 +46,6 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // 3. Start the Athena query
   let executionId;
   try {
     executionId = await startQuery(check.sql);
