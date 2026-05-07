@@ -112,10 +112,12 @@ export const TABLE_SCHEMAS: Record<string, TableSchema> = {
     description:
       "NYPD Motor Vehicle Collisions (~2M rows, 2012-present). " +
       "Partitioned by year (STRING) and month (STRING, zero-padded). " +
-      "Has raw lat/lon — use ST_POINT(CAST(longitude AS DOUBLE), CAST(latitude AS DOUBLE)) " +
-      "for spatial joins to taxi_zones or census_tracts via ST_CONTAINS. " +
-      "Filter out NULL/zero coordinates and bound to NYC: " +
-      "latitude BETWEEN 40.4 AND 41.0 AND longitude BETWEEN -74.3 AND -73.6. " +
+      "Filter partitions with string literals: year = '2025' AND month BETWEEN '01' AND '12' (never compare year/month to bare numbers). " +
+      "latitude, longitude, crash_date, crash_time are VARCHAR in Athena — never use them in numeric BETWEEN. " +
+      "NYC bounds: TRY_CAST(latitude AS DOUBLE) BETWEEN 40.4 AND 41.0 AND TRY_CAST(longitude AS DOUBLE) BETWEEN -74.3 AND -73.6; " +
+      "exclude blanks with latitude <> '' AND longitude <> ''. " +
+      "Parse dates with TRY(DATE_PARSE(crash_date, '%m/%d/%Y')) or CAST(... AS DATE) only after verifying format; prefer partition year/month for year-scoped counts. " +
+      "Spatial joins: ST_POINT(TRY_CAST(longitude AS DOUBLE), TRY_CAST(latitude AS DOUBLE)) with ST_CONTAINS(ST_GEOMETRY_FROM_TEXT(t.geometry_wkt), ...). " +
       "Casualty columns are STRING — use TRY_CAST(... AS INTEGER). " +
       "Always filter by partition (year, month) for cost efficiency.",
     columns: [
@@ -145,8 +147,8 @@ export const TABLE_SCHEMAS: Record<string, TableSchema> = {
       "are ISO-8601 strings — parse with FROM_ISO8601_TIMESTAMP(). " +
       "Borough column is populated natively (UPPERCASE: 'BROOKLYN', 'MANHATTAN', 'QUEENS', 'BRONX', " +
       "'STATEN ISLAND', or 'Unspecified') — no spatial join needed for borough-level analysis. " +
-      "Has raw lat/lon for finer geography. " +
-      "Filter NYC bounds: latitude BETWEEN 40.4 AND 41.0 AND longitude BETWEEN -74.3 AND -73.6. " +
+      "Has raw lat/lon for finer geography (VARCHAR — TRY_CAST before numeric BETWEEN). " +
+      "Filter NYC bounds: TRY_CAST(latitude AS DOUBLE) BETWEEN 40.4 AND 41.0 AND TRY_CAST(longitude AS DOUBLE) BETWEEN -74.3 AND -73.6. " +
       "Key categorical columns: complaint_type, agency, status, open_data_channel_type. " +
       "Resolution time = closed_date - created_date; many requests have NULL closed_date if still open.",
     columns: [

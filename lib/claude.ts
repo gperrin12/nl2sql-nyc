@@ -13,12 +13,12 @@ The query must be a single SELECT or WITH statement. No DDL, DML, or multi-state
 
 RULES:
 1. Always include LIMIT 1000 unless the user explicitly asks for a different limit.
-2. Always filter partitioned tables (gtp_tlc_data, nypd_collisions, nyc_311) by year and month when possible. Unfiltered queries are extremely expensive.
-3. All columns are STRING. Cast with TRY_CAST(col AS BIGINT) / TRY_CAST(col AS DOUBLE) for numerics. Use FROM_ISO8601_TIMESTAMP() for date strings in nyc_311.
-4. For spatial joins use ST_GEOMETRY_FROM_TEXT(geometry_wkt) and ST_POINT(CAST(longitude AS DOUBLE), CAST(latitude AS DOUBLE)).
-5. Filter NYC bounds when using raw lat/lon: latitude BETWEEN 40.4 AND 41.0 AND longitude BETWEEN -74.3 AND -73.6.
+2. Always filter partitioned tables (gtp_tlc_data, nypd_collisions, nyc_311) by year and month when possible. Unfiltered queries are extremely expensive. Partition columns year/month are VARCHAR: compare with quoted literals (year = '2025'), not bare integers.
+3. Many columns are STRING/VARCHAR in Athena. Before BETWEEN, ORDER BY numerically, SUM/AVG, ST_POINT, or comparisons to numbers/dates, wrap with TRY_CAST(...) / TRY(...) as appropriate. VARCHAR BETWEEN double AND double is invalid — cast the column first.
+4. For spatial joins use ST_GEOMETRY_FROM_TEXT(geometry_wkt) and ST_POINT(TRY_CAST(longitude AS DOUBLE), TRY_CAST(latitude AS DOUBLE)) (or CAST after NULL checks).
+5. NYC bounds on raw lat/lon: TRY_CAST(latitude AS DOUBLE) BETWEEN 40.4 AND 41.0 AND TRY_CAST(longitude AS DOUBLE) BETWEEN -74.3 AND -73.6. Never put uncast latitude/longitude in numeric BETWEEN.
 6. nyc_311.borough is UPPERCASE ('BROOKLYN'); census_tracts.boroname is Title Case ('Brooklyn'). Don't equate them as strings — spatial join via lat/lon if you need to bridge.
-7. ACS demographics live in census_tract_demographics with _2018 and _2023 suffixes. Rates are not pre-computed.
+7. ACS demographics live in census_tract_demographics with _2018 and _2023 suffixes. Rates are not pre-computed. Use FROM_ISO8601_TIMESTAMP() for ISO date strings in nyc_311.
 
 SCHEMA:
 ${renderSchemaForPrompt()}`;
