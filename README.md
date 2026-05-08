@@ -38,6 +38,14 @@ GET /api/query/[id]   (frontend polls every 1s)
 The async pattern is required because Athena queries can take 5–60s and Vercel
 hobby/pro tiers cap function execution well below that.
 
+### Agentic SQL (optional)
+
+Set `CLAUDE_SQL_AGENT=true` to use a **tool loop** instead of one-shot generation: the model calls `list_tables` and `get_schema` so it only loads relevant table definitions (fewer invented columns), then emits SQL.
+
+When Athena fails or returns unusable results, call **`POST /api/query/repair`** with JSON `{ "question", "sql", "feedback" }` where `feedback` is the Athena state reason (or your own notes). That runs a **repair pass** with the full dialect prompt and starts a new execution.
+
+In the web UI, when a query ends in **`FAILED`**, a **Repair with AI** prompt appears (requires confirmation — not automatic). You get up to **5** repairs per submitted question; **Not now** hides the prompt until the next failed run.
+
 ## Local setup
 
 ```bash

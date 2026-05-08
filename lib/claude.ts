@@ -63,6 +63,41 @@ export async function generateSql(question: string): Promise<SqlGenerationResult
   };
 }
 
+/** Second-pass SQL after Athena failure, guardrail rejection, or empty/wrong results. */
+export async function generateSqlWithRepair(
+  question: string,
+  failedSql: string,
+  feedback: string
+): Promise<SqlGenerationResult> {
+  const model = process.env.CLAUDE_MODEL ?? DEFAULT_MODEL;
+
+  const userContent =
+    `Original question:\n${question}\n\n` +
+    `Previous SQL:\n${failedSql}\n\n` +
+    `Feedback (errors, zero rows, or constraints):\n${feedback}\n\n` +
+    `Output a single corrected SELECT or WITH only. No commentary.`;
+
+  const response = await client.messages.create({
+    model,
+    max_tokens: 2048,
+    system: SYSTEM_PROMPT,
+    messages: [{ role: "user", content: userContent }],
+  });
+
+  const textBlock = response.content.find((b) => b.type === "text");
+  if (!textBlock || textBlock.type !== "text") {
+    throw new Error("Claude returned no text content");
+  }
+
+  const sql = stripCodeFences(textBlock.text).trim();
+  return {
+    sql,
+    model,
+    inputTokens: response.usage.input_tokens,
+    outputTokens: response.usage.output_tokens,
+  };
+}
+
 /** Defensive: in case the model wraps SQL in ```sql ... ``` despite the prompt. */
 function stripCodeFences(text: string): string {
   const fenced = text.match(/```(?:sql)?\s*([\s\S]*?)```/i);
