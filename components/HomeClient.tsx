@@ -1,11 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { QueryBox } from "@/components/QueryBox";
 import { SqlDisplay } from "@/components/SqlDisplay";
 import { ResultsTable } from "@/components/ResultsTable";
 import { LoginForm } from "@/components/LoginForm";
+import { AgentStreamTrace } from "@/components/AgentStreamTrace";
+import type { AgentStreamPayload } from "@/lib/sql-agent/types";
 
 type StartResponse = {
   executionId: string;
@@ -37,6 +39,8 @@ type Props = { initialAuthed: boolean };
 
 const MAX_REPAIR_ATTEMPTS = 5;
 
+const AGENT_SSE = process.env.NEXT_PUBLIC_AGENT_SSE === "true";
+
 export function HomeClient({ initialAuthed }: Props) {
   const [authed, setAuthed] = useState(initialAuthed);
   const [executionId, setExecutionId] = useState<string | null>(null);
@@ -45,6 +49,9 @@ export function HomeClient({ initialAuthed }: Props) {
   const [lastQuestion, setLastQuestion] = useState<string | null>(null);
   const [repairAttemptsUsed, setRepairAttemptsUsed] = useState(0);
   const [repairPromptDismissed, setRepairPromptDismissed] = useState(false);
+  const [agentSteps, setAgentSteps] = useState<AgentStreamPayload[]>([]);
+  const [streamBusy, setStreamBusy] = useState(false);
+  const [streamError, setStreamError] = useState<string | null>(null);
 
   const startMutation = useMutation<StartResponse, Error, string>({
     mutationFn: async (question) => {
@@ -105,6 +112,34 @@ export function HomeClient({ initialAuthed }: Props) {
     },
   });
 
+  const dispatchAgentPayload = useCallback((p: AgentStreamPayload) => {
+    setAgentSteps((prev) => [...prev, p]);
+    switch (p.type) {
+      case "sql_generated":
+        setGeneratedSql(p.sql);
+        break;
+      case "athena_started":
+        setExecutionId(p.executionId);
+        break;
+      case "done":
+        setGeneratedModel(p.model);
+        break;
+      case "error":
+        setStreamError(
+          p.detail ? `${p.message}: ${p.detail}` : p.message
+        );
+        break;
+      case "guardrails_failed":
+        setStreamError(`Guardrails rejected SQL: ${p.reason}`);
+        break;
+      case "athena_failed":
+        setStreamError(`Athena rejected query: ${p.detail}`);
+        break;
+      default:
+        break;
+    }
+  }, []);
+
   const statusQuery = useQuery<StatusResponse>({
     enabled: !!executionId,
     queryKey: ["status", executionId],
@@ -128,16 +163,63 @@ export function HomeClient({ initialAuthed }: Props) {
 
   const handleSubmit = (question: string) => {
     repairMutation.reset();
+    startMutation.reset();
     setLastQuestion(question);
     setRepairAttemptsUsed(0);
     setRepairPromptDismissed(false);
     setExecutionId(null);
     setGeneratedSql(null);
     setGeneratedModel(null);
+    setStreamError(null);
+    setAgentSteps([]);
+    if (AGENT_SSE) {
+      void runStreamingSubmit(question);
+      return;
+    }
     startMutation.mutate(question);
   };
 
+  async function runStreamingSubmit(question: string) {
+    setStreamBusy(true);
+    setStreamError(null);
+    setAgentSteps([]);
+    try {
+      const res = await fetch("/api/query/agent-stream", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({ question }),
+      });
+
+      if (res.status === 401) {
+        setAuthed(false);
+        return;
+      }
+
+      const ct = res.headers.get("content-type") ?? "";
+      if (!res.ok && !ct.includes("event-stream")) {
+        const data = (await res.json().catch(() => ({}))) as ErrorResponse;
+        throw Object.assign(
+          new Error(data.error ?? `HTTP ${res.status}`),
+          { data }
+        );
+      }
+
+      if (!res.body) {
+        throw new Error("No response body");
+      }
+
+      await consumeAgentSse(res.body, dispatchAgentPayload);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      setStreamError(msg);
+    } finally {
+      setStreamBusy(false);
+    }
+  }
+
   const isRunning =
+    streamBusy ||
     startMutation.isPending ||
     repairMutation.isPending ||
     (statusQuery.data &&
@@ -154,6 +236,17 @@ export function HomeClient({ initialAuthed }: Props) {
       </header>
 
       <QueryBox onSubmit={handleSubmit} disabled={!!isRunning} />
+
+      {AGENT_SSE && (agentSteps.length > 0 || streamBusy) && (
+        <AgentStreamTrace steps={agentSteps} busy={streamBusy} />
+      )}
+
+      {streamError && (
+        <div className="rounded-lg border border-[var(--error)] bg-red-950/20 p-4">
+          <p className="text-sm font-medium text-[var(--error)]">Stream error</p>
+          <p className="text-xs font-mono whitespace-pre-wrap mt-1">{streamError}</p>
+        </div>
+      )}
 
       {startMutation.isError && (
         <ErrorPanel
@@ -218,6 +311,36 @@ export function HomeClient({ initialAuthed }: Props) {
         )}
     </main>
   );
+}
+
+async function consumeAgentSse(
+  body: ReadableStream<Uint8Array>,
+  onPayload: (p: AgentStreamPayload) => void
+): Promise<void> {
+  const reader = body.getReader();
+  const decoder = new TextDecoder();
+  let buf = "";
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buf += decoder.decode(value, { stream: true });
+
+    let sep: number;
+    while ((sep = buf.indexOf("\n\n")) !== -1) {
+      const block = buf.slice(0, sep);
+      buf = buf.slice(sep + 2);
+      for (const line of block.split("\n")) {
+        if (!line.startsWith("data:")) continue;
+        const json = line.startsWith("data: ")
+          ? line.slice(6).trim()
+          : line.slice(5).trim();
+        if (!json) continue;
+        const payload = JSON.parse(json) as AgentStreamPayload;
+        onPayload(payload);
+      }
+    }
+  }
 }
 
 function RepairPrompt({

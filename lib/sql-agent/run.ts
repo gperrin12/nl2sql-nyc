@@ -1,19 +1,24 @@
 import Anthropic from "@anthropic-ai/sdk";
 import type { SqlGenerationResult } from "@/lib/claude";
 import { listWarehouseTableNames, renderTablesForPrompt } from "@/lib/schemas";
+import type { AgentStreamPayload } from "./types";
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 const DEFAULT_MODEL = "claude-sonnet-4-5";
 
-const MAX_TURNS = 14;
+export const MAX_AGENT_TURNS = 14;
+
+const OBSERVE_PREVIEW_MAX = 1400;
 
 const AGENT_SYSTEM = `You translate natural-language questions into AWS Athena SQL (Trino dialect) for a NYC civic-data warehouse.
 
 You work in steps using tools:
 1. Call list_tables if you need to see what tables exist.
 2. Call get_schema for EVERY table you will reference in SQL before writing the query (pull only what you need — reduces hallucinated columns).
-3. When schema is sufficient, respond with ONE SQL query only: no prose, no markdown fences, single SELECT or WITH. Include LIMIT 1000 unless the user asks otherwise.
+3. When schema is sufficient, respond with ONE SQL query only: no preamble before the query, no markdown fences, first non-whitespace token must be WITH or SELECT. Include LIMIT 1000 unless the user asks otherwise.
+
+Before each batch of tool calls, write one short plain-English sentence (reasoning) about what you will do next — shown to the user in the UI.
 
 Dialect rules (must still obey):
 - Partitioned tables: filter year/month as VARCHAR ('2024'), not bare integers.
@@ -22,6 +27,8 @@ Dialect rules (must still obey):
 - ST_Point(longitude, latitude) order; taxi_zones / gtp_tlc_data have no lat/lon columns.
 - Spherical distance in meters: ST_Distance(to_spherical_geography(ST_Point(lon,lat)), ...).
 - qualify duplicate column names across joins (geoid, year, month).
+- census_tracts ↔ census_tract_demographics: ONLY ON TRIM(CAST(ct.geoid AS VARCHAR)) = TRIM(CAST(demo.geoid AS VARCHAR)); never join ACS on borough/ctlabel alone.
+- census_tract_demographics counts/medians are STRING: VARCHAR for display; for math use TRY_CAST(TRIM(REGEXP_REPLACE(col, ',', '')) AS DOUBLE) (BIGINT cast often NULL). Avoid WHERE ... TRY_CAST(... AS BIGINT) IS NOT NULL — empties results when BIGINT fails.
 `;
 
 const TOOLS: Anthropic.Tool[] = [
@@ -57,10 +64,39 @@ function stripCodeFences(text: string): string {
   return fenced ? fenced[1] : text;
 }
 
+/** Accept SQL when model wraps it in ``` or puts one sentence before the query. */
 function extractSqlFromText(text: string): string | null {
-  const sql = stripCodeFences(text).trim();
-  if (/^\s*(WITH|SELECT)\b/i.test(sql)) return sql;
+  const raw = text.trim();
+  if (!raw) return null;
+
+  const unfenced = stripCodeFences(raw).trim();
+  if (/^\s*(WITH|SELECT)\b/i.test(unfenced)) return unfenced;
+
+  const fenceRe = /```(?:sql)?\s*([\s\S]*?)```/gi;
+  let fm: RegExpExecArray | null;
+  while ((fm = fenceRe.exec(raw)) !== null) {
+    const inner = fm[1].trim();
+    if (/^\s*(WITH|SELECT)\b/i.test(inner)) return inner;
+  }
+
+  const lineAnchored = raw.match(/(?:^|\n)(\s*(?:WITH|SELECT)\b[\s\S]*)/i);
+  if (lineAnchored) {
+    let sql = lineAnchored[1].trim().replace(/```[\s\S]*$/, "").trim();
+    if (/^\s*(WITH|SELECT)\b/i.test(sql)) return sql;
+  }
+
+  const afterIntro = raw.match(/[.:]\s*(\s*(?:WITH|SELECT)\b[\s\S]*)/i);
+  if (afterIntro) {
+    let sql = afterIntro[1].trim().replace(/```[\s\S]*$/, "").trim();
+    if (/^\s*(WITH|SELECT)\b/i.test(sql)) return sql;
+  }
+
   return null;
+}
+
+function truncatePreview(raw: string, max = OBSERVE_PREVIEW_MAX): string {
+  if (raw.length <= max) return raw;
+  return `${raw.slice(0, max)}\n… (${raw.length} chars total)`;
 }
 
 function runTool(name: string, input: unknown): string {
@@ -76,14 +112,19 @@ function runTool(name: string, input: unknown): string {
   return `Unknown tool: ${name}`;
 }
 
-export async function generateSqlWithAgent(question: string): Promise<SqlGenerationResult> {
+export async function runSqlAgentWithEvents(
+  question: string,
+  onEvent: (e: AgentStreamPayload) => void | Promise<void>
+): Promise<SqlGenerationResult> {
   const model = process.env.CLAUDE_MODEL ?? DEFAULT_MODEL;
   let inputTokens = 0;
   let outputTokens = 0;
 
   const messages: Anthropic.MessageParam[] = [{ role: "user", content: question }];
 
-  for (let turn = 0; turn < MAX_TURNS; turn++) {
+  for (let turn = 0; turn < MAX_AGENT_TURNS; turn++) {
+    await onEvent({ type: "turn", index: turn });
+
     const response = await client.messages.create({
       model,
       max_tokens: 4096,
@@ -95,12 +136,23 @@ export async function generateSqlWithAgent(question: string): Promise<SqlGenerat
     inputTokens += response.usage.input_tokens;
     outputTokens += response.usage.output_tokens;
 
+    const reasoningText = response.content
+      .filter((b): b is Anthropic.TextBlock => b.type === "text")
+      .map((b) => b.text.trim())
+      .filter(Boolean)
+      .join("\n");
+
     if (response.stop_reason === "end_turn") {
-      const textParts = response.content
-        .filter((b): b is Anthropic.TextBlock => b.type === "text")
-        .map((b) => b.text);
-      const combined = textParts.join("\n").trim();
-      const sql = extractSqlFromText(combined);
+      if (reasoningText) {
+        const sqlGuess = extractSqlFromText(reasoningText);
+        const prose =
+          sqlGuess && reasoningText.trim() === sqlGuess.trim()
+            ? ""
+            : reasoningText.slice(0, 1200);
+        if (prose.trim()) await onEvent({ type: "reason", text: prose.trim() });
+      }
+
+      const sql = extractSqlFromText(reasoningText);
       if (!sql) {
         throw new Error("Agent ended without a SELECT/WITH SQL statement");
       }
@@ -111,12 +163,31 @@ export async function generateSqlWithAgent(question: string): Promise<SqlGenerat
       throw new Error(`Unexpected stop_reason: ${response.stop_reason}`);
     }
 
+    if (reasoningText) {
+      await onEvent({ type: "reason", text: reasoningText.slice(0, 1200) });
+    }
+
     messages.push({ role: "assistant", content: response.content });
 
     const toolResults: Anthropic.ToolResultBlockParam[] = [];
     for (const block of response.content) {
       if (block.type !== "tool_use") continue;
+
+      await onEvent({
+        type: "tool_act",
+        name: block.name,
+        input: block.input,
+      });
+
       const payload = runTool(block.name, block.input);
+
+      await onEvent({
+        type: "tool_observe",
+        name: block.name,
+        preview: truncatePreview(payload),
+        bytes: new TextEncoder().encode(payload).length,
+      });
+
       toolResults.push({
         type: "tool_result",
         tool_use_id: block.id,
@@ -131,5 +202,9 @@ export async function generateSqlWithAgent(question: string): Promise<SqlGenerat
     messages.push({ role: "user", content: toolResults });
   }
 
-  throw new Error(`Agent exceeded ${MAX_TURNS} turns without returning SQL`);
+  throw new Error(`Agent exceeded ${MAX_AGENT_TURNS} turns without returning SQL`);
+}
+
+export async function generateSqlWithAgent(question: string): Promise<SqlGenerationResult> {
+  return runSqlAgentWithEvents(question, () => undefined);
 }

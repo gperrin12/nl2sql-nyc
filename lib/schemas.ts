@@ -62,7 +62,11 @@ export const TABLE_SCHEMAS: Record<string, TableSchema> = {
   census_tracts: {
     description:
       "NYC census tracts (2020 Census, ~2,300 polygons), NYC DCP shoreline-clipped version. " +
-      "Join key: geoid (joins to census_tract_demographics.geoid). Always qualify as tract_alias.geoid when joining (bare geoid causes AMBIGUOUS_NAME). " +
+      "Join to census_tract_demographics ONLY on geoid (11-digit Census tract GEOID string: state+county+tract). " +
+      "Do NOT join tracts to demographics using boroname, ctlabel, boroct2020, or ct2020 alone — those will not match ACS keys and yield wrong or empty joins. " +
+      "Canonical join predicate (handles VARCHAR vs BIGINT and stray whitespace): " +
+      "TRIM(CAST(ct.geoid AS VARCHAR)) = TRIM(CAST(demo.geoid AS VARCHAR)) with aliases ct and demo (adjust aliases as needed). " +
+      "Always qualify ct.geoid / demo.geoid in ON and SELECT (AMBIGUOUS_NAME). " +
       "Geometry stored as WKT in geometry_wkt — wrap with ST_GEOMETRY_FROM_TEXT() for spatial functions. " +
       "Coordinates are WGS84 (lon/lat). " +
       "Use for point-in-polygon joins from any lat/lon source (e.g. nypd_collisions, nyc_311, par). " +
@@ -79,10 +83,16 @@ export const TABLE_SCHEMAS: Record<string, TableSchema> = {
     description:
       "ACS 5-year demographic estimates per census tract for two non-overlapping vintages: " +
       "_2018 suffix = 2014-2018 ACS, _2023 suffix = 2019-2023 ACS. " +
-      "Join key: geoid (joins to census_tracts.geoid). Always qualify as demo_alias.geoid / tract_alias.geoid in ON and SELECT when both tables are in scope. " +
-      "If joins unexpectedly drop rows, normalize keys: TRIM(CAST(ct.geoid AS VARCHAR)) = TRIM(CAST(demo.geoid AS VARCHAR)). " +
+      "Grain: one row per tract GEOID in this table — join to census_tracts ONLY on geoid. " +
+      "Mandatory ON clause pattern with tract alias ct and demographics alias demo: " +
+      "TRIM(CAST(ct.geoid AS VARCHAR)) = TRIM(CAST(demo.geoid AS VARCHAR)). " +
+      "Never join ACS to tract polygons on borough names or tract labels. If catalogs typed geoid as BIGINT on one side, CAST both to VARCHAR (or both to BIGINT) — mixed types break joins silently or with TYPE_MISMATCH. " +
+      "ACS may omit some waterfront/misc tract GEOIDs present in census_tracts — use LEFT JOIN census_tract_demographics demo ON … when you must keep every tract from a spatial assignment; use INNER JOIN when you require population denominators only where ACS exists. " +
+      "Always qualify demo.geoid / ct.geoid in ON and SELECT when both tables are in scope. " +
       "For per-capita rates alongside recent 311/calendar years (e.g. 2024), prefer total_pop_2023 as denominator (_2023 = 2019-2023 ACS vintage); total_pop_2018 is older vintage. " +
-      "All values stored as STRING — use TRY_CAST(col AS BIGINT) or TRY_CAST(col AS DOUBLE) at query time. " +
+      "All measure columns are STRING in Athena — SELECT them as VARCHAR when you only need to show counts (values stay visible). " +
+      "Blind TRY_CAST(col AS BIGINT) often yields NULL even when the VARCHAR looks numeric — ACS-style strings often end with .0 (e.g. 45231.0): DOUBLE parses those, BIGINT does not. Prefer TRY_CAST(TRIM(REGEXP_REPLACE(col, ',', '')) AS DOUBLE) for counts, universes, medians, and rates; use CAST(that_double AS BIGINT) only after DOUBLE parses if you need integers. " +
+      "Do NOT add WHERE TRY_CAST(... AS BIGINT) IS NOT NULL as a gate — if BIGINT fails for every row you get an empty table; filter or NULLIF on the DOUBLE form instead (e.g. WHERE TRY_CAST(TRIM(REGEXP_REPLACE(total_pop_2023, ',', '')) AS DOUBLE) IS NOT NULL). " +
       "Census uses negative sentinels (~-666666666) for unavailable estimates; the loader nulls these out, " +
       "but always wrap aggregations defensively. " +
       "Rates are NOT pre-computed: poverty rate = poverty_below / poverty_universe; " +
