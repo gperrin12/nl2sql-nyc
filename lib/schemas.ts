@@ -90,7 +90,9 @@ export const TABLE_SCHEMAS: Record<string, TableSchema> = {
       "ACS may omit some waterfront/misc tract GEOIDs present in census_tracts — use LEFT JOIN census_tract_demographics demo ON … when you must keep every tract from a spatial assignment; use INNER JOIN when you require population denominators only where ACS exists. " +
       "Always qualify demo.geoid / ct.geoid in ON and SELECT when both tables are in scope. " +
       "For per-capita rates alongside recent 311/calendar years (e.g. 2024), prefer total_pop_2023 as denominator (_2023 = 2019-2023 ACS vintage); total_pop_2018 is older vintage. " +
-      "All values stored as STRING — use TRY_CAST(col AS BIGINT) or TRY_CAST(col AS DOUBLE) at query time. " +
+      "All measure columns are STRING in Athena — SELECT them as VARCHAR when you only need to show counts (values stay visible). " +
+      "Blind TRY_CAST(col AS BIGINT/DOUBLE) often yields NULL (blank cells): common causes are leading/trailing spaces, thousands commas, or other non-numeric junk in the cell. " +
+      "When you must SUM, divide, or compare numerically, normalize then cast, e.g. TRY_CAST(TRIM(REGEXP_REPLACE(col, ',', '')) AS BIGINT) or AS DOUBLE for medians; still guard denominators (WHERE TRY_CAST(...) IS NOT NULL AND ... <> 0). " +
       "Census uses negative sentinels (~-666666666) for unavailable estimates; the loader nulls these out, " +
       "but always wrap aggregations defensively. " +
       "Rates are NOT pre-computed: poverty rate = poverty_below / poverty_universe; " +
