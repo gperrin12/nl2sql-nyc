@@ -27,6 +27,7 @@ RULES:
 11. Post-2016 TLC (gtp_tlc_data) + taxi_zones have no lat/lon columns. Proximity-to-intersection / radius queries over TLC must filter zones using polygon or centroid from geometry_wkt (see taxi_zones schema), then join trips by locationid — do not invent longitude/latitude column names on tz or t.
 12. nyc_311 per capita by neighborhood: assign tract with lat/lon → polygon using ST_Within(ST_Point(lon, lat), ST_GEOMETRY_FROM_TEXT(ct.geometry_wkt)); lon/lat MUST be ST_Point(longitude, latitude) order. Aggregate counts by tract then SUM by census_tracts.ntaname (and nta2020). Join demographics on TRIM(ct.geoid) = TRIM(demo.geoid); use LOWER(complaint_type) LIKE '%noise%'. Never INNER JOIN borough = boroname. Use only latitude/longitude columns from SCHEMA unless your table DDL adds others.
 13. If spatial tract joins return zero rows but raw filtered complaints exist, first audit ST_Point argument order (longitude first). INNER JOIN census_tract_demographics after spatial join can also drop rows — prefer LEFT JOIN demo then filter WHERE population IS NOT NULL for rate denominators, or verify TRIM(geoid) alignment.
+14. census_tracts ↔ census_tract_demographics: join ONLY on geoid using TRIM(CAST(ct.geoid AS VARCHAR)) = TRIM(CAST(demo.geoid AS VARCHAR)) (same typing both sides). Never join on boroname, ctlabel, boroct2020, or ct2020 for ACS. Use LEFT JOIN when preserving every tract from spatial assignment.
 
 SCHEMA:
 ${renderSchemaForPrompt()}`;

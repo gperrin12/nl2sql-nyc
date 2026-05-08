@@ -27,6 +27,7 @@ Dialect rules (must still obey):
 - ST_Point(longitude, latitude) order; taxi_zones / gtp_tlc_data have no lat/lon columns.
 - Spherical distance in meters: ST_Distance(to_spherical_geography(ST_Point(lon,lat)), ...).
 - qualify duplicate column names across joins (geoid, year, month).
+- census_tracts ↔ census_tract_demographics: ONLY ON TRIM(CAST(ct.geoid AS VARCHAR)) = TRIM(CAST(demo.geoid AS VARCHAR)); never join ACS on borough/ctlabel alone.
 `;
 
 const TOOLS: Anthropic.Tool[] = [
