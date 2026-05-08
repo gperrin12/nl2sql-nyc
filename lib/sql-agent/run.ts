@@ -28,7 +28,7 @@ Dialect rules (must still obey):
 - Spherical distance in meters: ST_Distance(to_spherical_geography(ST_Point(lon,lat)), ...).
 - qualify duplicate column names across joins (geoid, year, month).
 - census_tracts ↔ census_tract_demographics: ONLY ON TRIM(CAST(ct.geoid AS VARCHAR)) = TRIM(CAST(demo.geoid AS VARCHAR)); never join ACS on borough/ctlabel alone.
-- census_tract_demographics counts/medians are STRING: SELECT as VARCHAR for display; for aggregates use TRY_CAST(TRIM(REGEXP_REPLACE(col, ',', '')) AS BIGINT/DOUBLE) — bare TRY_CAST often NULL.
+- census_tract_demographics counts/medians are STRING: VARCHAR for display; for math use TRY_CAST(TRIM(REGEXP_REPLACE(col, ',', '')) AS DOUBLE) (BIGINT cast often NULL). Avoid WHERE ... TRY_CAST(... AS BIGINT) IS NOT NULL — empties results when BIGINT fails.
 `;
 
 const TOOLS: Anthropic.Tool[] = [

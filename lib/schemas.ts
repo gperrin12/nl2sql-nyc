@@ -91,8 +91,8 @@ export const TABLE_SCHEMAS: Record<string, TableSchema> = {
       "Always qualify demo.geoid / ct.geoid in ON and SELECT when both tables are in scope. " +
       "For per-capita rates alongside recent 311/calendar years (e.g. 2024), prefer total_pop_2023 as denominator (_2023 = 2019-2023 ACS vintage); total_pop_2018 is older vintage. " +
       "All measure columns are STRING in Athena — SELECT them as VARCHAR when you only need to show counts (values stay visible). " +
-      "Blind TRY_CAST(col AS BIGINT/DOUBLE) often yields NULL (blank cells): common causes are leading/trailing spaces, thousands commas, or other non-numeric junk in the cell. " +
-      "When you must SUM, divide, or compare numerically, normalize then cast, e.g. TRY_CAST(TRIM(REGEXP_REPLACE(col, ',', '')) AS BIGINT) or AS DOUBLE for medians; still guard denominators (WHERE TRY_CAST(...) IS NOT NULL AND ... <> 0). " +
+      "Blind TRY_CAST(col AS BIGINT) often yields NULL even when the VARCHAR looks numeric — ACS-style strings often end with .0 (e.g. 45231.0): DOUBLE parses those, BIGINT does not. Prefer TRY_CAST(TRIM(REGEXP_REPLACE(col, ',', '')) AS DOUBLE) for counts, universes, medians, and rates; use CAST(that_double AS BIGINT) only after DOUBLE parses if you need integers. " +
+      "Do NOT add WHERE TRY_CAST(... AS BIGINT) IS NOT NULL as a gate — if BIGINT fails for every row you get an empty table; filter or NULLIF on the DOUBLE form instead (e.g. WHERE TRY_CAST(TRIM(REGEXP_REPLACE(total_pop_2023, ',', '')) AS DOUBLE) IS NOT NULL). " +
       "Census uses negative sentinels (~-666666666) for unavailable estimates; the loader nulls these out, " +
       "but always wrap aggregations defensively. " +
       "Rates are NOT pre-computed: poverty rate = poverty_below / poverty_universe; " +
