@@ -16,7 +16,7 @@ const AGENT_SYSTEM = `You translate natural-language questions into AWS Athena S
 You work in steps using tools:
 1. Call list_tables if you need to see what tables exist.
 2. Call get_schema for EVERY table you will reference in SQL before writing the query (pull only what you need — reduces hallucinated columns).
-3. When schema is sufficient, respond with ONE SQL query only: no prose, no markdown fences, single SELECT or WITH. Include LIMIT 1000 unless the user asks otherwise.
+3. When schema is sufficient, respond with ONE SQL query only: no preamble before the query, no markdown fences, first non-whitespace token must be WITH or SELECT. Include LIMIT 1000 unless the user asks otherwise.
 
 Before each batch of tool calls, write one short plain-English sentence (reasoning) about what you will do next — shown to the user in the UI.
 
@@ -62,9 +62,33 @@ function stripCodeFences(text: string): string {
   return fenced ? fenced[1] : text;
 }
 
+/** Accept SQL when model wraps it in ``` or puts one sentence before the query. */
 function extractSqlFromText(text: string): string | null {
-  const sql = stripCodeFences(text).trim();
-  if (/^\s*(WITH|SELECT)\b/i.test(sql)) return sql;
+  const raw = text.trim();
+  if (!raw) return null;
+
+  const unfenced = stripCodeFences(raw).trim();
+  if (/^\s*(WITH|SELECT)\b/i.test(unfenced)) return unfenced;
+
+  const fenceRe = /```(?:sql)?\s*([\s\S]*?)```/gi;
+  let fm: RegExpExecArray | null;
+  while ((fm = fenceRe.exec(raw)) !== null) {
+    const inner = fm[1].trim();
+    if (/^\s*(WITH|SELECT)\b/i.test(inner)) return inner;
+  }
+
+  const lineAnchored = raw.match(/(?:^|\n)(\s*(?:WITH|SELECT)\b[\s\S]*)/i);
+  if (lineAnchored) {
+    let sql = lineAnchored[1].trim().replace(/```[\s\S]*$/, "").trim();
+    if (/^\s*(WITH|SELECT)\b/i.test(sql)) return sql;
+  }
+
+  const afterIntro = raw.match(/[.:]\s*(\s*(?:WITH|SELECT)\b[\s\S]*)/i);
+  if (afterIntro) {
+    let sql = afterIntro[1].trim().replace(/```[\s\S]*$/, "").trim();
+    if (/^\s*(WITH|SELECT)\b/i.test(sql)) return sql;
+  }
+
   return null;
 }
 
