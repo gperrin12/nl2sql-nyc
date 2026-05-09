@@ -16,9 +16,9 @@ const AGENT_SYSTEM = `You translate natural-language questions into AWS Athena S
 You work in steps using tools:
 1. Call list_tables if you need to see what tables exist.
 2. Call get_schema for EVERY table you will reference in SQL before writing the query (pull only what you need — reduces hallucinated columns).
-3. When schema is sufficient, respond with ONE SQL query only: no preamble before the query, no markdown fences, first non-whitespace token must be WITH or SELECT. Include LIMIT 1000 unless the user asks otherwise.
+3. When schema is sufficient, send your FINAL reply in two parts: (A) One or two plain-English sentences describing what the result shows for the user (e.g. "Motor vehicle crashes in Bedford-Stuyvesant during 2024 as map points"). No markdown, no SQL in part A. (B) A blank line, then exactly ONE SQL statement starting with WITH or SELECT — no code fences before or after, no trailing commentary. Include LIMIT 1000 unless the user asks otherwise.
 
-Before each batch of tool calls, write one short plain-English sentence (reasoning) about what you will do next — shown to the user in the UI.
+Before each batch of tool calls (not on the final SQL reply), write one short plain-English sentence about what you will do next — shown to the user in the UI.
 
 Dialect rules (must still obey):
 - Partitioned tables: filter year/month as VARCHAR ('2024'), not bare integers.
@@ -29,6 +29,8 @@ Dialect rules (must still obey):
 - qualify duplicate column names across joins (geoid, year, month).
 - census_tracts ↔ census_tract_demographics: ONLY ON TRIM(CAST(ct.geoid AS VARCHAR)) = TRIM(CAST(demo.geoid AS VARCHAR)); never join ACS on borough/ctlabel alone.
 - census_tract_demographics counts/medians are STRING: VARCHAR for display; for math use TRY_CAST(TRIM(REGEXP_REPLACE(col, ',', '')) AS DOUBLE) (BIGINT cast often NULL). Avoid WHERE ... TRY_CAST(... AS BIGINT) IS NOT NULL — empties results when BIGINT fails.
+- Map-capable results: include latitude+longitude (or lat+lon/lng) in NYC bounds, or geometry_wkt / tract polygons, when the user wants a map or spatial overview — UI renders Leaflet from those columns.
+- Map / "show where" / crash-or-incident maps: SELECT raw coordinates — for nypd_collisions use latitude and longitude columns as latitude/longitude in output (they exist as VARCHAR). Do NOT return only COUNT(*) or borough aggregates unless the user explicitly asks for a summary table without a map. Neighborhood nicknames (e.g. Bed-Stuy): Trino has no ILIKE — use LOWER(ct.ntaname) LIKE '%bedford%' (Bedford-Stuyvesant NTAs) or point-in-polygon join, not free-text borough name alone.
 `;
 
 const TOOLS: Anthropic.Tool[] = [
@@ -99,6 +101,19 @@ function truncatePreview(raw: string, max = OBSERVE_PREVIEW_MAX): string {
   return `${raw.slice(0, max)}\n… (${raw.length} chars total)`;
 }
 
+/** Prose summary before the SQL block (for SSE "reason" on final turn). */
+function extractLeadingProseBeforeSql(fullText: string, sql: string): string {
+  const trimmed = fullText.trim();
+  const at = trimmed.indexOf(sql);
+  if (at >= 0) return trimmed.slice(0, at).trim();
+
+  const lines = trimmed.split(/\r?\n/);
+  const sqlLineIdx = lines.findIndex((l) => /^\s*(WITH|SELECT)\b/i.test(l));
+  if (sqlLineIdx >= 0) return lines.slice(0, sqlLineIdx).join("\n").trim();
+
+  return stripCodeFences(trimmed.replace(sql, "")).trim();
+}
+
 function runTool(name: string, input: unknown): string {
   if (name === "list_tables") {
     return JSON.stringify(listWarehouseTableNames(), null, 2);
@@ -143,20 +158,22 @@ export async function runSqlAgentWithEvents(
       .join("\n");
 
     if (response.stop_reason === "end_turn") {
-      if (reasoningText) {
-        const sqlGuess = extractSqlFromText(reasoningText);
-        const prose =
-          sqlGuess && reasoningText.trim() === sqlGuess.trim()
-            ? ""
-            : reasoningText.slice(0, 1200);
-        if (prose.trim()) await onEvent({ type: "reason", text: prose.trim() });
-      }
-
       const sql = extractSqlFromText(reasoningText);
       if (!sql) {
         throw new Error("Agent ended without a SELECT/WITH SQL statement");
       }
-      return { sql, model, inputTokens, outputTokens };
+
+      const prose = extractLeadingProseBeforeSql(reasoningText, sql);
+      let summary: string | undefined;
+      if (prose.trim()) {
+        summary = prose.trim().slice(0, 1200);
+        await onEvent({
+          type: "summary",
+          text: summary,
+        });
+      }
+
+      return { sql, model, inputTokens, outputTokens, summary };
     }
 
     if (response.stop_reason !== "tool_use") {

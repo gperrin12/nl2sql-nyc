@@ -4,15 +4,17 @@ import { useCallback, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { QueryBox } from "@/components/QueryBox";
 import { SqlDisplay } from "@/components/SqlDisplay";
-import { ResultsTable } from "@/components/ResultsTable";
+import { ResultsPanel } from "@/components/ResultsPanel";
 import { LoginForm } from "@/components/LoginForm";
 import { AgentStreamTrace } from "@/components/AgentStreamTrace";
 import type { AgentStreamPayload } from "@/lib/sql-agent/types";
+import { mapSpatialIntent } from "@/lib/sql-agent/mapIntent";
 
 type StartResponse = {
   executionId: string;
   sql: string;
   model: string;
+  summary?: string;
 };
 
 type RepairResponse = StartResponse & {
@@ -53,6 +55,10 @@ export function HomeClient({ initialAuthed }: Props) {
   const [streamBusy, setStreamBusy] = useState(false);
   const [streamError, setStreamError] = useState<string | null>(null);
 
+  const [agentAnswerSummary, setAgentAnswerSummary] = useState<string | null>(
+    null
+  );
+
   const startMutation = useMutation<StartResponse, Error, string>({
     mutationFn: async (question) => {
       const res = await fetch("/api/query/start", {
@@ -72,6 +78,7 @@ export function HomeClient({ initialAuthed }: Props) {
       setGeneratedSql(data.sql);
       setGeneratedModel(data.model);
       setExecutionId(data.executionId);
+      setAgentAnswerSummary(data.summary?.trim() ?? null);
     },
   });
 
@@ -109,6 +116,7 @@ export function HomeClient({ initialAuthed }: Props) {
       setGeneratedSql(data.sql);
       setGeneratedModel(data.model);
       setExecutionId(data.executionId);
+      setAgentAnswerSummary(null);
     },
   });
 
@@ -172,6 +180,7 @@ export function HomeClient({ initialAuthed }: Props) {
     setGeneratedModel(null);
     setStreamError(null);
     setAgentSteps([]);
+    setAgentAnswerSummary(null);
     if (AGENT_SSE) {
       void runStreamingSubmit(question);
       return;
@@ -226,7 +235,7 @@ export function HomeClient({ initialAuthed }: Props) {
       !["SUCCEEDED", "FAILED", "CANCELLED"].includes(statusQuery.data.state));
 
   return (
-    <main className="max-w-4xl mx-auto p-6 space-y-6">
+    <main className="max-w-6xl mx-auto p-6 space-y-6">
       <header className="space-y-1">
         <h1 className="text-2xl font-semibold">NYC Civic Data — Ask in English</h1>
         <p className="text-sm text-[var(--muted)]">
@@ -258,7 +267,22 @@ export function HomeClient({ initialAuthed }: Props) {
 
       {generatedSql && (
         <div className="space-y-1">
-          <SqlDisplay sql={generatedSql} />
+          {agentAnswerSummary && (
+            <div className="rounded-lg border border-[var(--border)] border-l-4 border-l-[var(--accent)] bg-[var(--panel)] p-4">
+              <p className="text-[10px] uppercase tracking-wide text-[var(--muted)] mb-1">
+                Summary
+              </p>
+              <p className="text-sm text-[var(--text)] leading-relaxed whitespace-pre-wrap">
+                {agentAnswerSummary}
+              </p>
+            </div>
+          )}
+          <SqlDisplay
+            sql={generatedSql}
+            defaultCollapsed={
+              lastQuestion ? mapSpatialIntent(lastQuestion) : false
+            }
+          />
           {generatedModel && (
             <p className="text-xs text-[var(--muted)] px-1">
               model: {generatedModel}
@@ -301,8 +325,10 @@ export function HomeClient({ initialAuthed }: Props) {
 
       {statusQuery.data?.state === "SUCCEEDED" &&
         statusQuery.data.columns &&
-        statusQuery.data.rows && (
-          <ResultsTable
+        statusQuery.data.rows &&
+        executionId && (
+          <ResultsPanel
+            mapResetKey={executionId}
             columns={statusQuery.data.columns}
             rows={statusQuery.data.rows}
             scannedBytes={statusQuery.data.scannedBytes}

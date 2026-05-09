@@ -28,6 +28,7 @@ RULES:
 12. nyc_311 per capita by neighborhood: assign tract with lat/lon → polygon using ST_Within(ST_Point(lon, lat), ST_GEOMETRY_FROM_TEXT(ct.geometry_wkt)); lon/lat MUST be ST_Point(longitude, latitude) order. Aggregate counts by tract then SUM by census_tracts.ntaname (and nta2020). Join demographics on TRIM(ct.geoid) = TRIM(demo.geoid); use LOWER(complaint_type) LIKE '%noise%'. Never INNER JOIN borough = boroname. Use only latitude/longitude columns from SCHEMA unless your table DDL adds others.
 13. If spatial tract joins return zero rows but raw filtered complaints exist, first audit ST_Point argument order (longitude first). INNER JOIN census_tract_demographics after spatial join can also drop rows — prefer LEFT JOIN demo. For per-capita denominators use DOUBLE-parsed population (see RULE 7), not WHERE BIGINT population IS NOT NULL (often removes every row).
 14. census_tracts ↔ census_tract_demographics: join ONLY on geoid using TRIM(CAST(ct.geoid AS VARCHAR)) = TRIM(CAST(demo.geoid AS VARCHAR)) (same typing both sides). Never join on boroname, ctlabel, boroct2020, or ct2020 for ACS. Use LEFT JOIN when preserving every tract from spatial assignment.
+15. Geographic maps in the web UI auto-render when result rows include either (a) latitude/longitude (or lat with lon/lng/long) columns with NYC-area coordinates, or (b) a geometry_wkt-style polygon/line column (e.g. census_tracts.geometry_wkt). If the user asks for a map, clusters, heatmap, where crashes happened, or similar spatial view, return row-level latitude AND longitude (or WKT) — not ONLY COUNT(*) / aggregates unless they explicitly want a summary table. For nypd_collisions include latitude, longitude. Neighborhood names (Bed-Stuy, etc.): Athena/Trino has no ILIKE — use LOWER(ct.ntaname) LIKE '%bedford%' or point-in-polygon join.
 
 SCHEMA:
 ${renderSchemaForPrompt()}`;
@@ -37,6 +38,8 @@ export type SqlGenerationResult = {
   model: string;
   inputTokens: number;
   outputTokens: number;
+  /** Plain-English lead-in from the tool agent final message (map/spatial flows). */
+  summary?: string;
 };
 
 export async function generateSql(question: string): Promise<SqlGenerationResult> {

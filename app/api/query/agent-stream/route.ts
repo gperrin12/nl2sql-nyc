@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
+import { mapSpatialIntent } from "@/lib/sql-agent/mapIntent";
 import { runSqlAgentWithEvents } from "@/lib/sql-agent/run";
 import type { AgentStreamPayload } from "@/lib/sql-agent/types";
 import { checkSql } from "@/lib/guardrails";
@@ -25,16 +26,6 @@ export async function POST(req: NextRequest) {
     });
   }
 
-  if (process.env.CLAUDE_SQL_AGENT !== "true") {
-    return new Response(
-      JSON.stringify({
-        error: "Agent streaming disabled",
-        detail: "Set CLAUDE_SQL_AGENT=true on the server.",
-      }),
-      { status: 503, headers: { "content-type": "application/json" } }
-    );
-  }
-
   let parsed: z.infer<typeof BodySchema>;
   try {
     parsed = BodySchema.parse(await req.json());
@@ -43,6 +34,20 @@ export async function POST(req: NextRequest) {
       status: 400,
       headers: { "content-type": "application/json" },
     });
+  }
+
+  if (
+    process.env.CLAUDE_SQL_AGENT !== "true" &&
+    !mapSpatialIntent(parsed.question)
+  ) {
+    return new Response(
+      JSON.stringify({
+        error: "Agent streaming disabled",
+        detail:
+          "Set CLAUDE_SQL_AGENT=true on the server, or use map/spatial wording (e.g. \"map of …\", \"where …\") to enable the agent for this question.",
+      }),
+      { status: 503, headers: { "content-type": "application/json" } }
+    );
   }
 
   const stream = new ReadableStream({
