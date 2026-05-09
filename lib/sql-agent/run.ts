@@ -29,6 +29,7 @@ Dialect rules (must still obey):
 - qualify duplicate column names across joins (geoid, year, month).
 - census_tracts ↔ census_tract_demographics: ONLY ON TRIM(CAST(ct.geoid AS VARCHAR)) = TRIM(CAST(demo.geoid AS VARCHAR)); never join ACS on borough/ctlabel alone.
 - census_tract_demographics counts/medians are STRING: VARCHAR for display; for math use TRY_CAST(TRIM(REGEXP_REPLACE(col, ',', '')) AS DOUBLE) (BIGINT cast often NULL). Avoid WHERE ... TRY_CAST(... AS BIGINT) IS NOT NULL — empties results when BIGINT fails.
+- Map-capable results: include latitude+longitude (or lat+lon/lng) in NYC bounds, or geometry_wkt / tract polygons, when the user wants a map or spatial overview — UI renders Leaflet from those columns.
 `;
 
 const TOOLS: Anthropic.Tool[] = [

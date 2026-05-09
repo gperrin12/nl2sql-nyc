@@ -4,7 +4,7 @@ import { useCallback, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { QueryBox } from "@/components/QueryBox";
 import { SqlDisplay } from "@/components/SqlDisplay";
-import { ResultsTable } from "@/components/ResultsTable";
+import { ResultsPanel } from "@/components/ResultsPanel";
 import { LoginForm } from "@/components/LoginForm";
 import { AgentStreamTrace } from "@/components/AgentStreamTrace";
 import type { AgentStreamPayload } from "@/lib/sql-agent/types";
@@ -226,7 +226,7 @@ export function HomeClient({ initialAuthed }: Props) {
       !["SUCCEEDED", "FAILED", "CANCELLED"].includes(statusQuery.data.state));
 
   return (
-    <main className="max-w-4xl mx-auto p-6 space-y-6">
+    <main className="max-w-6xl mx-auto p-6 space-y-6">
       <header className="space-y-1">
         <h1 className="text-2xl font-semibold">NYC Civic Data — Ask in English</h1>
         <p className="text-sm text-[var(--muted)]">
@@ -301,8 +301,10 @@ export function HomeClient({ initialAuthed }: Props) {
 
       {statusQuery.data?.state === "SUCCEEDED" &&
         statusQuery.data.columns &&
-        statusQuery.data.rows && (
-          <ResultsTable
+        statusQuery.data.rows &&
+        executionId && (
+          <ResultsPanel
+            mapResetKey={executionId}
             columns={statusQuery.data.columns}
             rows={statusQuery.data.rows}
             scannedBytes={statusQuery.data.scannedBytes}
