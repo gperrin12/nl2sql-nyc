@@ -30,7 +30,7 @@ Dialect rules (must still obey):
 - census_tracts ↔ census_tract_demographics: ONLY ON TRIM(CAST(ct.geoid AS VARCHAR)) = TRIM(CAST(demo.geoid AS VARCHAR)); never join ACS on borough/ctlabel alone.
 - census_tract_demographics counts/medians are STRING: VARCHAR for display; for math use TRY_CAST(TRIM(REGEXP_REPLACE(col, ',', '')) AS DOUBLE) (BIGINT cast often NULL). Avoid WHERE ... TRY_CAST(... AS BIGINT) IS NOT NULL — empties results when BIGINT fails.
 - Map-capable results: include latitude+longitude (or lat+lon/lng) in NYC bounds, or geometry_wkt / tract polygons, when the user wants a map or spatial overview — UI renders Leaflet from those columns.
-- Map / "show where" / crash-or-incident maps: SELECT raw coordinates — for nypd_collisions use latitude and longitude columns as latitude/longitude in output (they exist as VARCHAR). Do NOT return only COUNT(*) or borough aggregates unless the user explicitly asks for a summary table without a map. Neighborhood nicknames (e.g. Bed-Stuy): filter with census_tracts.ntaname ILIKE '%Bedford%' (Bedford-Stuyvesant NTAs) or point-in-polygon join, not free-text borough name alone.
+- Map / "show where" / crash-or-incident maps: SELECT raw coordinates — for nypd_collisions use latitude and longitude columns as latitude/longitude in output (they exist as VARCHAR). Do NOT return only COUNT(*) or borough aggregates unless the user explicitly asks for a summary table without a map. Neighborhood nicknames (e.g. Bed-Stuy): Trino has no ILIKE — use LOWER(ct.ntaname) LIKE '%bedford%' (Bedford-Stuyvesant NTAs) or point-in-polygon join, not free-text borough name alone.
 `;
 
 const TOOLS: Anthropic.Tool[] = [
