@@ -5,6 +5,7 @@
 export type AgentStreamPayload =
   | { type: "turn"; index: number }
   | { type: "reason"; text: string }
+  | { type: "summary"; text: string }
   | { type: "tool_act"; name: string; input: unknown }
   | { type: "tool_observe"; name: string; preview: string; bytes: number }
   | { type: "sql_generated"; sql: string }

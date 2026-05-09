@@ -8,11 +8,13 @@ import { ResultsPanel } from "@/components/ResultsPanel";
 import { LoginForm } from "@/components/LoginForm";
 import { AgentStreamTrace } from "@/components/AgentStreamTrace";
 import type { AgentStreamPayload } from "@/lib/sql-agent/types";
+import { mapSpatialIntent } from "@/lib/sql-agent/mapIntent";
 
 type StartResponse = {
   executionId: string;
   sql: string;
   model: string;
+  summary?: string;
 };
 
 type RepairResponse = StartResponse & {
@@ -53,6 +55,10 @@ export function HomeClient({ initialAuthed }: Props) {
   const [streamBusy, setStreamBusy] = useState(false);
   const [streamError, setStreamError] = useState<string | null>(null);
 
+  const [agentAnswerSummary, setAgentAnswerSummary] = useState<string | null>(
+    null
+  );
+
   const startMutation = useMutation<StartResponse, Error, string>({
     mutationFn: async (question) => {
       const res = await fetch("/api/query/start", {
@@ -72,6 +78,7 @@ export function HomeClient({ initialAuthed }: Props) {
       setGeneratedSql(data.sql);
       setGeneratedModel(data.model);
       setExecutionId(data.executionId);
+      setAgentAnswerSummary(data.summary?.trim() ?? null);
     },
   });
 
@@ -109,6 +116,7 @@ export function HomeClient({ initialAuthed }: Props) {
       setGeneratedSql(data.sql);
       setGeneratedModel(data.model);
       setExecutionId(data.executionId);
+      setAgentAnswerSummary(null);
     },
   });
 
@@ -172,6 +180,7 @@ export function HomeClient({ initialAuthed }: Props) {
     setGeneratedModel(null);
     setStreamError(null);
     setAgentSteps([]);
+    setAgentAnswerSummary(null);
     if (AGENT_SSE) {
       void runStreamingSubmit(question);
       return;
@@ -258,7 +267,22 @@ export function HomeClient({ initialAuthed }: Props) {
 
       {generatedSql && (
         <div className="space-y-1">
-          <SqlDisplay sql={generatedSql} />
+          {agentAnswerSummary && (
+            <div className="rounded-lg border border-[var(--border)] border-l-4 border-l-[var(--accent)] bg-[var(--panel)] p-4">
+              <p className="text-[10px] uppercase tracking-wide text-[var(--muted)] mb-1">
+                Summary
+              </p>
+              <p className="text-sm text-[var(--text)] leading-relaxed whitespace-pre-wrap">
+                {agentAnswerSummary}
+              </p>
+            </div>
+          )}
+          <SqlDisplay
+            sql={generatedSql}
+            defaultCollapsed={
+              lastQuestion ? mapSpatialIntent(lastQuestion) : false
+            }
+          />
           {generatedModel && (
             <p className="text-xs text-[var(--muted)] px-1">
               model: {generatedModel}

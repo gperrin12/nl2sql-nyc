@@ -6,7 +6,8 @@ type Props = { steps: AgentStreamPayload[]; busy?: boolean };
 
 const LABELS: Partial<Record<AgentStreamPayload["type"], string>> = {
   turn: "Round",
-  reason: "Reason",
+  reason: "Note",
+  summary: "Summary",
   tool_act: "Act",
   tool_observe: "Observe",
   sql_generated: "SQL",
@@ -59,6 +60,15 @@ function StreamStepRow({ step }: { step: AgentStreamPayload }) {
         <>
           <span className="text-emerald-500/90">{chip}</span>
           <p className="text-[var(--muted)] whitespace-pre-wrap pl-0 pt-0.5">{step.text}</p>
+        </>
+      );
+    case "summary":
+      return (
+        <>
+          <span className="text-[var(--accent)]">{chip}</span>
+          <p className="text-[var(--foreground)] whitespace-pre-wrap pl-0 pt-0.5 text-[13px] leading-snug">
+            {step.text}
+          </p>
         </>
       );
     case "tool_act":
