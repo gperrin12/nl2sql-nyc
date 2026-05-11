@@ -72,7 +72,7 @@ export const TABLE_SCHEMAS: Record<string, TableSchema> = {
       "Use for point-in-polygon joins from any lat/lon source (e.g. nypd_collisions, nyc_311, par). " +
       "CRITICAL: ST_Point takes (longitude, latitude) — X then Y. ST_Point(latitude, longitude) swaps coords and matches NO NYC tracts (silent zero rows). " +
       "Prefer ST_Within(ST_Point(TRY_CAST(longitude_col AS DOUBLE), TRY_CAST(latitude_col AS DOUBLE)), ST_GEOMETRY_FROM_TEXT(ct.geometry_wkt)) (point inside polygon). Equivalent: ST_CONTAINS(ST_GEOMETRY_FROM_TEXT(ct.geometry_wkt), ST_Point(lon, lat)) with polygon FIRST. " +
-      "For neighborhood-level rollups with census population use NTA fields nta2020 + ntaname (~195 areas); do not match nyc_311.borough to boroname (different casing/format). Case-insensitive ntaname match in Athena: use LOWER(ntaname) LIKE '%pattern%' — never PostgreSQL ILIKE (unsupported).",
+      "For neighborhood-level rollups with census population use NTA fields nta2020 + ntaname (~195 areas); do not match nyc_311.borough to boroname (different casing/format). Case-insensitive ntaname filters in Athena: use LOWER(ntaname) LIKE 'distinctive-prefix%' (never PostgreSQL ILIKE). Avoid short substring patterns like LOWER(ntaname) LIKE '%bedford%' — they pull in unrelated NTAs (e.g. Bedford Park, Bronx). Prefer a unique stem: Bed-Stuy ↔ LOWER(ntaname) LIKE 'bedford-stuyvesant%' (matches Bedford-Stuyvesant (West) and (East)) or ntaname IN ('Bedford-Stuyvesant (West)', 'Bedford-Stuyvesant (East)'), or spatial filter via geometry_wkt.",
     columns: [
       "boroct2020", "ct2020", "boroname", "borocode", "ctlabel",
       "nta2020", "ntaname", "cdta2020", "cdtaname",
