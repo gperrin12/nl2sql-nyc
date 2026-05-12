@@ -31,6 +31,7 @@ Dialect rules (must still obey):
 - census_tract_demographics counts/medians are STRING: VARCHAR for display; for math use TRY_CAST(TRIM(REGEXP_REPLACE(col, ',', '')) AS DOUBLE) (BIGINT cast often NULL). Avoid WHERE ... TRY_CAST(... AS BIGINT) IS NOT NULL — empties results when BIGINT fails.
 - Map-capable results: include latitude+longitude (or lat+lon/lng) in NYC bounds, or geometry_wkt / tract polygons, when the user wants a map or spatial overview — UI renders Leaflet from those columns.
 - Map / "show where" / crash-or-incident maps: SELECT raw coordinates — for nypd_collisions use latitude and longitude columns as latitude/longitude in output (they exist as VARCHAR). Do NOT return only COUNT(*) or borough aggregates unless the user explicitly asks for a summary table without a map. Neighborhood nicknames: filter via census_tracts joined on tract — never short ambiguous LOWER(ntaname) LIKE '%bedford%' (includes Bedford Park, Bronx). Prefer LOWER(ntaname) LIKE 'bedford-stuyvesant%' OR ntaname IN ('Bedford-Stuyvesant (West)', 'Bedford-Stuyvesant (East)') for Bed-Stuy; for other areas use a distinctive official-name prefix or explicit IN list / point-in-polygon, not a generic substring shared across boroughs.
+- Web map UI: users can switch point layers to a heat map and polygon layers to a choropleth when numeric columns exist in the result; preview fetch is ~999 rows max per Athena page — include a numeric metric column on tract/polygon rows for choropleth.
 `;
 
 const TOOLS: Anthropic.Tool[] = [

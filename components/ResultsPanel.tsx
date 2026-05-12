@@ -1,6 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import { useMemo } from "react";
 import { inferMapData } from "@/lib/geo/inferMapData";
 import { ResultsTable } from "@/components/ResultsTable";
 
@@ -35,7 +36,7 @@ export function ResultsPanel({
   scannedBytes,
   runtimeMs,
 }: Props) {
-  const mapData = inferMapData(columns, rows);
+  const mapData = useMemo(() => inferMapData(columns, rows), [columns, rows]);
 
   return (
     <div className="space-y-4">

@@ -19,6 +19,8 @@ export type InferredMapData =
       kind: "geojson";
       wktKey: string;
       featureCollection: FeatureCollection;
+      /** Column names from row properties that look numeric — choropleth metric picker */
+      choroplethKeys: string[];
     };
 
 function normCol(c: string): string {
@@ -123,6 +125,55 @@ function inferPoints(
   };
 }
 
+function parseMaybeNumber(raw: unknown): number | null {
+  if (raw == null || typeof raw === "object") return null;
+  const n = Number(String(raw).replace(/,/g, "").trim());
+  return Number.isFinite(n) ? n : null;
+}
+
+const CHORO_KEY_SKIP =
+  /^(latitude|longitude|lat|lon|lng|long|geometry|geom|wkt)$/i;
+
+function inferChoroplethKeys(features: Feature[]): string[] {
+  const stats = new Map<string, { total: number; numeric: number }>();
+  const sample = features.slice(0, 80);
+  for (const f of sample) {
+    const p = f.properties;
+    if (!p || typeof p !== "object") continue;
+    for (const k of Object.keys(p)) {
+      if (CHORO_KEY_SKIP.test(k)) continue;
+      const v = p[k];
+      const prev = stats.get(k) ?? { total: 0, numeric: 0 };
+      prev.total++;
+      if (parseMaybeNumber(v) != null) prev.numeric++;
+      stats.set(k, prev);
+    }
+  }
+  const keys: string[] = [];
+  for (const [k, { total, numeric }] of stats) {
+    if (total >= 2 && numeric / total >= 0.45) keys.push(k);
+  }
+  return keys.sort((a, b) => a.localeCompare(b));
+}
+
+function featureCollectionHasArea(fc: FeatureCollection): boolean {
+  return fc.features.some((f) => {
+    const t = f.geometry?.type;
+    return t === "Polygon" || t === "MultiPolygon";
+  });
+}
+
+export function geoJsonSupportsChoropleth(data: {
+  kind: "geojson";
+  featureCollection: FeatureCollection;
+  choroplethKeys: string[];
+}): boolean {
+  return (
+    featureCollectionHasArea(data.featureCollection) &&
+    data.choroplethKeys.length > 0
+  );
+}
+
 function inferGeoJsonFromWkt(
   columns: string[],
   rows: Record<string, string | null>[]
@@ -152,10 +203,13 @@ function inferGeoJsonFromWkt(
 
   if (features.length === 0) return null;
 
+  const choroplethKeys = inferChoroplethKeys(features);
+
   return {
     kind: "geojson",
     wktKey,
     featureCollection: { type: "FeatureCollection", features },
+    choroplethKeys,
   };
 }
 

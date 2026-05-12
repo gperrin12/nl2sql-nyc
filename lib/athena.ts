@@ -5,6 +5,7 @@ import {
   GetQueryResultsCommand,
   type QueryExecutionState,
 } from "@aws-sdk/client-athena";
+import { ATHENA_RESULT_FETCH_ROWS } from "@/lib/athenaLimits";
 
 const client = new AthenaClient({ region: process.env.AWS_REGION ?? "us-east-1" });
 
@@ -54,10 +55,10 @@ export async function getStatus(
   };
 }
 
-/** Fetch results for a SUCCEEDED query. Pages up to maxRows. */
+/** Fetch result rows for UI map + table preview (single Athena page; table shows a subset client-side). */
 export async function getResults(
   executionId: string,
-  maxRows = 1000
+  maxRows = ATHENA_RESULT_FETCH_ROWS
 ): Promise<AthenaResults> {
   const status = await getStatus(executionId);
 
