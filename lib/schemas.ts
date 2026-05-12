@@ -138,6 +138,7 @@ export const TABLE_SCHEMAS: Record<string, TableSchema> = {
       "Spatial joins: ST_POINT(TRY_CAST(longitude AS DOUBLE), TRY_CAST(latitude AS DOUBLE)) with ST_CONTAINS(ST_GEOMETRY_FROM_TEXT(t.geometry_wkt), ...). " +
       "Within-radius (feet/meters) from a lat/lon anchor: ST_Distance(to_spherical_geography(ST_Point(row_lon, row_lat)), to_spherical_geography(ST_Point(anchor_lon, anchor_lat))) <= meters — never planar ST_Distance on raw ST_Point for radius filters. " +
       "Casualty columns are STRING — use TRY_CAST(... AS INTEGER). " +
+      "Precomputed H3 indexes for crash coordinates (STRING cell IDs — Uber H3 index text): h3_r8, h3_r9, h3_r10 match resolutions 8–10. For hex-binned counts / heat maps by resolution, GROUP BY the matching column (e.g. h3_r9 for res 9) with COUNT(*) or SUM; filter nonempty cells with h3_r9 IS NOT NULL AND TRIM(h3_r9) <> ''. Prefer these over geo_to_h3 UDFs when present. Join/filter geography still uses latitude/longitude or tract polygons when needed; qualify h3_r* if multiple tables expose them. " +
       "Always filter by partition (year, month) for cost efficiency.",
     columns: [
       "collision_id", "crash_date", "crash_time",
@@ -153,6 +154,7 @@ export const TABLE_SCHEMAS: Record<string, TableSchema> = {
       "contributing_factor_vehicle_5",
       "vehicle_type_code1", "vehicle_type_code2",
       "vehicle_type_code_3", "vehicle_type_code_4", "vehicle_type_code_5",
+      "h3_r8", "h3_r9", "h3_r10",
       "year", "month",
     ],
   },
@@ -172,6 +174,7 @@ export const TABLE_SCHEMAS: Record<string, TableSchema> = {
       "Key categorical columns: complaint_type, agency, status, open_data_channel_type. " +
       "311 complaint_type values are specific strings (e.g. 'Noise - Residential', 'Noise - Street/Sidewalk'); never use complaint_type = 'Noise' alone — use LOWER(complaint_type) LIKE '%noise%' (still excludes non-Noise categories). " +
       "Many rows lack coordinates; INNER JOIN to census polygons only on rows with non-null lat/lon inside NYC bounds — others drop entirely. For borough-level per capita use borough + ACS borough aggregates or accept tract-limited coverage. " +
+      "Precomputed H3 indexes for incident coordinates (STRING cell IDs): h3_r8, h3_r9, h3_r10 at resolutions 8–10. For hex buckets / density by resolution, GROUP BY h3_r9 (etc.) with COUNT(*); filter TRIM(h3_r9) <> ''. Prefer these columns over H3 UDFs when present. " +
       "Resolution time = closed_date - created_date; many requests have NULL closed_date if still open.",
     columns: [
       "unique_key", "created_date", "closed_date",
@@ -191,6 +194,7 @@ export const TABLE_SCHEMAS: Record<string, TableSchema> = {
       "bridge_highway_name", "bridge_highway_direction",
       "road_ramp", "bridge_highway_segment",
       "latitude", "longitude",
+      "h3_r8", "h3_r9", "h3_r10",
       "year", "month",
     ],
   },
