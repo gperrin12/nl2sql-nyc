@@ -14,7 +14,10 @@ import type { GeoJsonProperties } from "geojson";
 import type { LatLngExpression, PathOptions } from "leaflet";
 import L from "leaflet";
 import type { InferredMapData, MapPointRow } from "@/lib/geo/inferMapData";
-import { geoJsonSupportsChoropleth } from "@/lib/geo/inferMapData";
+import {
+  isPolygonLayerMapData,
+  polygonMapSupportsChoropleth,
+} from "@/lib/geo/inferMapData";
 
 import "leaflet/dist/leaflet.css";
 import "leaflet.heat";
@@ -272,13 +275,15 @@ export function ResultsGeoMap({ data }: Props) {
   const [pointMode, setPointMode] = useState<PointDisplayMode>("markers");
   const [geoMode, setGeoMode] = useState<GeoDisplayMode>("outline");
   const [choroplethMetric, setChoroplethMetric] = useState<string>(() =>
-    data.kind === "geojson" ? data.choroplethKeys[0] ?? "" : ""
+    isPolygonLayerMapData(data) ? data.choroplethKeys[0] ?? "" : ""
   );
 
   useEffect(() => {
-    if (data.kind === "geojson") {
-      setGeoMode("outline");
-      setChoroplethMetric(data.choroplethKeys[0] ?? "");
+    if (isPolygonLayerMapData(data)) {
+      const pickMetric = data.choroplethKeys[0] ?? "";
+      setChoroplethMetric(pickMetric);
+      const choro = polygonMapSupportsChoropleth(data);
+      setGeoMode(choro ? "choropleth" : "outline");
     } else {
       setPointMode("markers");
     }
@@ -287,16 +292,18 @@ export function ResultsGeoMap({ data }: Props) {
   const subtitle =
     data.kind === "points"
       ? `${data.points.length} pts · ${data.latKey} / ${data.lngKey}`
-      : `${data.featureCollection.features.length} geom · ${data.wktKey}`;
+      : data.kind === "h3_hex"
+        ? `${data.featureCollection.features.length} hex · ${data.h3Column} (res ${data.resolution})`
+        : `${data.featureCollection.features.length} geom · ${data.wktKey}`;
 
-  const supportsChoro =
-    data.kind === "geojson" && geoJsonSupportsChoropleth(data);
+  const polygonData = isPolygonLayerMapData(data) ? data : null;
+  const supportsChoro = polygonData ? polygonMapSupportsChoropleth(polygonData) : false;
 
   const choroplethRange = useMemo(() => {
-    if (data.kind !== "geojson" || !choroplethMetric) return { min: 0, max: 1 };
+    if (!polygonData || !choroplethMetric) return { min: 0, max: 1 };
     let lo = Infinity;
     let hi = -Infinity;
-    for (const f of data.featureCollection.features) {
+    for (const f of polygonData.featureCollection.features) {
       const v = parsePropNumber(f.properties, choroplethMetric);
       if (v == null) continue;
       lo = Math.min(lo, v);
@@ -304,7 +311,7 @@ export function ResultsGeoMap({ data }: Props) {
     }
     if (!Number.isFinite(lo)) return { min: 0, max: 1 };
     return { min: lo, max: hi };
-  }, [data, choroplethMetric]);
+  }, [polygonData, choroplethMetric]);
 
   return (
     <div className="rounded-lg border border-[var(--border)] bg-[var(--panel)] overflow-hidden">
@@ -330,9 +337,11 @@ export function ResultsGeoMap({ data }: Props) {
           </div>
         )}
 
-        {data.kind === "geojson" && (
+        {polygonData && (
           <div className="flex flex-wrap items-center gap-2">
-            <span className="text-[10px] uppercase text-[var(--muted)]">Areas</span>
+            <span className="text-[10px] uppercase text-[var(--muted)]">
+              {polygonData.kind === "h3_hex" ? "H3 hexes" : "Areas"}
+            </span>
             <MapModeButton
               active={geoMode === "outline"}
               onClick={() => setGeoMode("outline")}
@@ -346,16 +355,18 @@ export function ResultsGeoMap({ data }: Props) {
               title={
                 supportsChoro
                   ? undefined
-                  : "Needs polygon/multipolygon geometries and numeric columns in the result"
+                  : polygonData.kind === "h3_hex"
+                    ? "Add a numeric column (e.g. COUNT) to color hexes"
+                    : "Needs polygon/multipolygon geometries and numeric columns in the result"
               }
             />
-            {supportsChoro && geoMode === "choropleth" && data.choroplethKeys.length > 0 && (
+            {supportsChoro && geoMode === "choropleth" && polygonData.choroplethKeys.length > 0 && (
               <select
                 value={choroplethMetric}
                 onChange={(e) => setChoroplethMetric(e.target.value)}
                 className="pointer-events-auto rounded border border-[var(--border)] bg-[var(--bg)] px-2 py-1 text-[11px] font-mono text-[var(--text)] max-w-[160px]"
               >
-                {data.choroplethKeys.map((k) => (
+                {polygonData.choroplethKeys.map((k) => (
                   <option key={k} value={k}>
                     {k}
                   </option>
@@ -404,15 +415,18 @@ export function ResultsGeoMap({ data }: Props) {
               )}
             </>
           )}
-          {data.kind === "geojson" &&
+          {polygonData &&
             (geoMode === "choropleth" && supportsChoro && choroplethMetric ? (
-              <ChoroplethGeoJsonLayer fc={data.featureCollection} metricKey={choroplethMetric} />
+              <ChoroplethGeoJsonLayer
+                fc={polygonData.featureCollection}
+                metricKey={choroplethMetric}
+              />
             ) : (
-              <OutlineGeoJsonLayer fc={data.featureCollection} />
+              <OutlineGeoJsonLayer fc={polygonData.featureCollection} />
             ))}
         </MapContainer>
 
-        {data.kind === "geojson" &&
+        {polygonData &&
           geoMode === "choropleth" &&
           supportsChoro &&
           choroplethMetric && (

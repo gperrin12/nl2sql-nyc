@@ -14,6 +14,7 @@
     "@aws-sdk/client-athena": "^3.700.0",
     "@tanstack/react-query": "^5.62.0",
     "@terraformer/wkt": "^2.2.1",
+    "h3-js": "^4.4.0",
     "leaflet": "^1.9.4",
     "leaflet.heat": "^0.2.0",
     "next": "14.2.18",
