@@ -82,12 +82,14 @@ async function main(): Promise<void> {
     console.log(`\nNext steps:`);
     console.log(`  1. Set USE_P8K8=true in Vercel env vars`);
     console.log(`  2. Redeploy the Vercel app`);
-    console.log(`  3. Test the chat endpoint:`);
-    console.log(`     curl -N -X POST '${P8K8_URL}/chat/test-1' \\`);
+    console.log(`  3. Set P8K8_CHAT_ID to a stable UUID (match Vercel) — p8k8 requires /chat/{uuid}.`);
+    console.log(`  4. Test the chat endpoint:`);
+    console.log(`     curl -N -X POST '${P8K8_URL}/chat/f6e3c2b1-a8d7-4e91-bc0d-1a2b3c4d5e6f' \\`);
     console.log(`       -H 'x-agent-schema-name: nl2sql-nyc' \\`);
     console.log(`       -H 'Authorization: Bearer $P8K8_AUTH_TOKEN' \\`);
     console.log(`       -H 'Content-Type: application/json' \\`);
     console.log(`       -d '{"messages":[{"id":"m1","role":"user","content":"Top 5 boroughs by 311 complaints in 2024"}]}'`);
+    console.log(`     (Use the same UUID as P8K8_CHAT_ID in the app, or the repo default above.)`);
   } else {
     console.error(`✗ Failed (HTTP ${res.status})`);
     console.error(JSON.stringify(body, null, 2));
