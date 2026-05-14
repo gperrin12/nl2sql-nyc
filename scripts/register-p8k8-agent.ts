@@ -61,34 +61,41 @@ const payload = {
   content: SYSTEM_PROMPT,
 };
 
-console.log(`Registering agent schema '${payload.name}' at ${P8K8_URL}/schemas/ ...`);
+async function main(): Promise<void> {
+  console.log(`Registering agent schema '${payload.name}' at ${P8K8_URL}/schemas/ ...`);
 
-const res = await fetch(`${P8K8_URL}/schemas/`, {
-  method: "POST",
-  headers: {
-    "Content-Type": "application/json",
-    Authorization: `Bearer ${P8K8_AUTH_TOKEN}`,
-  },
-  body: JSON.stringify(payload),
-});
+  const res = await fetch(`${P8K8_URL}/schemas/`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${P8K8_AUTH_TOKEN}`,
+    },
+    body: JSON.stringify(payload),
+  });
 
-const body = await res.json();
+  const body = (await res.json()) as { id?: string; name?: string };
 
-if (res.status === 201) {
-  console.log(`✓ Success (HTTP 201)`);
-  console.log(`  Schema ID : ${body.id}`);
-  console.log(`  Name      : ${body.name}`);
-  console.log(`\nNext steps:`);
-  console.log(`  1. Set USE_P8K8=true in Vercel env vars`);
-  console.log(`  2. Redeploy the Vercel app`);
-  console.log(`  3. Test the chat endpoint:`);
-  console.log(`     curl -N -X POST '${P8K8_URL}/chat/test-1' \\`);
-  console.log(`       -H 'x-agent-schema-name: nl2sql-nyc' \\`);
-  console.log(`       -H 'Authorization: Bearer $P8K8_AUTH_TOKEN' \\`);
-  console.log(`       -H 'Content-Type: application/json' \\`);
-  console.log(`       -d '{"messages":[{"id":"m1","role":"user","content":"Top 5 boroughs by 311 complaints in 2024"}]}'`);
-} else {
-  console.error(`✗ Failed (HTTP ${res.status})`);
-  console.error(JSON.stringify(body, null, 2));
-  process.exit(1);
+  if (res.status === 201) {
+    console.log(`✓ Success (HTTP 201)`);
+    console.log(`  Schema ID : ${body.id}`);
+    console.log(`  Name      : ${body.name}`);
+    console.log(`\nNext steps:`);
+    console.log(`  1. Set USE_P8K8=true in Vercel env vars`);
+    console.log(`  2. Redeploy the Vercel app`);
+    console.log(`  3. Test the chat endpoint:`);
+    console.log(`     curl -N -X POST '${P8K8_URL}/chat/test-1' \\`);
+    console.log(`       -H 'x-agent-schema-name: nl2sql-nyc' \\`);
+    console.log(`       -H 'Authorization: Bearer $P8K8_AUTH_TOKEN' \\`);
+    console.log(`       -H 'Content-Type: application/json' \\`);
+    console.log(`       -d '{"messages":[{"id":"m1","role":"user","content":"Top 5 boroughs by 311 complaints in 2024"}]}'`);
+  } else {
+    console.error(`✗ Failed (HTTP ${res.status})`);
+    console.error(JSON.stringify(body, null, 2));
+    process.exit(1);
+  }
 }
+
+main().catch((err: unknown) => {
+  console.error(err);
+  process.exit(1);
+});
