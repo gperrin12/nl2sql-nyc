@@ -4,10 +4,10 @@
  * Thin client for the p8k8 agentic memory backend.
  * Docs: https://github.com/Percolation-Labs/p8k8
  *
- * POST /chat/{conversation_id}
+ * POST /chat/{chat_uuid}
  *   Header: x-agent-schema-name: nl2sql-nyc   (override via P8K8_SCHEMA env)
  *   Header: Authorization: Bearer <P8K8_AUTH_TOKEN>
- *   Body:   { "messages": [{ "role": "user", "content": "..." }] }
+ *   Body:   { "messages": [{ "id": "<uuid>", "role": "user", "content": "..." }] }
  *
  * The endpoint streams AG-UI Server-Sent Events.  We only care about
  * TEXT_MESSAGE_CONTENT delta events, which carry the assistant's reply
@@ -24,8 +24,44 @@ const P8K8_URL = (process.env.P8K8_URL ?? "").replace(/\/$/, "");
 const P8K8_AUTH_TOKEN = process.env.P8K8_AUTH_TOKEN ?? "";
 const P8K8_SCHEMA = process.env.P8K8_SCHEMA ?? "nl2sql-nyc";
 
+/** p8k8 rejects non-UUID chat paths; used when P8K8_CHAT_ID is unset. */
+const DEFAULT_P8K8_CHAT_ID = "f6e3c2b1-a8d7-4e91-bc0d-1a2b3c4d5e6f";
+
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 if (!P8K8_URL) {
   console.warn("[p8k8] P8K8_URL is not set — calls will fail at runtime");
+}
+
+function assertValidUuid(id: string, label: string): string {
+  const t = id.trim();
+  if (!UUID_RE.test(t)) {
+    throw new Error(
+      `${label} must be a UUID for p8k8 /chat/{id}. Got ${JSON.stringify(id)}. ` +
+        "Set P8K8_CHAT_ID to a stable value from uuidgen(), or pass a UUID as conversationId."
+    );
+  }
+  return t;
+}
+
+/** Resolves chat path segment: explicit arg > P8K8_CHAT_ID env > repo default UUID. */
+export function resolveP8k8ChatId(conversationId?: string): string {
+  if (conversationId !== undefined && conversationId !== "") {
+    return assertValidUuid(conversationId, "conversationId");
+  }
+  const fromEnv = process.env.P8K8_CHAT_ID?.trim();
+  if (fromEnv) return assertValidUuid(fromEnv, "P8K8_CHAT_ID");
+  return DEFAULT_P8K8_CHAT_ID;
+}
+
+/** RFC-style UUID v4 for AG-UI message `id` (p8k8 examples include per-message ids). */
+function randomUuidV4(): string {
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (ch) => {
+    const r = (Math.random() * 16) | 0;
+    const v = ch === "x" ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
 }
 
 // ── AG-UI event types we handle ──────────────────────────────────────────────
@@ -127,13 +163,12 @@ async function consumeAgUiStream(stream: ReadableStream<Uint8Array>): Promise<st
  * Send a natural-language question to p8k8 and return the extracted SQL.
  *
  * @param question        The user's NL question.
- * @param conversationId  Stable ID for the p8k8 conversation. Defaults to
- *                        "nl2sql-nyc" (all queries share context). Pass a
- *                        per-session UUID for isolated conversations.
+ * @param conversationId  Optional UUID for `/chat/{uuid}`. If omitted, uses
+ *                          `P8K8_CHAT_ID` or a stable built-in default (shared context).
  */
 export async function generateSqlViaP8k8(
   question: string,
-  conversationId = "nl2sql-nyc"
+  conversationId?: string
 ): Promise<SqlGenerationResult> {
   if (!P8K8_URL) {
     throw new Error("P8K8_URL environment variable is not configured");
@@ -142,17 +177,21 @@ export async function generateSqlViaP8k8(
     throw new Error("P8K8_AUTH_TOKEN environment variable is not configured");
   }
 
-  const url = `${P8K8_URL}/chat/${encodeURIComponent(conversationId)}`;
+  const chatId = resolveP8k8ChatId(conversationId);
+  const url = `${P8K8_URL}/chat/${encodeURIComponent(chatId)}`;
 
   const res = await fetch(url, {
     method: "POST",
     headers: {
+      Accept: "text/event-stream",
       "Content-Type": "application/json",
       Authorization: `Bearer ${P8K8_AUTH_TOKEN}`,
       "x-agent-schema-name": P8K8_SCHEMA,
     },
     body: JSON.stringify({
-      messages: [{ role: "user", content: question }],
+      messages: [
+        { id: randomUuidV4(), role: "user", content: question },
+      ],
     }),
   });
 

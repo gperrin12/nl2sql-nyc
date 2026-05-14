@@ -9,6 +9,11 @@
  *   P8K8_URL=https://p8k8.geoffperrin.com \
  *   P8K8_AUTH_TOKEN=<token> \
  *   npx tsx scripts/register-p8k8-agent.ts
+ *
+ * Optional — pin LLM for this agent only (p8k8 `json_schema.model`, e.g. openai:gpt-4o):
+ *   P8K8_AGENT_MODEL=openai:gpt-4o npx tsx scripts/register-p8k8-agent.ts
+ *
+ * Server-wide default (all agents without their own model): set `P8_DEFAULT_MODEL` on the p8k8 deployment.
  */
 
 import { renderSchemaForPrompt } from "../lib/schemas";
@@ -54,15 +59,32 @@ RULES:
 SCHEMA:
 ${renderSchemaForPrompt()}`;
 
-const payload = {
+const P8K8_AGENT_MODEL = process.env.P8K8_AGENT_MODEL?.trim();
+
+const payload: {
+  name: string;
+  kind: string;
+  description: string;
+  content: string;
+  json_schema?: { model: string };
+} = {
   name: "nl2sql-nyc",
   kind: "agent",
   description: "NL→SQL agent for the NYC civic data warehouse (Athena / Trino dialect).",
   content: SYSTEM_PROMPT,
 };
 
+if (P8K8_AGENT_MODEL) {
+  payload.json_schema = { model: P8K8_AGENT_MODEL };
+}
+
 async function main(): Promise<void> {
-  console.log(`Registering agent schema '${payload.name}' at ${P8K8_URL}/schemas/ ...`);
+  const modelNote = P8K8_AGENT_MODEL
+    ? ` (LLM: ${P8K8_AGENT_MODEL})`
+    : " (no P8K8_AGENT_MODEL — p8k8 uses P8_DEFAULT_MODEL or its code default)";
+  console.log(
+    `Registering agent schema '${payload.name}' at ${P8K8_URL}/schemas/ ...${modelNote}`
+  );
 
   const res = await fetch(`${P8K8_URL}/schemas/`, {
     method: "POST",
@@ -82,12 +104,15 @@ async function main(): Promise<void> {
     console.log(`\nNext steps:`);
     console.log(`  1. Set USE_P8K8=true in Vercel env vars`);
     console.log(`  2. Redeploy the Vercel app`);
-    console.log(`  3. Test the chat endpoint:`);
-    console.log(`     curl -N -X POST '${P8K8_URL}/chat/test-1' \\`);
+    console.log(`  3. Set P8K8_CHAT_ID to a stable UUID (match Vercel) — p8k8 requires /chat/{uuid}.`);
+    console.log(`  4. Test the chat endpoint:`);
+    console.log(`     curl -N -X POST '${P8K8_URL}/chat/f6e3c2b1-a8d7-4e91-bc0d-1a2b3c4d5e6f' \\`);
     console.log(`       -H 'x-agent-schema-name: nl2sql-nyc' \\`);
     console.log(`       -H 'Authorization: Bearer $P8K8_AUTH_TOKEN' \\`);
     console.log(`       -H 'Content-Type: application/json' \\`);
-    console.log(`       -d '{"messages":[{"id":"m1","role":"user","content":"Top 5 boroughs by 311 complaints in 2024"}]}'`);
+    console.log(`       -d '{"messages":[{"id":"00000000-0000-4000-8000-000000000001","role":"user","content":"Top 5 boroughs by 311 complaints in 2024"}]}'`);
+    console.log(`     (Use the same UUID as P8K8_CHAT_ID in the app, or the repo default above.)`);
+    console.log(`  5. Optional: re-register with P8K8_AGENT_MODEL=provider:model to pin the LLM for nl2sql-nyc only.`);
   } else {
     console.error(`✗ Failed (HTTP ${res.status})`);
     console.error(JSON.stringify(body, null, 2));
