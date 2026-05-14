@@ -5,7 +5,7 @@
  * Docs: https://github.com/Percolation-Labs/p8k8
  *
  * POST /chat/{conversation_id}
- *   Header: x-agent-schema-name: general   (override via P8K8_SCHEMA env)
+ *   Header: x-agent-schema-name: nl2sql-nyc   (override via P8K8_SCHEMA env)
  *   Header: Authorization: Bearer <P8K8_AUTH_TOKEN>
  *   Body:   { "messages": [{ "role": "user", "content": "..." }] }
  *
@@ -22,7 +22,7 @@ import type { SqlGenerationResult } from "@/lib/claude";
 // ── env ─────────────────────────────────────────────────────────────────────
 const P8K8_URL = (process.env.P8K8_URL ?? "").replace(/\/$/, "");
 const P8K8_AUTH_TOKEN = process.env.P8K8_AUTH_TOKEN ?? "";
-const P8K8_SCHEMA = process.env.P8K8_SCHEMA ?? "general";
+const P8K8_SCHEMA = process.env.P8K8_SCHEMA ?? "nl2sql-nyc";
 
 if (!P8K8_URL) {
   console.warn("[p8k8] P8K8_URL is not set — calls will fail at runtime");
