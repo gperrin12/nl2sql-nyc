@@ -7,7 +7,7 @@
  * POST /chat/{chat_uuid}
  *   Header: x-agent-schema-name: nl2sql-nyc   (override via P8K8_SCHEMA env)
  *   Header: Authorization: Bearer <P8K8_AUTH_TOKEN>
- *   Body:   { "messages": [{ "role": "user", "content": "..." }] }
+ *   Body:   { "messages": [{ "id": "<uuid>", "role": "user", "content": "..." }] }
  *
  * The endpoint streams AG-UI Server-Sent Events.  We only care about
  * TEXT_MESSAGE_CONTENT delta events, which carry the assistant's reply
@@ -53,6 +53,15 @@ export function resolveP8k8ChatId(conversationId?: string): string {
   const fromEnv = process.env.P8K8_CHAT_ID?.trim();
   if (fromEnv) return assertValidUuid(fromEnv, "P8K8_CHAT_ID");
   return DEFAULT_P8K8_CHAT_ID;
+}
+
+/** RFC-style UUID v4 for AG-UI message `id` (p8k8 examples include per-message ids). */
+function randomUuidV4(): string {
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (ch) => {
+    const r = (Math.random() * 16) | 0;
+    const v = ch === "x" ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
 }
 
 // ── AG-UI event types we handle ──────────────────────────────────────────────
@@ -174,12 +183,15 @@ export async function generateSqlViaP8k8(
   const res = await fetch(url, {
     method: "POST",
     headers: {
+      Accept: "text/event-stream",
       "Content-Type": "application/json",
       Authorization: `Bearer ${P8K8_AUTH_TOKEN}`,
       "x-agent-schema-name": P8K8_SCHEMA,
     },
     body: JSON.stringify({
-      messages: [{ role: "user", content: question }],
+      messages: [
+        { id: randomUuidV4(), role: "user", content: question },
+      ],
     }),
   });
 

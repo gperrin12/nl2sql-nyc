@@ -88,7 +88,7 @@ async function main(): Promise<void> {
     console.log(`       -H 'x-agent-schema-name: nl2sql-nyc' \\`);
     console.log(`       -H 'Authorization: Bearer $P8K8_AUTH_TOKEN' \\`);
     console.log(`       -H 'Content-Type: application/json' \\`);
-    console.log(`       -d '{"messages":[{"id":"m1","role":"user","content":"Top 5 boroughs by 311 complaints in 2024"}]}'`);
+    console.log(`       -d '{"messages":[{"id":"00000000-0000-4000-8000-000000000001","role":"user","content":"Top 5 boroughs by 311 complaints in 2024"}]}'`);
     console.log(`     (Use the same UUID as P8K8_CHAT_ID in the app, or the repo default above.)`);
   } else {
     console.error(`✗ Failed (HTTP ${res.status})`);
