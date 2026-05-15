@@ -41,6 +41,8 @@ export type SqlGenerationResult = {
   outputTokens: number;
   /** Plain-English lead-in from the tool agent final message (map/spatial flows). */
   summary?: string;
+  /** Wall-clock ms for NL→SQL (p8k8 / agent); not from p8k8 moment timestamps. */
+  latencyMs?: number;
 };
 
 export async function generateSql(question: string): Promise<SqlGenerationResult> {

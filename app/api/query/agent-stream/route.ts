@@ -8,6 +8,7 @@ import type { AgentStreamPayload } from "@/lib/sql-agent/types";
 import { checkSql } from "@/lib/guardrails";
 import { startQuery } from "@/lib/athena";
 import { isAuthenticated } from "@/lib/auth";
+import { recordGenerationMetrics } from "@/lib/record-generation-metrics";
 
 export const dynamic = "force-dynamic";
 
@@ -58,6 +59,8 @@ export async function POST(req: NextRequest) {
           });
           generation = await generateSql(parsed.question);
         }
+
+        await recordGenerationMetrics(parsed.question, generation, backend);
 
         await push({ type: "sql_generated", sql: generation.sql });
 

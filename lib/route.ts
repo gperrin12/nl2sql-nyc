@@ -7,6 +7,7 @@ import { generateSqlWithAgent } from "@/lib/sql-agent/run";
 import { checkSql } from "@/lib/guardrails";
 import { startQuery } from "@/lib/athena";
 import { isAuthenticated } from "@/lib/auth";
+import { recordGenerationMetrics } from "@/lib/record-generation-metrics";
 
 const BodySchema = z.object({
   question: z.string().min(1).max(2000),
@@ -60,6 +61,8 @@ export async function POST(req: NextRequest) {
       { status: 502 }
     );
   }
+
+  await recordGenerationMetrics(parsed.question, generation, backend);
 
   // 2. Guardrail check
   const check = checkSql(generation.sql);

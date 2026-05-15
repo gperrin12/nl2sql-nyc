@@ -260,7 +260,7 @@ class AgUiStreamTranslator {
     if (!trimmed) return;
 
     // Pure-SQL replies: avoid duplicating the sql_generated row in Note.
-    const sqlOnly = extractSql(trimmed);
+    const sqlOnly = extractSqlFromAssistantText(trimmed);
     if (sqlOnly && sqlOnly.trim() === trimmed.replace(/\s+/g, " ").trim()) {
       return;
     }
@@ -284,7 +284,8 @@ function stripCodeFences(text: string): string {
  * Pull the first SELECT/WITH block out of the assistant text.
  * Mirrors the extraction logic in lib/sql-agent/run.ts.
  */
-function extractSql(text: string): string | null {
+/** Exported for dashboard pairing (match stored latency keys). */
+export function extractSqlFromAssistantText(text: string): string | null {
   const raw = text.trim();
   if (!raw) return null;
 
@@ -368,18 +369,20 @@ export async function generateSqlViaP8k8WithEvents(
     text: `Calling p8k8 agent "${P8K8_SCHEMA}"…`,
   });
 
+  const startedAt = Date.now();
   const stream = await postP8k8Chat(question, conversationId);
   const translator = new AgUiStreamTranslator(onEvent, true);
 
   await readAgUiStream(stream, (event) => translator.handle(event));
   await translator.flush();
+  const latencyMs = Date.now() - startedAt;
 
   const fullText = translator.assembledText;
   if (!fullText.trim()) {
     throw new Error("p8k8 returned an empty assistant message");
   }
 
-  const sql = extractSql(fullText);
+  const sql = extractSqlFromAssistantText(fullText);
   if (!sql) {
     throw new Error(
       `p8k8 reply contained no SELECT or WITH statement.\n\nRaw reply (first 500 chars):\n${fullText.slice(0, 500)}`
@@ -400,6 +403,7 @@ export async function generateSqlViaP8k8WithEvents(
     inputTokens: 0,
     outputTokens: 0,
     summary: prose.trim() ? prose.trim().slice(0, 1200) : undefined,
+    latencyMs,
   };
 }
 
