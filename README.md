@@ -57,7 +57,7 @@ cp .env.example .env.local
 npm run dev
 ```
 
-Open http://localhost:3000.
+Open http://localhost:3000. When logged in, **`/dashboard`** shows recent p8k8 query pairs (requires `P8K8_URL`, `P8K8_AUTH_TOKEN`, and optionally `P8K8_CHAT_ID` for the session UUID).
 
 ## Required AWS setup
 

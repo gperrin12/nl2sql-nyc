@@ -7,6 +7,7 @@ import { SqlDisplay } from "@/components/SqlDisplay";
 import { ResultsPanel } from "@/components/ResultsPanel";
 import { LoginForm } from "@/components/LoginForm";
 import { AgentStreamTrace } from "@/components/AgentStreamTrace";
+import { AppNav } from "@/components/AppNav";
 import type { AgentStreamPayload } from "@/lib/sql-agent/types";
 import { mapSpatialIntent } from "@/lib/sql-agent/mapIntent";
 
@@ -242,6 +243,8 @@ export function HomeClient({ initialAuthed }: Props) {
 
   return (
     <main className="max-w-6xl mx-auto p-6 space-y-6">
+      <AppNav />
+
       <header className="space-y-1">
         <h1 className="text-2xl font-semibold">NYC Civic Data — Ask in English</h1>
         <p className="text-sm text-[var(--muted)]">
