@@ -134,8 +134,11 @@ class AgUiStreamTranslator {
   >();
 
   constructor(
-    private readonly onEvent: (e: AgentStreamPayload) => void | Promise<void>
-  ) {}
+    private readonly onEvent: (e: AgentStreamPayload) => void | Promise<void>,
+    turnAlreadyEmitted = false
+  ) {
+    this.turnEmitted = turnAlreadyEmitted;
+  }
 
   get assembledText(): string {
     return this.messageText;
@@ -253,7 +256,16 @@ class AgUiStreamTranslator {
   }
 
   private async emitReasonNow(): Promise<void> {
-    const text = this.messageText.trim().slice(0, REASON_MAX_CHARS);
+    const trimmed = this.messageText.trim();
+    if (!trimmed) return;
+
+    // Pure-SQL replies: avoid duplicating the sql_generated row in Note.
+    const sqlOnly = extractSql(trimmed);
+    if (sqlOnly && sqlOnly.trim() === trimmed.replace(/\s+/g, " ").trim()) {
+      return;
+    }
+
+    const text = trimmed.slice(0, REASON_MAX_CHARS);
     if (text) {
       await this.onEvent({ type: "reason", text });
     }
@@ -350,8 +362,14 @@ export async function generateSqlViaP8k8WithEvents(
   onEvent: (e: AgentStreamPayload) => void | Promise<void>,
   conversationId?: string
 ): Promise<SqlGenerationResult> {
+  await onEvent({ type: "turn", index: 0 });
+  await onEvent({
+    type: "reason",
+    text: `Calling p8k8 agent "${P8K8_SCHEMA}"…`,
+  });
+
   const stream = await postP8k8Chat(question, conversationId);
-  const translator = new AgUiStreamTranslator(onEvent);
+  const translator = new AgUiStreamTranslator(onEvent, true);
 
   await readAgUiStream(stream, (event) => translator.handle(event));
   await translator.flush();
