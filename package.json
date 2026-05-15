@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
-    "register-agent": "tsx scripts/register-p8k8-agent.ts"
+    "register-agent": "tsx scripts/register-p8k8-agent.ts",
+    "eval": "tsx scripts/eval-moments.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.32.0",

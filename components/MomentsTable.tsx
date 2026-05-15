@@ -1,13 +1,19 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import type { JudgeResult } from "@/lib/judge";
 import type { DashboardMoment } from "@/lib/p8k8-moments";
+import {
+  classifyQuestion,
+  type QueryCategory,
+} from "@/lib/query-category";
 import { formatLatencyMs } from "@/lib/sql-metrics";
 
-const COL_COUNT = 8;
+const COL_COUNT = 10;
 
 type Props = {
   moments: DashboardMoment[];
+  evalByQuestion: Map<string, JudgeResult>;
   loading: boolean;
   error: string | null;
   onRefresh: () => void;
@@ -17,6 +23,17 @@ type Props = {
   total: number;
   pageSize: number;
   onPageChange: (offset: number) => void;
+};
+
+const CATEGORY_STYLES: Record<QueryCategory, string> = {
+  spatial: "bg-blue-500/20 text-blue-400",
+  demographic: "bg-pink-500/20 text-pink-400",
+  "time-series": "bg-amber-500/20 text-amber-400",
+  ranking: "bg-purple-500/20 text-purple-400",
+  comparison: "bg-orange-500/20 text-orange-400",
+  aggregation: "bg-green-500/20 text-green-400",
+  lookup: "bg-gray-500/20 text-gray-400",
+  other: "bg-gray-500/20 text-gray-400",
 };
 
 function formatRelativeTime(iso: string): string {
@@ -34,6 +51,28 @@ function truncateSql(sql: string, max = 80): string {
   const oneLine = sql.replace(/\s+/g, " ").trim();
   if (oneLine.length <= max) return oneLine;
   return `${oneLine.slice(0, max)}…`;
+}
+
+function judgeScoreColor(overall: number): string {
+  if (overall >= 8) return "text-green-400";
+  if (overall <= 4) return "text-red-400";
+  return "text-amber-400";
+}
+
+function verdictBadgeClass(verdict: JudgeResult["verdict"]): string {
+  if (verdict === "good") return "bg-green-500/20 text-green-400 border-green-500/30";
+  if (verdict === "poor") return "bg-red-500/20 text-red-400 border-red-500/30";
+  return "bg-amber-500/20 text-amber-400 border-amber-500/30";
+}
+
+function CategoryBadge({ category }: { category: QueryCategory }) {
+  return (
+    <span
+      className={`inline-block px-2 py-0.5 rounded text-xs capitalize ${CATEGORY_STYLES[category]}`}
+    >
+      {category}
+    </span>
+  );
 }
 
 function SkeletonCell() {
@@ -60,17 +99,21 @@ function SkeletonRows() {
 
 function MomentRow({
   moment: m,
+  evalResult,
   expanded,
   onToggle,
   copied,
   onCopy,
 }: {
   moment: DashboardMoment;
+  evalResult: JudgeResult | undefined;
   expanded: boolean;
   onToggle: () => void;
   copied: boolean;
   onCopy: () => void;
 }) {
+  const category = evalResult?.category ?? classifyQuestion(m.question);
+
   return (
     <>
       <tr className="border-t border-[var(--border)] hover:bg-white/[0.02]">
@@ -81,6 +124,9 @@ function MomentRow({
           {formatRelativeTime(m.timestamp)}
         </td>
         <td className="px-4 py-3 text-[var(--text)] max-w-md">{m.question}</td>
+        <td className="px-4 py-3">
+          <CategoryBadge category={category} />
+        </td>
         <td
           className="px-4 py-3 tabular-nums text-[var(--muted)]"
           title={`${m.questionMetrics.charCount} characters`}
@@ -116,6 +162,15 @@ function MomentRow({
         <td className="px-4 py-3 text-right tabular-nums text-[var(--muted)]">
           {m.tokenCount ?? "—"}
         </td>
+        <td className="px-4 py-3 text-right tabular-nums whitespace-nowrap">
+          {evalResult ? (
+            <span className={judgeScoreColor(evalResult.overall)}>
+              {evalResult.overall.toFixed(1)}/10
+            </span>
+          ) : (
+            <span className="text-[var(--muted)]">—</span>
+          )}
+        </td>
       </tr>
       {expanded && (
         <tr className="border-t border-[var(--border)] bg-black/20">
@@ -130,6 +185,61 @@ function MomentRow({
               {m.sqlComplexity.charLength.toLocaleString()} chars (score{" "}
               {m.sqlComplexity.score})
             </p>
+
+            {evalResult && (
+              <div className="space-y-2">
+                <div>
+                  <span
+                    className={`inline-block px-2 py-0.5 rounded border text-xs capitalize ${verdictBadgeClass(evalResult.verdict)}`}
+                  >
+                    {evalResult.verdict}
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                  <div className="rounded border border-[var(--border)] px-2 py-1.5">
+                    <span className="text-[var(--muted)]">Validity</span>
+                    <p className="font-mono text-[var(--text)]">
+                      {evalResult.scores.validity}/10
+                    </p>
+                  </div>
+                  <div className="rounded border border-[var(--border)] px-2 py-1.5">
+                    <span className="text-[var(--muted)]">Intent</span>
+                    <p className="font-mono text-[var(--text)]">
+                      {evalResult.scores.intent}/10
+                    </p>
+                  </div>
+                  <div className="rounded border border-[var(--border)] px-2 py-1.5">
+                    <span className="text-[var(--muted)]">Compliance</span>
+                    <p className="font-mono text-[var(--text)]">
+                      {evalResult.scores.compliance}/10
+                    </p>
+                  </div>
+                  <div className="rounded border border-[var(--border)] px-2 py-1.5">
+                    <span className="text-[var(--muted)]">Efficiency</span>
+                    <p className="font-mono text-[var(--text)]">
+                      {evalResult.scores.efficiency}/10
+                    </p>
+                  </div>
+                </div>
+                {evalResult.issues.length > 0 && (
+                  <ul className="text-xs space-y-1">
+                    {evalResult.issues.map((issue, i) => (
+                      <li
+                        key={i}
+                        className={
+                          evalResult.verdict === "poor"
+                            ? "text-red-400"
+                            : "text-amber-400"
+                        }
+                      >
+                        • {issue}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
+
             <ExpandedSqlToolbar copied={copied} onCopy={onCopy} />
             <pre className="text-xs font-mono text-[var(--text)] whitespace-pre-wrap overflow-x-auto max-h-64 overflow-y-auto">
               {m.sql}
@@ -168,6 +278,7 @@ function ExpandedSqlToolbar({
 
 export function MomentsTable({
   moments,
+  evalByQuestion,
   loading,
   error,
   onRefresh,
@@ -230,6 +341,7 @@ export function MomentsTable({
             <tr>
               <th className="px-4 py-3 font-medium">Timestamp</th>
               <th className="px-4 py-3 font-medium">Question</th>
+              <th className="px-4 py-3 font-medium">Category</th>
               <th className="px-4 py-3 font-medium">Words</th>
               <th className="px-4 py-3 font-medium">Latency</th>
               <th className="px-4 py-3 font-medium">SQL</th>
@@ -238,6 +350,7 @@ export function MomentsTable({
               </th>
               <th className="px-4 py-3 font-medium">Model</th>
               <th className="px-4 py-3 font-medium text-right">Tokens</th>
+              <th className="px-4 py-3 font-medium text-right">Judge</th>
             </tr>
           </thead>
           {loading ? (
@@ -251,7 +364,7 @@ export function MomentsTable({
                 >
                   {search.trim()
                     ? "No queries match your search."
-                    : "No query pairs yet. Run a question from Home with USE_P8K8 enabled. Latency appears after new queries (stored locally)."}
+                    : "No query pairs yet. Run npm run eval to populate judge scores."}
                 </td>
               </tr>
             </tbody>
@@ -259,10 +372,12 @@ export function MomentsTable({
             <tbody>
               {filtered.map((m) => {
                 const expanded = expandedId === m.id;
+                const evalResult = evalByQuestion.get(m.question.trim());
                 return (
                   <MomentRow
                     key={m.id}
                     moment={m}
+                    evalResult={evalResult}
                     expanded={expanded}
                     onToggle={() =>
                       setExpandedId(expanded ? null : m.id)

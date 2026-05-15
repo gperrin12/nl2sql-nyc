@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AppNav } from "@/components/AppNav";
 import { MomentsTable } from "@/components/MomentsTable";
+import type { JudgeResult } from "@/lib/judge";
 import type { DashboardMoment } from "@/lib/p8k8-moments";
 import { formatLatencyMs } from "@/lib/sql-metrics";
 
@@ -20,24 +21,46 @@ export function DashboardClient() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  const [evalByQuestion, setEvalByQuestion] = useState<
+    Map<string, JudgeResult>
+  >(new Map());
 
   const load = useCallback(async (nextOffset: number) => {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(
-        `/api/dashboard/moments?limit=${PAGE_SIZE}&offset=${nextOffset}`,
-        { cache: "no-store" }
-      );
-      const data = (await res.json()) as MomentsResponse & { error?: string; detail?: string };
-      if (!res.ok) {
+      const [momentsRes, evalsRes] = await Promise.all([
+        fetch(
+          `/api/dashboard/moments?limit=${PAGE_SIZE}&offset=${nextOffset}`,
+          { cache: "no-store" }
+        ),
+        fetch("/api/dashboard/evals", { cache: "no-store" }),
+      ]);
+
+      const data = (await momentsRes.json()) as MomentsResponse & {
+        error?: string;
+        detail?: string;
+      };
+      if (!momentsRes.ok) {
         throw new Error(
-          data.detail ? `${data.error ?? "Error"}: ${data.detail}` : (data.error ?? "Failed to load moments")
+          data.detail
+            ? `${data.error ?? "Error"}: ${data.detail}`
+            : (data.error ?? "Failed to load moments")
         );
       }
+
+      let evals: JudgeResult[] = [];
+      if (evalsRes.ok) {
+        const raw = (await evalsRes.json()) as unknown;
+        if (Array.isArray(raw)) evals = raw as JudgeResult[];
+      }
+      const evalMap = new Map<string, JudgeResult>();
+      for (const e of evals) evalMap.set(e.question.trim(), e);
+
       setMoments(data.moments);
       setTotal(data.total);
       setOffset(nextOffset);
+      setEvalByQuestion(evalMap);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load dashboard");
     } finally {
@@ -107,6 +130,7 @@ export function DashboardClient() {
 
       <MomentsTable
         moments={moments}
+        evalByQuestion={evalByQuestion}
         loading={loading}
         error={error}
         onRefresh={() => load(offset)}
