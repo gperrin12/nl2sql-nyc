@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { evalMatchKey } from "@/lib/eval-match";
 import type { JudgeResult } from "@/lib/judge";
 import type { DashboardMoment } from "@/lib/p8k8-moments";
@@ -10,7 +10,123 @@ import {
 } from "@/lib/query-category";
 import { formatLatencyMs } from "@/lib/sql-metrics";
 
-const COL_COUNT = 10;
+const COLUMN_STORAGE_KEY = "nl2sql-dashboard-columns-v2";
+
+export type MomentColumnId =
+  | "timestamp"
+  | "question"
+  | "category"
+  | "words"
+  | "latency"
+  | "sql"
+  | "cplx"
+  | "model"
+  | "tokens"
+  | "judge";
+
+type ColumnDef = {
+  id: MomentColumnId;
+  label: string;
+  defaultVisible: boolean;
+  headerClass?: string;
+  cellClass?: string;
+};
+
+const COLUMN_DEFS: ColumnDef[] = [
+  {
+    id: "timestamp",
+    label: "Timestamp",
+    defaultVisible: true,
+    headerClass: "w-[6.5rem]",
+    cellClass: "whitespace-nowrap text-[var(--muted)]",
+  },
+  {
+    id: "question",
+    label: "Question",
+    defaultVisible: true,
+    cellClass: "text-[var(--text)]",
+  },
+  {
+    id: "category",
+    label: "Category",
+    defaultVisible: true,
+    headerClass: "w-[7.5rem]",
+  },
+  {
+    id: "words",
+    label: "Words",
+    defaultVisible: false,
+    headerClass: "w-[4rem]",
+    cellClass: "tabular-nums text-[var(--muted)]",
+  },
+  {
+    id: "latency",
+    label: "Latency",
+    defaultVisible: false,
+    headerClass: "w-[5rem]",
+    cellClass: "tabular-nums text-[var(--muted)] whitespace-nowrap",
+  },
+  {
+    id: "sql",
+    label: "SQL",
+    defaultVisible: true,
+    cellClass: "font-mono text-xs text-[var(--muted)]",
+  },
+  {
+    id: "cplx",
+    label: "Cplx",
+    defaultVisible: false,
+    headerClass: "w-[3.5rem]",
+    cellClass: "tabular-nums text-[var(--muted)]",
+  },
+  {
+    id: "model",
+    label: "Model",
+    defaultVisible: true,
+    headerClass: "w-[8rem]",
+  },
+  {
+    id: "tokens",
+    label: "Tokens",
+    defaultVisible: false,
+    headerClass: "w-[4.5rem] text-right",
+    cellClass: "text-right tabular-nums text-[var(--muted)]",
+  },
+  {
+    id: "judge",
+    label: "Judge",
+    defaultVisible: true,
+    headerClass: "w-[5.5rem] text-right",
+    cellClass: "text-right tabular-nums whitespace-nowrap",
+  },
+];
+
+const DEFAULT_VISIBLE = new Set(
+  COLUMN_DEFS.filter((c) => c.defaultVisible).map((c) => c.id)
+);
+
+function loadVisibleColumns(): Set<MomentColumnId> {
+  if (typeof window === "undefined") return new Set(DEFAULT_VISIBLE);
+  try {
+    const raw = localStorage.getItem(COLUMN_STORAGE_KEY);
+    if (!raw) return new Set(DEFAULT_VISIBLE);
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) return new Set(DEFAULT_VISIBLE);
+    const valid = new Set(COLUMN_DEFS.map((c) => c.id));
+    const ids = parsed.filter(
+      (id): id is MomentColumnId =>
+        typeof id === "string" && valid.has(id as MomentColumnId)
+    );
+    if (ids.length === 0) return new Set(DEFAULT_VISIBLE);
+    return new Set(ids);
+  } catch {
+    return new Set(DEFAULT_VISIBLE);
+  }
+}
+
+function saveVisibleColumns(visible: Set<MomentColumnId>): void {
+  localStorage.setItem(COLUMN_STORAGE_KEY, JSON.stringify([...visible]));
+}
 
 type Props = {
   moments: DashboardMoment[];
@@ -48,7 +164,7 @@ function formatRelativeTime(iso: string): string {
   return new Date(iso).toLocaleDateString();
 }
 
-function truncateSql(sql: string, max = 80): string {
+function truncateSql(sql: string, max = 48): string {
   const oneLine = sql.replace(/\s+/g, " ").trim();
   if (oneLine.length <= max) return oneLine;
   return `${oneLine.slice(0, max)}…`;
@@ -69,32 +185,51 @@ function verdictBadgeClass(verdict: JudgeResult["verdict"]): string {
 function CategoryBadge({ category }: { category: QueryCategory }) {
   return (
     <span
-      className={`inline-block px-2 py-0.5 rounded text-xs capitalize ${CATEGORY_STYLES[category]}`}
+      className={`inline-block px-2 py-0.5 rounded text-xs capitalize whitespace-nowrap ${CATEGORY_STYLES[category]}`}
     >
       {category}
     </span>
   );
 }
 
-function SkeletonCell() {
-  return (
-    <div className="h-4 bg-[var(--border)] rounded animate-pulse w-full max-w-[12rem]" />
-  );
+function complexityTooltip(m: DashboardMoment): string {
+  const c = m.sqlComplexity;
+  return `${c.cteCount} CTEs, ${c.joinCount} JOINs, ${c.tableCount} tables, ${c.charLength} chars`;
 }
 
-function SkeletonRows() {
+function SkeletonRows({ colCount }: { colCount: number }) {
   return (
     <tbody>
       {Array.from({ length: 5 }).map((_, i) => (
         <tr key={i} className="border-t border-[var(--border)]">
-          {Array.from({ length: COL_COUNT }).map((__, j) => (
-            <td key={j} className="px-4 py-3">
-              <SkeletonCell />
+          {Array.from({ length: colCount }).map((__, j) => (
+            <td key={j} className="px-3 py-3">
+              <div className="h-4 bg-[var(--border)] rounded animate-pulse w-full" />
             </td>
           ))}
         </tr>
       ))}
     </tbody>
+  );
+}
+
+function ExpandedSqlToolbar({
+  copied,
+  onCopy,
+}: {
+  copied: boolean;
+  onCopy: () => void;
+}) {
+  return (
+    <div className="flex justify-end">
+      <button
+        type="button"
+        onClick={onCopy}
+        className="text-xs text-[var(--accent)] hover:text-[var(--accent-dim)]"
+      >
+        {copied ? "Copied!" : "Copy SQL"}
+      </button>
+    </div>
   );
 }
 
@@ -105,6 +240,8 @@ function MomentRow({
   onToggle,
   copied,
   onCopy,
+  visibleColumns,
+  colCount,
 }: {
   moment: DashboardMoment;
   evalResult: JudgeResult | undefined;
@@ -112,70 +249,127 @@ function MomentRow({
   onToggle: () => void;
   copied: boolean;
   onCopy: () => void;
+  visibleColumns: ColumnDef[];
+  colCount: number;
 }) {
   const category = evalResult?.category ?? classifyQuestion(m.question);
+  const visible = new Set(visibleColumns.map((c) => c.id));
+
+  const renderCell = (id: MomentColumnId) => {
+    switch (id) {
+      case "timestamp":
+        return formatRelativeTime(m.timestamp);
+      case "question":
+        return (
+          <span className="line-clamp-2" title={m.question}>
+            {m.question}
+          </span>
+        );
+      case "category":
+        return <CategoryBadge category={category} />;
+      case "words":
+        return m.questionMetrics.wordCount;
+      case "latency":
+        return formatLatencyMs(m.latencyMs);
+      case "sql":
+        return (
+          <>
+            {!expanded && (
+              <span
+                className="line-clamp-1"
+                title={m.sql.replace(/\s+/g, " ").trim()}
+              >
+                {truncateSql(m.sql)}
+              </span>
+            )}
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onToggle();
+              }}
+              className="mt-0.5 block text-[var(--accent)] hover:text-[var(--accent-dim)]"
+            >
+              {expanded ? "Collapse" : "Expand"}
+            </button>
+          </>
+        );
+      case "cplx":
+        return (
+          <span title={complexityTooltip(m)}>{m.sqlComplexity.score}</span>
+        );
+      case "model":
+        return m.model ? (
+          <span
+            className="inline-block max-w-full truncate px-2 py-0.5 rounded border border-[var(--border)] text-xs text-[var(--accent)]"
+            title={m.model}
+          >
+            {m.model}
+          </span>
+        ) : (
+          "—"
+        );
+      case "tokens":
+        return m.tokenCount ?? "—";
+      case "judge":
+        return evalResult ? (
+          <span className={judgeScoreColor(evalResult.overall)}>
+            {evalResult.overall.toFixed(1)}/10
+          </span>
+        ) : (
+          <span className="text-[var(--muted)]">—</span>
+        );
+      default:
+        return null;
+    }
+  };
 
   return (
     <>
-      <tr className="border-t border-[var(--border)] hover:bg-white/[0.02]">
-        <td
-          className="px-4 py-3 whitespace-nowrap text-[var(--muted)]"
-          title={new Date(m.timestamp).toLocaleString()}
-        >
-          {formatRelativeTime(m.timestamp)}
-        </td>
-        <td className="px-4 py-3 text-[var(--text)] max-w-md">{m.question}</td>
-        <td className="px-4 py-3">
-          <CategoryBadge category={category} />
-        </td>
-        <td
-          className="px-4 py-3 tabular-nums text-[var(--muted)]"
-          title={`${m.questionMetrics.charCount} characters`}
-        >
-          {m.questionMetrics.wordCount}
-        </td>
-        <td className="px-4 py-3 tabular-nums text-[var(--muted)] whitespace-nowrap">
-          {formatLatencyMs(m.latencyMs)}
-        </td>
-        <td className="px-4 py-3 font-mono text-xs text-[var(--muted)] max-w-sm">
-          {!expanded && <span>{truncateSql(m.sql)}</span>}
-          <button
-            type="button"
-            onClick={onToggle}
-            className="ml-2 text-[var(--accent)] hover:text-[var(--accent-dim)]"
-          >
-            {expanded ? "Collapse" : "Expand"}
-          </button>
-        </td>
-        <td
-          className="px-4 py-3 tabular-nums text-[var(--muted)]"
-          title={complexityTooltip(m)}
-        >
-          {m.sqlComplexity.score}
-        </td>
-        <td className="px-4 py-3">
-          {m.model && (
-            <span className="inline-block px-2 py-0.5 rounded border border-[var(--border)] text-xs text-[var(--accent)]">
-              {m.model}
-            </span>
-          )}
-        </td>
-        <td className="px-4 py-3 text-right tabular-nums text-[var(--muted)]">
-          {m.tokenCount ?? "—"}
-        </td>
-        <td className="px-4 py-3 text-right tabular-nums whitespace-nowrap">
-          {evalResult ? (
-            <span className={judgeScoreColor(evalResult.overall)}>
-              {evalResult.overall.toFixed(1)}/10
-            </span>
-          ) : (
-            <span className="text-[var(--muted)]">—</span>
-          )}
-        </td>
+      <tr
+        className={`border-t border-[var(--border)] hover:bg-white/[0.02] ${expanded ? "bg-white/[0.03]" : "cursor-pointer"}`}
+        onClick={() => {
+          if (!expanded) onToggle();
+        }}
+      >
+        {visibleColumns.map((col) => {
+          const def = COLUMN_DEFS.find((c) => c.id === col.id)!;
+          const extra =
+            col.id === "timestamp"
+              ? { title: new Date(m.timestamp).toLocaleString() }
+              : col.id === "words"
+                ? { title: `${m.questionMetrics.charCount} characters` }
+                : {};
+          return (
+            <td
+              key={col.id}
+              className={`px-3 py-3 align-top ${def.cellClass ?? ""}`}
+              {...extra}
+            >
+              {renderCell(col.id)}
+            </td>
+          );
+        })}
       </tr>
       {expanded && (
         <tr className="border-t border-[var(--border)] bg-black/20">
-          <td colSpan={COL_COUNT} className="px-4 py-3 space-y-3">
+          <td colSpan={colCount} className="px-4 py-4 space-y-3">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="min-w-0 flex-1 space-y-1">
+                <p className="text-xs uppercase tracking-wide text-[var(--muted)]">
+                  Question
+                </p>
+                <p className="text-sm text-[var(--text)]">{m.question}</p>
+              </div>
+              <button
+                type="button"
+                onClick={onToggle}
+                className="text-xs text-[var(--muted)] hover:text-[var(--text)] shrink-0"
+              >
+                Collapse
+              </button>
+            </div>
+
             <p className="text-xs text-[var(--muted)]">
               SQL complexity: {m.sqlComplexity.cteCount} CTE
               {m.sqlComplexity.cteCount === 1 ? "" : "s"},{" "}
@@ -185,6 +379,15 @@ function MomentRow({
               {m.sqlComplexity.tableCount === 1 ? "" : "s"},{" "}
               {m.sqlComplexity.charLength.toLocaleString()} chars (score{" "}
               {m.sqlComplexity.score})
+              {!visible.has("latency") && m.latencyMs != null && (
+                <> · latency {formatLatencyMs(m.latencyMs)}</>
+              )}
+              {!visible.has("words") && (
+                <> · {m.questionMetrics.wordCount} words</>
+              )}
+              {!visible.has("tokens") && m.tokenCount != null && (
+                <> · {m.tokenCount} tokens</>
+              )}
             </p>
 
             {evalResult && (
@@ -242,7 +445,7 @@ function MomentRow({
             )}
 
             <ExpandedSqlToolbar copied={copied} onCopy={onCopy} />
-            <pre className="text-xs font-mono text-[var(--text)] whitespace-pre-wrap overflow-x-auto max-h-64 overflow-y-auto">
+            <pre className="text-xs font-mono text-[var(--text)] whitespace-pre-wrap break-words max-h-80 overflow-y-auto rounded border border-[var(--border)] bg-[var(--bg)] p-3">
               {m.sql}
             </pre>
           </td>
@@ -252,27 +455,76 @@ function MomentRow({
   );
 }
 
-function complexityTooltip(m: DashboardMoment): string {
-  const c = m.sqlComplexity;
-  return `${c.cteCount} CTEs, ${c.joinCount} JOINs, ${c.tableCount} tables, ${c.charLength} chars`;
-}
-
-function ExpandedSqlToolbar({
-  copied,
-  onCopy,
+function ColumnPicker({
+  visible,
+  onChange,
 }: {
-  copied: boolean;
-  onCopy: () => void;
+  visible: Set<MomentColumnId>;
+  onChange: (next: Set<MomentColumnId>) => void;
 }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, [open]);
+
+  const toggle = (id: MomentColumnId) => {
+    const next = new Set(visible);
+    if (next.has(id)) {
+      if (next.size <= 1) return;
+      next.delete(id);
+    } else {
+      next.add(id);
+    }
+    onChange(next);
+  };
+
+  const reset = () => onChange(new Set(DEFAULT_VISIBLE));
+
   return (
-    <div className="flex justify-end mb-2">
+    <div className="relative" ref={ref}>
       <button
         type="button"
-        onClick={onCopy}
-        className="text-xs text-[var(--accent)] hover:text-[var(--accent-dim)]"
+        onClick={() => setOpen((o) => !o)}
+        className="px-3 py-1.5 rounded border border-[var(--border)] text-sm text-[var(--muted)] hover:text-[var(--text)]"
+        aria-expanded={open}
       >
-        {copied ? "Copied!" : "Copy SQL"}
+        Columns
       </button>
+      {open && (
+        <div className="absolute right-0 top-full z-20 mt-1 w-48 rounded-lg border border-[var(--border)] bg-[var(--panel)] shadow-lg py-2">
+          <p className="px-3 pb-2 text-xs text-[var(--muted)]">Toggle columns</p>
+          {COLUMN_DEFS.map((col) => (
+            <label
+              key={col.id}
+              className="flex items-center gap-2 px-3 py-1.5 text-sm text-[var(--text)] hover:bg-white/[0.04] cursor-pointer"
+            >
+              <input
+                type="checkbox"
+                checked={visible.has(col.id)}
+                onChange={() => toggle(col.id)}
+                className="rounded border-[var(--border)]"
+              />
+              {col.label}
+            </label>
+          ))}
+          <button
+            type="button"
+            onClick={reset}
+            className="mt-2 w-full px-3 py-1.5 text-left text-xs text-[var(--accent)] hover:text-[var(--accent-dim)]"
+          >
+            Reset to defaults
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -292,6 +544,26 @@ export function MomentsTable({
 }: Props) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [visibleIds, setVisibleIds] = useState<Set<MomentColumnId>>(
+    () => new Set(DEFAULT_VISIBLE)
+  );
+  const [columnsReady, setColumnsReady] = useState(false);
+
+  useEffect(() => {
+    setVisibleIds(loadVisibleColumns());
+    setColumnsReady(true);
+  }, []);
+
+  const setVisibleColumns = (next: Set<MomentColumnId>) => {
+    setVisibleIds(next);
+    saveVisibleColumns(next);
+  };
+
+  const visibleColumns = useMemo(
+    () => COLUMN_DEFS.filter((c) => visibleIds.has(c.id)),
+    [visibleIds]
+  );
+  const colCount = visibleColumns.length;
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -320,6 +592,9 @@ export function MomentsTable({
           onChange={(e) => onSearchChange(e.target.value)}
           className="flex-1 min-w-[12rem] px-3 py-1.5 rounded border border-[var(--border)] bg-[var(--bg)] text-sm text-[var(--text)] placeholder:text-[var(--muted)]"
         />
+        {columnsReady && (
+          <ColumnPicker visible={visibleIds} onChange={setVisibleColumns} />
+        )}
         <button
           type="button"
           onClick={onRefresh}
@@ -336,64 +611,66 @@ export function MomentsTable({
         </div>
       )}
 
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm text-left">
-          <thead className="text-xs uppercase tracking-wide text-[var(--muted)] bg-black/20">
-            <tr>
-              <th className="px-4 py-3 font-medium">Timestamp</th>
-              <th className="px-4 py-3 font-medium">Question</th>
-              <th className="px-4 py-3 font-medium">Category</th>
-              <th className="px-4 py-3 font-medium">Words</th>
-              <th className="px-4 py-3 font-medium">Latency</th>
-              <th className="px-4 py-3 font-medium">SQL</th>
-              <th className="px-4 py-3 font-medium" title="Complexity score">
-                Cplx
+      <table className="w-full table-fixed text-sm text-left">
+        <colgroup>
+          {visibleColumns.map((col) => {
+            if (col.id === "question") return <col key={col.id} className="w-[34%]" />;
+            if (col.id === "sql") return <col key={col.id} className="w-[20%]" />;
+            return <col key={col.id} />;
+          })}
+        </colgroup>
+        <thead className="text-xs uppercase tracking-wide text-[var(--muted)] bg-black/20">
+          <tr>
+            {visibleColumns.map((col) => (
+              <th
+                key={col.id}
+                className={`px-3 py-3 font-medium ${col.headerClass ?? ""}`}
+                title={col.id === "cplx" ? "Complexity score" : undefined}
+              >
+                {col.label}
               </th>
-              <th className="px-4 py-3 font-medium">Model</th>
-              <th className="px-4 py-3 font-medium text-right">Tokens</th>
-              <th className="px-4 py-3 font-medium text-right">Judge</th>
+            ))}
+          </tr>
+        </thead>
+        {loading || !columnsReady ? (
+          <SkeletonRows colCount={colCount || DEFAULT_VISIBLE.size} />
+        ) : filtered.length === 0 ? (
+          <tbody>
+            <tr>
+              <td
+                colSpan={colCount}
+                className="px-4 py-12 text-center text-[var(--muted)]"
+              >
+                {search.trim()
+                  ? "No queries match your search."
+                  : "No query pairs yet. Run npm run eval to populate judge scores."}
+              </td>
             </tr>
-          </thead>
-          {loading ? (
-            <SkeletonRows />
-          ) : filtered.length === 0 ? (
-            <tbody>
-              <tr>
-                <td
-                  colSpan={COL_COUNT}
-                  className="px-4 py-12 text-center text-[var(--muted)]"
-                >
-                  {search.trim()
-                    ? "No queries match your search."
-                    : "No query pairs yet. Run npm run eval to populate judge scores."}
-                </td>
-              </tr>
-            </tbody>
-          ) : (
-            <tbody>
-              {filtered.map((m) => {
-                const expanded = expandedId === m.id;
-                const evalResult = evalByQuestion.get(
-                  evalMatchKey(m.question, m.sql)
-                );
-                return (
-                  <MomentRow
-                    key={m.id}
-                    moment={m}
-                    evalResult={evalResult}
-                    expanded={expanded}
-                    onToggle={() =>
-                      setExpandedId(expanded ? null : m.id)
-                    }
-                    copied={copiedId === m.id}
-                    onCopy={() => copySql(m.id, m.sql)}
-                  />
-                );
-              })}
-            </tbody>
-          )}
-        </table>
-      </div>
+          </tbody>
+        ) : (
+          <tbody>
+            {filtered.map((m) => {
+              const expanded = expandedId === m.id;
+              const evalResult = evalByQuestion.get(
+                evalMatchKey(m.question, m.sql)
+              );
+              return (
+                <MomentRow
+                  key={m.id}
+                  moment={m}
+                  evalResult={evalResult}
+                  expanded={expanded}
+                  onToggle={() => setExpandedId(expanded ? null : m.id)}
+                  copied={copiedId === m.id}
+                  onCopy={() => copySql(m.id, m.sql)}
+                  visibleColumns={visibleColumns}
+                  colCount={colCount}
+                />
+              );
+            })}
+          </tbody>
+        )}
+      </table>
 
       {total > pageSize && (
         <div className="flex items-center justify-between px-4 py-3 border-t border-[var(--border)] text-xs text-[var(--muted)]">

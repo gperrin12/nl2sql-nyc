@@ -106,7 +106,7 @@ export function DashboardClient() {
   }, [moments, total]);
 
   return (
-    <main className="max-w-6xl mx-auto p-6 space-y-6">
+    <main className="max-w-[min(100%,90rem)] mx-auto p-6 space-y-6">
       <AppNav />
 
       <header className="space-y-1">
