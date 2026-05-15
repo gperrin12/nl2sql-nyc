@@ -1,6 +1,7 @@
 /**
  * Server-side store for query latency (p8k8 timestamps are not reliable).
- * Persists to .data/query-metrics.json (gitignored).
+ * Persists to .data/query-metrics.json locally (gitignored).
+ * Skipped on Vercel/serverless — no writable project disk (/var/task).
  */
 
 import { createHash } from "crypto";
@@ -19,6 +20,14 @@ type StoredMetric = {
   backend: string;
 };
 
+/** Local JSON file is only usable off serverless (e.g. npm run dev). */
+function canUseLocalMetricsFile(): boolean {
+  if (process.env.QUERY_METRICS_DISABLE === "true") return false;
+  if (process.env.VERCEL === "1") return false;
+  if (process.env.AWS_LAMBDA_FUNCTION_NAME) return false;
+  return true;
+}
+
 export function queryMetricsKey(question: string, sql: string): string {
   return createHash("sha256")
     .update(question.trim())
@@ -28,6 +37,8 @@ export function queryMetricsKey(question: string, sql: string): string {
 }
 
 async function readAll(): Promise<StoredMetric[]> {
+  if (!canUseLocalMetricsFile()) return [];
+
   try {
     const raw = await readFile(METRICS_FILE, "utf8");
     const parsed = JSON.parse(raw) as unknown;
@@ -45,6 +56,8 @@ async function readAll(): Promise<StoredMetric[]> {
 }
 
 async function writeAll(entries: StoredMetric[]): Promise<void> {
+  if (!canUseLocalMetricsFile()) return;
+
   await mkdir(DATA_DIR, { recursive: true });
   await writeFile(METRICS_FILE, JSON.stringify(entries, null, 2), "utf8");
 }
@@ -56,24 +69,32 @@ export async function recordQueryLatency(
   latencyMs: number,
   backend: string
 ): Promise<void> {
+  if (!canUseLocalMetricsFile()) return;
   if (!Number.isFinite(latencyMs) || latencyMs < 0) return;
 
-  const key = queryMetricsKey(question, sql);
-  const entries = await readAll();
-  const filtered = entries.filter((e) => e.key !== key);
-  filtered.push({
-    key,
-    question: question.trim(),
-    latencyMs: Math.round(latencyMs),
-    recordedAt: new Date().toISOString(),
-    backend,
-  });
+  try {
+    const key = queryMetricsKey(question, sql);
+    const entries = await readAll();
+    const filtered = entries.filter((e) => e.key !== key);
+    filtered.push({
+      key,
+      question: question.trim(),
+      latencyMs: Math.round(latencyMs),
+      recordedAt: new Date().toISOString(),
+      backend,
+    });
 
-  filtered.sort(
-    (a, b) =>
-      new Date(b.recordedAt).getTime() - new Date(a.recordedAt).getTime()
-  );
-  await writeAll(filtered.slice(0, MAX_ENTRIES));
+    filtered.sort(
+      (a, b) =>
+        new Date(b.recordedAt).getTime() - new Date(a.recordedAt).getTime()
+    );
+    await writeAll(filtered.slice(0, MAX_ENTRIES));
+  } catch (e) {
+    console.warn(
+      "[query-metrics] failed to persist latency:",
+      e instanceof Error ? e.message : e
+    );
+  }
 }
 
 /** Build key → latency map for dashboard enrichment. */
