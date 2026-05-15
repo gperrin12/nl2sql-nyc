@@ -85,22 +85,46 @@ export async function loadEvals(): Promise<JudgeResult[]> {
   }
 }
 
-/** Write evals to S3 and/or local file (always writes local when no S3). */
+/** Write evals to S3 (when EVALS_S3_URI is set) and data/evals.json. */
 export async function saveEvals(evals: JudgeResult[]): Promise<void> {
   const json = JSON.stringify(evals, null, 2);
   const s3 = getS3Target();
 
+  mkdirSync(path.dirname(LOCAL_PATH), { recursive: true });
+  writeFileSync(LOCAL_PATH, json, "utf8");
+
   if (s3) {
-    await s3Client().send(
-      new PutObjectCommand({
-        Bucket: s3.bucket,
-        Key: s3.key,
-        Body: json,
-        ContentType: "application/json",
-      })
+    await uploadEvalsJsonToS3(json, s3);
+    return;
+  }
+}
+
+/** Upload JSON to the bucket/key from EVALS_S3_URI (for eval:upload). */
+export async function uploadEvalsJsonToS3(
+  json: string,
+  target?: { bucket: string; key: string }
+): Promise<void> {
+  const s3 = target ?? getS3Target();
+  if (!s3) {
+    throw new Error(
+      "EVALS_S3_URI is not set — add e.g. EVALS_S3_URI=s3://your-bucket/nl2sql-nyc/evals.json to .env"
     );
   }
 
-  mkdirSync(path.dirname(LOCAL_PATH), { recursive: true });
-  writeFileSync(LOCAL_PATH, json, "utf8");
+  await s3Client().send(
+    new PutObjectCommand({
+      Bucket: s3.bucket,
+      Key: s3.key,
+      Body: json,
+      ContentType: "application/json",
+    })
+  );
+
+  console.log(`Uploaded evals to s3://${s3.bucket}/${s3.key}`);
+}
+
+/** Upload existing data/evals.json without re-running the judge. */
+export async function uploadLocalEvalsFile(): Promise<void> {
+  const raw = readFileSync(LOCAL_PATH, "utf8");
+  await uploadEvalsJsonToS3(raw);
 }

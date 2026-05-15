@@ -154,6 +154,13 @@ async function main(): Promise<void> {
 
   await saveEvals(merged);
 
+  if (!process.env.EVALS_S3_URI?.trim()) {
+    console.warn(
+      "\nNote: EVALS_S3_URI is not set — results saved to data/evals.json only.",
+      "Set EVALS_S3_URI in .env and re-run, or use: npm run eval:upload"
+    );
+  }
+
   printSummary(newResults, merged);
 }
 

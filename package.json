@@ -9,7 +9,8 @@
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
     "register-agent": "tsx scripts/register-p8k8-agent.ts",
-    "eval": "tsx scripts/eval-moments.ts"
+    "eval": "tsx scripts/eval-moments.ts",
+    "eval:upload": "tsx scripts/upload-evals-to-s3.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.32.0",
