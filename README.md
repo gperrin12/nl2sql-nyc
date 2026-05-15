@@ -59,6 +59,18 @@ npm run dev
 
 Open http://localhost:3000. When logged in, **`/dashboard`** shows recent p8k8 query pairs (requires `P8K8_URL`, `P8K8_AUTH_TOKEN`, and optionally `P8K8_CHAT_ID` for the session UUID).
 
+### Dashboard evals on Vercel
+
+Vercel has no persistent disk, so judge results from `npm run eval` must live in **S3** (same AWS creds as Athena):
+
+1. Create an object path, e.g. `s3://your-athena-bucket/nl2sql-nyc/evals.json`
+2. Set **`EVALS_S3_URI`** on Vercel (and in local `.env` when running eval)
+3. IAM needs `s3:GetObject` on that key (Vercel) and `s3:PutObject` (your laptop when running eval)
+4. Run locally: `npm run eval` — uploads to S3 and writes `data/evals.json`
+5. Redeploy is **not** required after eval; refresh `/dashboard` on production
+
+Without `EVALS_S3_URI`, the API reads `data/evals.json` only (works for `npm run dev` on your machine).
+
 ## Required AWS setup
 
 1. **S3 bucket for Athena query results.** Create one if you don't have it.

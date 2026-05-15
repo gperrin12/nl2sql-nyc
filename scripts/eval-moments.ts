@@ -7,11 +7,17 @@
  * Optional:
  * EVAL_LIMIT=50     (default 100)
  * EVAL_DELAY_MS=600 (default 600)
+ *
+ * Production (Vercel): set EVALS_S3_URI=s3://bucket/path/evals.json (same on
+ * Vercel env + local when running eval). Uses AWS_REGION / AWS_* credentials.
  */
 
-import { mkdirSync, readFileSync, writeFileSync } from "fs";
-import path from "path";
 import { judgeQueryPair, type JudgeResult } from "../lib/judge";
+import {
+  evalsStorageDescription,
+  loadEvals,
+  saveEvals,
+} from "../lib/evals-store";
 import {
   pairSessionMessages,
   unwrapTimelinePayload,
@@ -24,8 +30,6 @@ const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
 const EVAL_LIMIT = Number.parseInt(process.env.EVAL_LIMIT ?? "100", 10) || 100;
 const EVAL_DELAY_MS =
   Number.parseInt(process.env.EVAL_DELAY_MS ?? "600", 10) || 600;
-
-const EVALS_PATH = path.join(process.cwd(), "data", "evals.json");
 
 function requireEnv(name: string, value: string | undefined): string {
   if (!value) {
@@ -43,21 +47,8 @@ function hasSqlStatement(sql: string): boolean {
   return /\b(SELECT|WITH)\b/i.test(sql);
 }
 
-function loadExisting(): JudgeResult[] {
-  try {
-    const raw = readFileSync(EVALS_PATH, "utf8");
-    const parsed = JSON.parse(raw) as unknown;
-    if (!Array.isArray(parsed)) return [];
-    return parsed.filter(
-      (e): e is JudgeResult =>
-        e &&
-        typeof e === "object" &&
-        typeof (e as JudgeResult).question === "string" &&
-        typeof (e as JudgeResult).verdict === "string"
-    );
-  } catch {
-    return [];
-  }
+async function loadExisting(): Promise<JudgeResult[]> {
+  return loadEvals();
 }
 
 function mergeByQuestion(
@@ -110,7 +101,7 @@ function printSummary(newResults: JudgeResult[], all: JudgeResult[]): void {
     }
   }
   console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-  console.log(`Written to data/evals.json (${all.length} total)`);
+  console.log(`Written to ${evalsStorageDescription()} (${all.length} total)`);
 }
 
 async function main(): Promise<void> {
@@ -137,7 +128,7 @@ async function main(): Promise<void> {
     hasSqlStatement(p.sql)
   );
 
-  const existing = loadExisting();
+  const existing = await loadExisting();
   const judgedQuestions = new Set(
     existing.map((e) => e.question.trim())
   );
@@ -161,8 +152,7 @@ async function main(): Promise<void> {
       new Date(b.judgedAt).getTime() - new Date(a.judgedAt).getTime()
   );
 
-  mkdirSync(path.dirname(EVALS_PATH), { recursive: true });
-  writeFileSync(EVALS_PATH, JSON.stringify(merged, null, 2), "utf8");
+  await saveEvals(merged);
 
   printSummary(newResults, merged);
 }
