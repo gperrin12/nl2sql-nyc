@@ -2,6 +2,9 @@
 
 import { useMemo, useState } from "react";
 import type { DashboardMoment } from "@/lib/p8k8-moments";
+import { formatLatencyMs } from "@/lib/sql-metrics";
+
+const COL_COUNT = 8;
 
 type Props = {
   moments: DashboardMoment[];
@@ -44,7 +47,7 @@ function SkeletonRows() {
     <tbody>
       {Array.from({ length: 5 }).map((_, i) => (
         <tr key={i} className="border-t border-[var(--border)]">
-          {Array.from({ length: 5 }).map((__, j) => (
+          {Array.from({ length: COL_COUNT }).map((__, j) => (
             <td key={j} className="px-4 py-3">
               <SkeletonCell />
             </td>
@@ -78,6 +81,15 @@ function MomentRow({
           {formatRelativeTime(m.timestamp)}
         </td>
         <td className="px-4 py-3 text-[var(--text)] max-w-md">{m.question}</td>
+        <td
+          className="px-4 py-3 tabular-nums text-[var(--muted)]"
+          title={`${m.questionMetrics.charCount} characters`}
+        >
+          {m.questionMetrics.wordCount}
+        </td>
+        <td className="px-4 py-3 tabular-nums text-[var(--muted)] whitespace-nowrap">
+          {formatLatencyMs(m.latencyMs)}
+        </td>
         <td className="px-4 py-3 font-mono text-xs text-[var(--muted)] max-w-sm">
           {!expanded && <span>{truncateSql(m.sql)}</span>}
           <button
@@ -87,6 +99,12 @@ function MomentRow({
           >
             {expanded ? "Collapse" : "Expand"}
           </button>
+        </td>
+        <td
+          className="px-4 py-3 tabular-nums text-[var(--muted)]"
+          title={complexityTooltip(m)}
+        >
+          {m.sqlComplexity.score}
         </td>
         <td className="px-4 py-3">
           {m.model && (
@@ -101,7 +119,17 @@ function MomentRow({
       </tr>
       {expanded && (
         <tr className="border-t border-[var(--border)] bg-black/20">
-          <td colSpan={5} className="px-4 py-3">
+          <td colSpan={COL_COUNT} className="px-4 py-3 space-y-3">
+            <p className="text-xs text-[var(--muted)]">
+              SQL complexity: {m.sqlComplexity.cteCount} CTE
+              {m.sqlComplexity.cteCount === 1 ? "" : "s"},{" "}
+              {m.sqlComplexity.joinCount} JOIN
+              {m.sqlComplexity.joinCount === 1 ? "" : "s"},{" "}
+              {m.sqlComplexity.tableCount} table
+              {m.sqlComplexity.tableCount === 1 ? "" : "s"},{" "}
+              {m.sqlComplexity.charLength.toLocaleString()} chars (score{" "}
+              {m.sqlComplexity.score})
+            </p>
             <ExpandedSqlToolbar copied={copied} onCopy={onCopy} />
             <pre className="text-xs font-mono text-[var(--text)] whitespace-pre-wrap overflow-x-auto max-h-64 overflow-y-auto">
               {m.sql}
@@ -111,6 +139,11 @@ function MomentRow({
       )}
     </>
   );
+}
+
+function complexityTooltip(m: DashboardMoment): string {
+  const c = m.sqlComplexity;
+  return `${c.cteCount} CTEs, ${c.joinCount} JOINs, ${c.tableCount} tables, ${c.charLength} chars`;
 }
 
 function ExpandedSqlToolbar({
@@ -197,7 +230,12 @@ export function MomentsTable({
             <tr>
               <th className="px-4 py-3 font-medium">Timestamp</th>
               <th className="px-4 py-3 font-medium">Question</th>
+              <th className="px-4 py-3 font-medium">Words</th>
+              <th className="px-4 py-3 font-medium">Latency</th>
               <th className="px-4 py-3 font-medium">SQL</th>
+              <th className="px-4 py-3 font-medium" title="Complexity score">
+                Cplx
+              </th>
               <th className="px-4 py-3 font-medium">Model</th>
               <th className="px-4 py-3 font-medium text-right">Tokens</th>
             </tr>
@@ -208,12 +246,12 @@ export function MomentsTable({
             <tbody>
               <tr>
                 <td
-                  colSpan={5}
+                  colSpan={COL_COUNT}
                   className="px-4 py-12 text-center text-[var(--muted)]"
                 >
                   {search.trim()
                     ? "No queries match your search."
-                    : "No query pairs yet. Run a question from Home with USE_P8K8 enabled."}
+                    : "No query pairs yet. Run a question from Home with USE_P8K8 enabled. Latency appears after new queries (stored locally)."}
                 </td>
               </tr>
             </tbody>

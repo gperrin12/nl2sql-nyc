@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isAuthenticated } from "@/lib/auth";
+import { enrichDashboardMoments } from "@/lib/enrich-dashboard-moments";
 import {
   paginateMoments,
   pairSessionMessages,
   unwrapTimelinePayload,
 } from "@/lib/p8k8-moments";
+import { loadLatencyByKey } from "@/lib/query-metrics-store";
 import { resolveP8k8ChatId } from "@/lib/p8k8";
 
 const P8K8_URL = (process.env.P8K8_URL ?? "").replace(/\/$/, "");
@@ -81,7 +83,9 @@ export async function GET(req: NextRequest) {
 
   const events = unwrapTimelinePayload(data);
   const paired = pairSessionMessages(events);
-  const { moments, total } = paginateMoments(paired, offset, limit);
+  const latencyByKey = await loadLatencyByKey();
+  const enriched = enrichDashboardMoments(paired, latencyByKey);
+  const { moments, total } = paginateMoments(enriched, offset, limit);
 
   return NextResponse.json({ moments, total });
 }

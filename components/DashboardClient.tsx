@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { AppNav } from "@/components/AppNav";
 import { MomentsTable } from "@/components/MomentsTable";
 import type { DashboardMoment } from "@/lib/p8k8-moments";
+import { formatLatencyMs } from "@/lib/sql-metrics";
 
 const PAGE_SIZE = 50;
 
@@ -61,10 +62,20 @@ export function DashboardClient() {
             tokenValues.reduce((a, b) => a + b, 0) / tokenValues.length
           )
         : null;
+    const latencyValues = moments
+      .map((m) => m.latencyMs)
+      .filter((ms): ms is number => ms != null && Number.isFinite(ms));
+    const avgLatencyMs =
+      latencyValues.length > 0
+        ? Math.round(
+            latencyValues.reduce((a, b) => a + b, 0) / latencyValues.length
+          )
+        : null;
     return {
       total,
       uniqueModels: models.size,
       avgTokens,
+      avgLatencyMs,
     };
   }, [moments, total]);
 
@@ -81,9 +92,13 @@ export function DashboardClient() {
         </p>
       </header>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard label="Total queries" value={String(stats.total)} />
         <StatCard label="Unique models (page)" value={String(stats.uniqueModels)} />
+        <StatCard
+          label="Avg latency (page)"
+          value={formatLatencyMs(stats.avgLatencyMs)}
+        />
         <StatCard
           label="Avg tokens (page)"
           value={stats.avgTokens != null ? String(stats.avgTokens) : "—"}

@@ -2,6 +2,9 @@
  * Parse p8k8 session timeline events into dashboard query pairs.
  */
 
+import { extractSqlFromAssistantText } from "@/lib/p8k8";
+import type { QuestionMetrics, SqlComplexity } from "@/lib/sql-metrics";
+
 export type DashboardMoment = {
   id: string;
   timestamp: string;
@@ -10,6 +13,9 @@ export type DashboardMoment = {
   model: string | null;
   tokenCount: number | null;
   agentName: string | null;
+  latencyMs: number | null;
+  questionMetrics: QuestionMetrics;
+  sqlComplexity: SqlComplexity;
 };
 
 type P8k8TimelineEvent = {
@@ -104,9 +110,11 @@ export function unwrapTimelinePayload(data: unknown): P8k8TimelineEvent[] {
 }
 
 /** Pair consecutive user → assistant messages; chronological in, newest-first out. */
-export function pairSessionMessages(events: P8k8TimelineEvent[]): DashboardMoment[] {
+export function pairSessionMessages(
+  events: P8k8TimelineEvent[]
+): DashboardMomentBase[] {
   const messages = events.filter(isMessageEvent);
-  const pairs: DashboardMoment[] = [];
+  const pairs: DashboardMomentBase[] = [];
   let pendingUser: P8k8TimelineEvent | null = null;
 
   for (const ev of messages) {
@@ -117,11 +125,14 @@ export function pairSessionMessages(events: P8k8TimelineEvent[]): DashboardMomen
     }
     if (role === "assistant" && pendingUser) {
       const meta = readMetadata(ev);
+      const assistantRaw = messageContent(ev);
+      const sql =
+        extractSqlFromAssistantText(assistantRaw)?.trim() ?? assistantRaw;
       pairs.push({
         id: eventId(ev),
         timestamp: eventTimestamp(ev),
         question: messageContent(pendingUser),
-        sql: messageContent(ev),
+        sql,
         model: meta.model,
         tokenCount: meta.tokenCount,
         agentName: meta.agentName,
@@ -133,11 +144,17 @@ export function pairSessionMessages(events: P8k8TimelineEvent[]): DashboardMomen
   return pairs.reverse();
 }
 
-export function paginateMoments(
-  moments: DashboardMoment[],
+/** Base pair shape before server-side enrichment. */
+export type DashboardMomentBase = Omit<
+  DashboardMoment,
+  "latencyMs" | "questionMetrics" | "sqlComplexity"
+>;
+
+export function paginateMoments<T extends { id: string }>(
+  moments: T[],
   offset: number,
   limit: number
-): { moments: DashboardMoment[]; total: number } {
+): { moments: T[]; total: number } {
   const total = moments.length;
   const safeOffset = Math.max(0, offset);
   const safeLimit = Math.max(1, limit);
