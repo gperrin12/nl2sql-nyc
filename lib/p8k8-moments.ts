@@ -65,6 +65,27 @@ function eventId(ev: P8k8TimelineEvent): string {
   return id ? String(id) : `msg-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
+/**
+ * p8k8 often returns user and assistant at the same timestamp with assistant
+ * listed first. Pairing must run in true turn order: user, then assistant.
+ */
+function sortMessagesForPairing(
+  messages: P8k8TimelineEvent[]
+): P8k8TimelineEvent[] {
+  return [...messages].sort((a, b) => {
+    const ta = eventTimestamp(a);
+    const tb = eventTimestamp(b);
+    const byTime = ta.localeCompare(tb);
+    if (byTime !== 0) return byTime;
+
+    const ra = messageRole(a);
+    const rb = messageRole(b);
+    if (ra === "user" && rb === "assistant") return -1;
+    if (ra === "assistant" && rb === "user") return 1;
+    return 0;
+  });
+}
+
 function readMetadata(ev: P8k8TimelineEvent): {
   model: string | null;
   tokenCount: number | null;
@@ -113,7 +134,7 @@ export function unwrapTimelinePayload(data: unknown): P8k8TimelineEvent[] {
 export function pairSessionMessages(
   events: P8k8TimelineEvent[]
 ): DashboardMomentBase[] {
-  const messages = events.filter(isMessageEvent);
+  const messages = sortMessagesForPairing(events.filter(isMessageEvent));
   const pairs: DashboardMomentBase[] = [];
   let pendingUser: P8k8TimelineEvent | null = null;
 
