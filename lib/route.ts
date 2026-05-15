@@ -22,7 +22,7 @@ const BodySchema = z.object({
  *
  * Priority: agent (spatial/flag) > p8k8 > direct Claude
  */
-function pickBackend(question: string): "agent" | "p8k8" | "claude" {
+export function pickBackend(question: string): "agent" | "p8k8" | "claude" {
   const isSpatial =
     process.env.CLAUDE_SQL_AGENT === "true" || mapSpatialIntent(question);
   if (isSpatial) return "agent";

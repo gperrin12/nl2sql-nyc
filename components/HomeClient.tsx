@@ -41,7 +41,10 @@ type Props = { initialAuthed: boolean };
 
 const MAX_REPAIR_ATTEMPTS = 5;
 
-const AGENT_SSE = process.env.NEXT_PUBLIC_AGENT_SSE === "true";
+/** Live trace panel uses POST /api/query/agent-stream (not /api/query/start). */
+const USE_QUERY_STREAM =
+  process.env.NEXT_PUBLIC_AGENT_SSE === "true" ||
+  process.env.NEXT_PUBLIC_USE_P8K8 === "true";
 
 export function HomeClient({ initialAuthed }: Props) {
   const [authed, setAuthed] = useState(initialAuthed);
@@ -129,6 +132,9 @@ export function HomeClient({ initialAuthed }: Props) {
       case "athena_started":
         setExecutionId(p.executionId);
         break;
+      case "summary":
+        setAgentAnswerSummary(p.text.trim());
+        break;
       case "done":
         setGeneratedModel(p.model);
         break;
@@ -181,7 +187,7 @@ export function HomeClient({ initialAuthed }: Props) {
     setStreamError(null);
     setAgentSteps([]);
     setAgentAnswerSummary(null);
-    if (AGENT_SSE) {
+    if (USE_QUERY_STREAM) {
       void runStreamingSubmit(question);
       return;
     }
@@ -246,7 +252,7 @@ export function HomeClient({ initialAuthed }: Props) {
 
       <QueryBox onSubmit={handleSubmit} disabled={!!isRunning} />
 
-      {AGENT_SSE && (agentSteps.length > 0 || streamBusy) && (
+      {USE_QUERY_STREAM && (agentSteps.length > 0 || streamBusy) && (
         <AgentStreamTrace steps={agentSteps} busy={streamBusy} />
       )}
 
