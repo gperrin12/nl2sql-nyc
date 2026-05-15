@@ -12,6 +12,7 @@
  * Vercel env + local when running eval). Uses AWS_REGION / AWS_* credentials.
  */
 
+import { evalMatchKey } from "../lib/eval-match";
 import { judgeQueryPair, type JudgeResult } from "../lib/judge";
 import {
   evalsStorageDescription,
@@ -51,13 +52,13 @@ async function loadExisting(): Promise<JudgeResult[]> {
   return loadEvals();
 }
 
-function mergeByQuestion(
+function mergeByPairKey(
   existing: JudgeResult[],
   added: JudgeResult[]
 ): JudgeResult[] {
   const map = new Map<string, JudgeResult>();
-  for (const e of existing) map.set(e.question.trim(), e);
-  for (const e of added) map.set(e.question.trim(), e);
+  for (const e of existing) map.set(evalMatchKey(e.question, e.sql), e);
+  for (const e of added) map.set(evalMatchKey(e.question, e.sql), e);
   return Array.from(map.values());
 }
 
@@ -129,11 +130,13 @@ async function main(): Promise<void> {
   );
 
   const existing = await loadExisting();
-  const judgedQuestions = new Set(
-    existing.map((e) => e.question.trim())
+  const judgedKeys = new Set(
+    existing.map((e) => evalMatchKey(e.question, e.sql))
   );
 
-  const toJudge = pairs.filter((p) => !judgedQuestions.has(p.question.trim()));
+  const toJudge = pairs.filter(
+    (p) => !judgedKeys.has(evalMatchKey(p.question, p.sql))
+  );
   const newResults: JudgeResult[] = [];
 
   for (let i = 0; i < toJudge.length; i++) {
@@ -146,7 +149,7 @@ async function main(): Promise<void> {
     if (i < toJudge.length - 1) await sleep(EVAL_DELAY_MS);
   }
 
-  const merged = mergeByQuestion(existing, newResults);
+  const merged = mergeByPairKey(existing, newResults);
   merged.sort(
     (a, b) =>
       new Date(b.judgedAt).getTime() - new Date(a.judgedAt).getTime()

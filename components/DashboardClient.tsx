@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AppNav } from "@/components/AppNav";
 import { MomentsTable } from "@/components/MomentsTable";
+import { evalMatchKey } from "@/lib/eval-match";
 import type { JudgeResult } from "@/lib/judge";
 import type { DashboardMoment } from "@/lib/p8k8-moments";
 import { formatLatencyMs } from "@/lib/sql-metrics";
@@ -55,7 +56,9 @@ export function DashboardClient() {
         if (Array.isArray(raw)) evals = raw as JudgeResult[];
       }
       const evalMap = new Map<string, JudgeResult>();
-      for (const e of evals) evalMap.set(e.question.trim(), e);
+      for (const e of evals) {
+        evalMap.set(evalMatchKey(e.question, e.sql), e);
+      }
 
       setMoments(data.moments);
       setTotal(data.total);

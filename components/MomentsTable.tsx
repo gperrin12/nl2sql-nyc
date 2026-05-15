@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { evalMatchKey } from "@/lib/eval-match";
 import type { JudgeResult } from "@/lib/judge";
 import type { DashboardMoment } from "@/lib/p8k8-moments";
 import {
@@ -372,7 +373,9 @@ export function MomentsTable({
             <tbody>
               {filtered.map((m) => {
                 const expanded = expandedId === m.id;
-                const evalResult = evalByQuestion.get(m.question.trim());
+                const evalResult = evalByQuestion.get(
+                  evalMatchKey(m.question, m.sql)
+                );
                 return (
                   <MomentRow
                     key={m.id}
