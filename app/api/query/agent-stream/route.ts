@@ -1,6 +1,8 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
-import { mapSpatialIntent } from "@/lib/sql-agent/mapIntent";
+import { generateSql } from "@/lib/claude";
+import { generateSqlViaP8k8WithEvents } from "@/lib/p8k8";
+import { pickBackend } from "@/lib/route";
 import { runSqlAgentWithEvents } from "@/lib/sql-agent/run";
 import type { AgentStreamPayload } from "@/lib/sql-agent/types";
 import { checkSql } from "@/lib/guardrails";
@@ -36,32 +38,32 @@ export async function POST(req: NextRequest) {
     });
   }
 
-  if (
-    process.env.CLAUDE_SQL_AGENT !== "true" &&
-    !mapSpatialIntent(parsed.question)
-  ) {
-    return new Response(
-      JSON.stringify({
-        error: "Agent streaming disabled",
-        detail:
-          "Set CLAUDE_SQL_AGENT=true on the server, or use map/spatial wording (e.g. \"map of …\", \"where …\") to enable the agent for this question.",
-      }),
-      { status: 503, headers: { "content-type": "application/json" } }
-    );
-  }
+  const backend = pickBackend(parsed.question);
 
   const stream = new ReadableStream({
     async start(controller) {
       const push = (p: AgentStreamPayload) => controller.enqueue(sseLine(p));
 
       try {
-        const generation = await runSqlAgentWithEvents(parsed.question, push);
+        let generation;
+        if (backend === "agent") {
+          generation = await runSqlAgentWithEvents(parsed.question, push);
+        } else if (backend === "p8k8") {
+          generation = await generateSqlViaP8k8WithEvents(parsed.question, push);
+        } else {
+          await push({ type: "turn", index: 0 });
+          await push({
+            type: "reason",
+            text: "Generating SQL via Claude (single-shot).",
+          });
+          generation = await generateSql(parsed.question);
+        }
 
-        push({ type: "sql_generated", sql: generation.sql });
+        await push({ type: "sql_generated", sql: generation.sql });
 
         const guard = checkSql(generation.sql);
         if (!guard.ok) {
-          push({
+          await push({
             type: "guardrails_failed",
             reason: guard.reason,
             sql: generation.sql,
@@ -74,7 +76,7 @@ export async function POST(req: NextRequest) {
         try {
           executionId = await startQuery(guard.sql);
         } catch (e) {
-          push({
+          await push({
             type: "athena_failed",
             detail: errorMessage(e),
             sql: guard.sql,
@@ -83,8 +85,8 @@ export async function POST(req: NextRequest) {
           return;
         }
 
-        push({ type: "athena_started", executionId });
-        push({
+        await push({ type: "athena_started", executionId });
+        await push({
           type: "done",
           model: generation.model,
           usage: {
@@ -93,7 +95,7 @@ export async function POST(req: NextRequest) {
           },
         });
       } catch (e) {
-        push({
+        await push({
           type: "error",
           message: "Agent or pipeline failed",
           detail: errorMessage(e),

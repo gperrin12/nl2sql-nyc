@@ -129,6 +129,9 @@ export function HomeClient({ initialAuthed }: Props) {
       case "athena_started":
         setExecutionId(p.executionId);
         break;
+      case "summary":
+        setAgentAnswerSummary(p.text.trim());
+        break;
       case "done":
         setGeneratedModel(p.model);
         break;

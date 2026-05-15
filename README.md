@@ -42,7 +42,7 @@ hobby/pro tiers cap function execution well below that.
 
 Set `CLAUDE_SQL_AGENT=true` to use a **tool loop** instead of one-shot generation: the model calls `list_tables` and `get_schema` so it only loads relevant table definitions (fewer invented columns), then emits SQL.
 
-Set **`NEXT_PUBLIC_AGENT_SSE=true`** (with **`CLAUDE_SQL_AGENT=true`**) so the UI calls **`POST /api/query/agent-stream`** instead of `/api/query/start`. You’ll see a live **agent trace** (reason → tool act → tool observe), then SQL, guardrails outcome, and Athena execution id in one streamed sequence. Rebuild or restart dev after changing `NEXT_PUBLIC_*` vars.
+Set **`NEXT_PUBLIC_AGENT_SSE=true`** so the UI calls **`POST /api/query/agent-stream`** instead of `/api/query/start`. You’ll see a live **agent trace** (round → reason → tool act/observe when applicable), then SQL, guardrails, and Athena in one streamed sequence. The stream uses the same backend as `/api/query/start`: local tool agent (spatial / `CLAUDE_SQL_AGENT`), **p8k8** (`USE_P8K8=true`), or single-shot Claude. Rebuild or restart dev after changing `NEXT_PUBLIC_*` vars.
 
 When Athena fails or returns unusable results, call **`POST /api/query/repair`** with JSON `{ "question", "sql", "feedback" }` where `feedback` is the Athena state reason (or your own notes). That runs a **repair pass** with the full dialect prompt and starts a new execution.
 
