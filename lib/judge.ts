@@ -48,11 +48,9 @@ export type FullJudgeResult = JudgeResult & {
   resultEval?: ResultEval;
 };
 
-export const JUDGE_BLEND_WEIGHTS = {
-  sql: 0.6,
-  result: 0.25,
-  viz: 0.15,
-} as const;
+import { blendJudgeOverall } from "@/lib/judge-blend";
+
+export { JUDGE_BLEND_COEFF, JUDGE_BLEND_DIVISOR } from "@/lib/judge-blend";
 
 function buildUserMessage(question: string, sql: string): string {
   return `QUESTION: ${question}
@@ -297,10 +295,11 @@ export async function judgeFullResult(
     .join("\n");
 
   const parsed = parseResultJudgeResponse(text);
-  const overall =
-    sqlEval.overall * JUDGE_BLEND_WEIGHTS.sql +
-    parsed.resultQuality * JUDGE_BLEND_WEIGHTS.result +
-    parsed.vizFit * JUDGE_BLEND_WEIGHTS.viz;
+  const overall = blendJudgeOverall(
+    sqlEval.overall,
+    parsed.resultQuality,
+    parsed.vizFit
+  );
 
   return {
     ...sqlEval,

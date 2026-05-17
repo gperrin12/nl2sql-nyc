@@ -3,15 +3,24 @@
  */
 
 import type { FullJudgeResult } from "@/lib/judge";
+import {
+  blendJudgeOverall,
+  JUDGE_BLEND_COEFF,
+  JUDGE_BLEND_DIVISOR,
+} from "@/lib/judge-blend";
 
-export const JUDGE_WEIGHTS = {
-  sql: 0.6,
-  result: 0.25,
-  viz: 0.15,
-} as const;
+export { JUDGE_BLEND_COEFF, JUDGE_BLEND_DIVISOR };
 
 function clampScore(n: number): number {
   return Math.max(0, Math.min(10, Math.round(n * 10) / 10));
+}
+
+export function computeBlendedOverall(
+  sql: number,
+  resultQuality: number,
+  vizFit: number
+): number {
+  return blendJudgeOverall(sql, resultQuality, vizFit);
 }
 
 /** SQL-only overall (stored on full eval, or inferred / equals overall for SQL-only). */
@@ -22,50 +31,40 @@ export function getSqlOverall(evalResult: FullJudgeResult): number {
   if (!evalResult.resultEval) return evalResult.overall;
   const re = evalResult.resultEval;
   const inferred =
-    (evalResult.overall -
-      re.resultQuality * JUDGE_WEIGHTS.result -
-      re.vizFit * JUDGE_WEIGHTS.viz) /
-    JUDGE_WEIGHTS.sql;
-  return clampScore(inferred);
+    JUDGE_BLEND_DIVISOR * evalResult.overall -
+    JUDGE_BLEND_COEFF.result * re.resultQuality -
+    JUDGE_BLEND_COEFF.viz * re.vizFit;
+  return clampScore(inferred / JUDGE_BLEND_COEFF.sql);
 }
 
-/** Blended overall from components (may differ slightly from stored after rounding). */
-export function computeBlendedOverall(
-  sql: number,
-  resultQuality: number,
-  vizFit: number
-): number {
-  return clampScore(
-    sql * JUDGE_WEIGHTS.sql +
-      resultQuality * JUDGE_WEIGHTS.result +
-      vizFit * JUDGE_WEIGHTS.viz
-  );
+export function formatJudgeFormulaLabel(): string {
+  return `(SQL + 2×Result + Viz) / 4`;
 }
 
 export function formatJudgeHeaderTooltip(): string {
   return [
     "Combined score (full eval):",
-    `0.6 × SQL + 0.25 × Result + 0.15 × Viz`,
-    "SQL-only evals: overall equals SQL score.",
+    "(1×SQL + 2×Result + 1×Viz) / 4",
+    "Result counts twice as much as SQL or Viz.",
+    "SQL-only evals: Judge equals SQL score.",
   ].join("\n");
 }
 
 export function formatJudgeCellTooltip(evalResult: FullJudgeResult): string {
   const sql = getSqlOverall(evalResult);
   if (!evalResult.resultEval) {
-    return `SQL judge: ${sql.toFixed(1)}/10\n(No full eval — Judge column equals SQL score.)`;
+    return `SQL judge: ${sql.toFixed(1)}/10\n(No full eval — Judge equals SQL score.)`;
   }
   const rq = evalResult.resultEval.resultQuality;
   const vf = evalResult.resultEval.vizFit;
   const raw =
-    sql * JUDGE_WEIGHTS.sql +
-    rq * JUDGE_WEIGHTS.result +
-    vf * JUDGE_WEIGHTS.viz;
+    sql * JUDGE_BLEND_COEFF.sql +
+    rq * JUDGE_BLEND_COEFF.result +
+    vf * JUDGE_BLEND_COEFF.viz;
   return [
-    `0.6 × SQL (${sql.toFixed(1)})`,
-    `+ 0.25 × Result (${rq.toFixed(1)})`,
-    `+ 0.15 × Viz (${vf.toFixed(1)})`,
-    `= ${raw.toFixed(2)} → ${evalResult.overall.toFixed(1)}/10`,
+    `(SQL + 2×Result + Viz) / 4`,
+    `= (${sql.toFixed(1)} + 2×${rq.toFixed(1)} + ${vf.toFixed(1)}) / 4`,
+    `= ${raw.toFixed(2)} / 4 = ${(raw / JUDGE_BLEND_DIVISOR).toFixed(2)} → ${evalResult.overall.toFixed(1)}/10`,
   ].join("\n");
 }
 

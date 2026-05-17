@@ -13,7 +13,7 @@ import {
   formatJudgeHeaderTooltip,
   formatSqlJudgeHeaderTooltip,
   getSqlOverall,
-  JUDGE_WEIGHTS,
+  JUDGE_BLEND_DIVISOR,
 } from "@/lib/judge-display";
 import { formatLatencyMs } from "@/lib/sql-metrics";
 
@@ -223,6 +223,50 @@ function CategoryBadge({ category }: { category: QueryCategory }) {
   );
 }
 
+function HoverTooltip({
+  children,
+  tooltip,
+  className,
+  align = "left",
+  placement = "below",
+}: {
+  children: React.ReactNode;
+  tooltip: string;
+  className?: string;
+  align?: "left" | "right";
+  placement?: "above" | "below";
+}) {
+  const [show, setShow] = useState(false);
+  if (!tooltip) {
+    return <span className={className}>{children}</span>;
+  }
+  const positionClass =
+    placement === "above"
+      ? "bottom-full mb-1.5"
+      : "top-full mt-1.5";
+  return (
+    <span
+      className={`relative inline-flex ${className ?? ""}`}
+      onMouseEnter={() => setShow(true)}
+      onMouseLeave={() => setShow(false)}
+      onFocus={() => setShow(true)}
+      onBlur={() => setShow(false)}
+    >
+      {children}
+      {show && (
+        <span
+          role="tooltip"
+          className={`absolute z-[100] w-max max-w-[18rem] whitespace-pre-line rounded-md border border-[var(--border)] bg-[var(--bg)] px-2.5 py-2 text-[11px] font-normal normal-case leading-snug text-[var(--text)] shadow-xl pointer-events-none ${positionClass} ${
+            align === "right" ? "right-0" : "left-0"
+          }`}
+        >
+          {tooltip}
+        </span>
+      )}
+    </span>
+  );
+}
+
 function columnHeaderTitle(id: MomentColumnId): string | undefined {
   if (id === "sqlJudge") return formatSqlJudgeHeaderTooltip();
   if (id === "judge") return formatJudgeHeaderTooltip();
@@ -363,12 +407,15 @@ function MomentRow({
         );
       case "judge":
         return evalResult ? (
-          <span
-            className={judgeScoreColor(evalResult.overall)}
-            title={formatJudgeCellTooltip(evalResult)}
+          <HoverTooltip
+            tooltip={formatJudgeCellTooltip(evalResult)}
+            align="right"
+            className="cursor-help border-b border-dotted border-[var(--muted)]"
           >
-            {evalResult.overall.toFixed(1)}/10
-          </span>
+            <span className={judgeScoreColor(evalResult.overall)}>
+              {evalResult.overall.toFixed(1)}/10
+            </span>
+          </HoverTooltip>
         ) : (
           <span className="text-[var(--muted)]">—</span>
         );
@@ -473,12 +520,9 @@ function MomentRow({
                   {evalResult.resultEval ? (
                     <>
                       {" "}
-                      · Judge = {JUDGE_WEIGHTS.sql}×SQL (
-                      {getSqlOverall(evalResult).toFixed(1)}) +{" "}
-                      {JUDGE_WEIGHTS.result}×Result (
-                      {evalResult.resultEval.resultQuality.toFixed(1)}) +{" "}
-                      {JUDGE_WEIGHTS.viz}×Viz (
-                      {evalResult.resultEval.vizFit.toFixed(1)}) →{" "}
+                      · Judge = (SQL {getSqlOverall(evalResult).toFixed(1)} + 2×Result{" "}
+                      {evalResult.resultEval.resultQuality.toFixed(1)} + Viz{" "}
+                      {evalResult.resultEval.vizFit.toFixed(1)}) / {JUDGE_BLEND_DIVISOR} →{" "}
                       {evalResult.overall.toFixed(1)}/10
                     </>
                   ) : null}
@@ -713,7 +757,7 @@ export function MomentsTable({
   };
 
   return (
-    <div className="rounded-lg border border-[var(--border)] bg-[var(--panel)] overflow-hidden">
+    <div className="rounded-lg border border-[var(--border)] bg-[var(--panel)] overflow-x-auto overflow-y-visible">
       <div className="flex flex-wrap items-center gap-3 px-4 py-3 border-b border-[var(--border)]">
         <input
           type="search"
@@ -754,14 +798,24 @@ export function MomentsTable({
             {visibleColumns.map((col) => (
               <th
                 key={col.id}
-                className={`px-3 py-3 font-medium ${col.headerClass ?? ""}`}
-                title={columnHeaderTitle(col.id)}
+                className={`px-3 py-3 font-medium ${col.headerClass ?? ""} ${
+                  col.id === "judge" ? "overflow-visible" : ""
+                }`}
+                title={
+                  col.id === "judge" ? undefined : columnHeaderTitle(col.id)
+                }
               >
-                {col.label}
-                {col.id === "judge" && (
-                  <span className="ml-0.5 normal-case font-normal text-[var(--muted)]">
-                    ⓘ
-                  </span>
+                {col.id === "judge" ? (
+                  <HoverTooltip
+                    tooltip={formatJudgeHeaderTooltip()}
+                    placement="above"
+                    align="right"
+                    className="cursor-help border-b border-dotted border-[var(--muted)] uppercase"
+                  >
+                    {col.label}
+                  </HoverTooltip>
+                ) : (
+                  col.label
                 )}
               </th>
             ))}
