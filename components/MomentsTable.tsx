@@ -8,9 +8,16 @@ import {
   classifyQuestion,
   type QueryCategory,
 } from "@/lib/query-category";
+import {
+  formatJudgeCellTooltip,
+  formatJudgeHeaderTooltip,
+  formatSqlJudgeHeaderTooltip,
+  getSqlOverall,
+  JUDGE_WEIGHTS,
+} from "@/lib/judge-display";
 import { formatLatencyMs } from "@/lib/sql-metrics";
 
-const COLUMN_STORAGE_KEY = "nl2sql-dashboard-columns-v4";
+const COLUMN_STORAGE_KEY = "nl2sql-dashboard-columns-v5";
 
 export type MomentColumnId =
   | "timestamp"
@@ -22,6 +29,7 @@ export type MomentColumnId =
   | "cplx"
   | "model"
   | "tokens"
+  | "sqlJudge"
   | "judge"
   | "resultQuality"
   | "vizFit";
@@ -93,6 +101,13 @@ const COLUMN_DEFS: ColumnDef[] = [
     defaultVisible: false,
     headerClass: "w-[4.5rem] text-right",
     cellClass: "text-right tabular-nums text-[var(--muted)]",
+  },
+  {
+    id: "sqlJudge",
+    label: "SQL",
+    defaultVisible: true,
+    headerClass: "w-[4.5rem] text-right",
+    cellClass: "text-right tabular-nums whitespace-nowrap",
   },
   {
     id: "judge",
@@ -206,6 +221,15 @@ function CategoryBadge({ category }: { category: QueryCategory }) {
       {category}
     </span>
   );
+}
+
+function columnHeaderTitle(id: MomentColumnId): string | undefined {
+  if (id === "sqlJudge") return formatSqlJudgeHeaderTooltip();
+  if (id === "judge") return formatJudgeHeaderTooltip();
+  if (id === "cplx") return "Complexity score";
+  if (id === "resultQuality") return "Result quality (0–10): does Athena data answer the question?";
+  if (id === "vizFit") return "Viz fit (0–10): is map/chart/table right for this question?";
+  return undefined;
 }
 
 function complexityTooltip(m: DashboardMoment): string {
@@ -329,9 +353,20 @@ function MomentRow({
         );
       case "tokens":
         return m.tokenCount ?? "—";
+      case "sqlJudge":
+        return evalResult ? (
+          <span className={judgeScoreColor(getSqlOverall(evalResult))}>
+            {getSqlOverall(evalResult).toFixed(1)}/10
+          </span>
+        ) : (
+          <span className="text-[var(--muted)]">—</span>
+        );
       case "judge":
         return evalResult ? (
-          <span className={judgeScoreColor(evalResult.overall)}>
+          <span
+            className={judgeScoreColor(evalResult.overall)}
+            title={formatJudgeCellTooltip(evalResult)}
+          >
             {evalResult.overall.toFixed(1)}/10
           </span>
         ) : (
@@ -433,6 +468,21 @@ function MomentRow({
                     {evalResult.verdict}
                   </span>
                 </div>
+                <p className="text-xs text-[var(--muted)] font-mono">
+                  SQL judge: {getSqlOverall(evalResult).toFixed(1)}/10
+                  {evalResult.resultEval ? (
+                    <>
+                      {" "}
+                      · Judge = {JUDGE_WEIGHTS.sql}×SQL (
+                      {getSqlOverall(evalResult).toFixed(1)}) +{" "}
+                      {JUDGE_WEIGHTS.result}×Result (
+                      {evalResult.resultEval.resultQuality.toFixed(1)}) +{" "}
+                      {JUDGE_WEIGHTS.viz}×Viz (
+                      {evalResult.resultEval.vizFit.toFixed(1)}) →{" "}
+                      {evalResult.overall.toFixed(1)}/10
+                    </>
+                  ) : null}
+                </p>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
                   <div className="rounded border border-[var(--border)] px-2 py-1.5">
                     <span className="text-[var(--muted)]">Validity</span>
@@ -705,9 +755,14 @@ export function MomentsTable({
               <th
                 key={col.id}
                 className={`px-3 py-3 font-medium ${col.headerClass ?? ""}`}
-                title={col.id === "cplx" ? "Complexity score" : undefined}
+                title={columnHeaderTitle(col.id)}
               >
                 {col.label}
+                {col.id === "judge" && (
+                  <span className="ml-0.5 normal-case font-normal text-[var(--muted)]">
+                    ⓘ
+                  </span>
+                )}
               </th>
             ))}
           </tr>
