@@ -2,6 +2,7 @@ node_modules
 .next
 .data
 data/evals.json
+data/seed-results.json
 .env*.local
 .env
 .DS_Store
