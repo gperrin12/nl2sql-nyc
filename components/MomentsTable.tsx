@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { evalMatchKey } from "@/lib/eval-match";
+import { evalMatchesMoment } from "@/lib/eval-match";
 import type { FullJudgeResult } from "@/lib/judge";
 import type { DashboardMoment } from "@/lib/p8k8-moments";
 import {
@@ -10,7 +10,7 @@ import {
 } from "@/lib/query-category";
 import { formatLatencyMs } from "@/lib/sql-metrics";
 
-const COLUMN_STORAGE_KEY = "nl2sql-dashboard-columns-v3";
+const COLUMN_STORAGE_KEY = "nl2sql-dashboard-columns-v4";
 
 export type MomentColumnId =
   | "timestamp"
@@ -104,14 +104,14 @@ const COLUMN_DEFS: ColumnDef[] = [
   {
     id: "resultQuality",
     label: "Result",
-    defaultVisible: false,
+    defaultVisible: true,
     headerClass: "w-[4.5rem] text-right",
     cellClass: "text-right tabular-nums whitespace-nowrap",
   },
   {
     id: "vizFit",
     label: "Viz",
-    defaultVisible: false,
+    defaultVisible: true,
     headerClass: "w-[3.5rem] text-right",
     cellClass: "text-right tabular-nums whitespace-nowrap",
   },
@@ -146,7 +146,7 @@ function saveVisibleColumns(visible: Set<MomentColumnId>): void {
 
 type Props = {
   moments: DashboardMoment[];
-  evalByQuestion: Map<string, FullJudgeResult>;
+  evalByMomentId: Map<string, FullJudgeResult>;
   loading: boolean;
   error: string | null;
   onRefresh: () => void;
@@ -252,6 +252,7 @@ function ExpandedSqlToolbar({
 function MomentRow({
   moment: m,
   evalResult,
+  evalSqlDiffers,
   expanded,
   onToggle,
   copied,
@@ -261,6 +262,7 @@ function MomentRow({
 }: {
   moment: DashboardMoment;
   evalResult: FullJudgeResult | undefined;
+  evalSqlDiffers: boolean;
   expanded: boolean;
   onToggle: () => void;
   copied: boolean;
@@ -478,6 +480,11 @@ function MomentRow({
 
             {evalResult?.resultEval && (
               <div className="space-y-2 border-t border-[var(--border)] pt-3">
+                {evalSqlDiffers && (
+                  <p className="text-xs text-amber-400/90">
+                    Full eval from replay SQL (differs from p8k8 snapshot below).
+                  </p>
+                )}
                 <p className="text-xs text-[var(--muted)]">
                   Result: {evalResult.resultEval.athenaStatus}
                   {evalResult.resultEval.rowCount != null &&
@@ -604,7 +611,7 @@ function ColumnPicker({
 
 export function MomentsTable({
   moments,
-  evalByQuestion,
+  evalByMomentId,
   loading,
   error,
   onRefresh,
@@ -724,14 +731,17 @@ export function MomentsTable({
           <tbody>
             {filtered.map((m) => {
               const expanded = expandedId === m.id;
-              const evalResult = evalByQuestion.get(
-                evalMatchKey(m.question, m.sql)
-              );
+              const evalResult = evalByMomentId.get(m.id);
+              const evalSqlDiffers =
+                evalResult != null &&
+                evalResult.resultEval != null &&
+                !evalMatchesMoment(evalResult, m);
               return (
                 <MomentRow
                   key={m.id}
                   moment={m}
                   evalResult={evalResult}
+                  evalSqlDiffers={evalSqlDiffers}
                   expanded={expanded}
                   onToggle={() => setExpandedId(expanded ? null : m.id)}
                   copied={copiedId === m.id}

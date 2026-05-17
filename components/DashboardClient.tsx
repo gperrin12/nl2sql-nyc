@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AppNav } from "@/components/AppNav";
 import { MomentsTable } from "@/components/MomentsTable";
-import { evalMatchKey } from "@/lib/eval-match";
+import { buildEvalByMomentId } from "@/lib/eval-match";
 import type { FullJudgeResult } from "@/lib/judge";
 import type { DashboardMoment } from "@/lib/p8k8-moments";
 import { formatLatencyMs } from "@/lib/sql-metrics";
@@ -22,7 +22,7 @@ export function DashboardClient() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
-  const [evalByQuestion, setEvalByQuestion] = useState<
+  const [evalByMomentId, setEvalByMomentId] = useState<
     Map<string, FullJudgeResult>
   >(new Map());
 
@@ -55,15 +55,10 @@ export function DashboardClient() {
         const raw = (await evalsRes.json()) as unknown;
         if (Array.isArray(raw)) evals = raw as FullJudgeResult[];
       }
-      const evalMap = new Map<string, FullJudgeResult>();
-      for (const e of evals) {
-        evalMap.set(evalMatchKey(e.question, e.sql), e);
-      }
-
       setMoments(data.moments);
       setTotal(data.total);
       setOffset(nextOffset);
-      setEvalByQuestion(evalMap);
+      setEvalByMomentId(buildEvalByMomentId(data.moments, evals));
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load dashboard");
     } finally {
@@ -133,7 +128,7 @@ export function DashboardClient() {
 
       <MomentsTable
         moments={moments}
-        evalByQuestion={evalByQuestion}
+        evalByMomentId={evalByMomentId}
         loading={loading}
         error={error}
         onRefresh={() => load(offset)}
