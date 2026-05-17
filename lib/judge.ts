@@ -43,8 +43,14 @@ export type ResultEval = {
 };
 
 export type FullJudgeResult = JudgeResult & {
+  /** SQL-only overall before full-eval blend; equals overall when no resultEval. */
+  sqlOverall?: number;
   resultEval?: ResultEval;
 };
+
+import { blendJudgeOverall } from "@/lib/judge-blend";
+
+export { JUDGE_BLEND_COEFF, JUDGE_BLEND_DIVISOR } from "@/lib/judge-blend";
 
 function buildUserMessage(question: string, sql: string): string {
   return `QUESTION: ${question}
@@ -289,11 +295,15 @@ export async function judgeFullResult(
     .join("\n");
 
   const parsed = parseResultJudgeResponse(text);
-  const overall =
-    sqlEval.overall * 0.6 + parsed.resultQuality * 0.25 + parsed.vizFit * 0.15;
+  const overall = blendJudgeOverall(
+    sqlEval.overall,
+    parsed.resultQuality,
+    parsed.vizFit
+  );
 
   return {
     ...sqlEval,
+    sqlOverall: sqlEval.overall,
     overall: clampScore(overall),
     verdict: verdictFromOverall(overall),
     judgedAt,

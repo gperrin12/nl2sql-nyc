@@ -1,16 +1,23 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { evalMatchKey } from "@/lib/eval-match";
+import { evalMatchesMoment } from "@/lib/eval-match";
 import type { FullJudgeResult } from "@/lib/judge";
 import type { DashboardMoment } from "@/lib/p8k8-moments";
 import {
   classifyQuestion,
   type QueryCategory,
 } from "@/lib/query-category";
+import {
+  formatJudgeCellTooltip,
+  formatJudgeHeaderTooltip,
+  formatSqlJudgeHeaderTooltip,
+  getSqlOverall,
+  JUDGE_BLEND_DIVISOR,
+} from "@/lib/judge-display";
 import { formatLatencyMs } from "@/lib/sql-metrics";
 
-const COLUMN_STORAGE_KEY = "nl2sql-dashboard-columns-v3";
+const COLUMN_STORAGE_KEY = "nl2sql-dashboard-columns-v5";
 
 export type MomentColumnId =
   | "timestamp"
@@ -22,6 +29,7 @@ export type MomentColumnId =
   | "cplx"
   | "model"
   | "tokens"
+  | "sqlJudge"
   | "judge"
   | "resultQuality"
   | "vizFit";
@@ -95,6 +103,13 @@ const COLUMN_DEFS: ColumnDef[] = [
     cellClass: "text-right tabular-nums text-[var(--muted)]",
   },
   {
+    id: "sqlJudge",
+    label: "SQL",
+    defaultVisible: true,
+    headerClass: "w-[4.5rem] text-right",
+    cellClass: "text-right tabular-nums whitespace-nowrap",
+  },
+  {
     id: "judge",
     label: "Judge",
     defaultVisible: true,
@@ -104,14 +119,14 @@ const COLUMN_DEFS: ColumnDef[] = [
   {
     id: "resultQuality",
     label: "Result",
-    defaultVisible: false,
+    defaultVisible: true,
     headerClass: "w-[4.5rem] text-right",
     cellClass: "text-right tabular-nums whitespace-nowrap",
   },
   {
     id: "vizFit",
     label: "Viz",
-    defaultVisible: false,
+    defaultVisible: true,
     headerClass: "w-[3.5rem] text-right",
     cellClass: "text-right tabular-nums whitespace-nowrap",
   },
@@ -146,7 +161,7 @@ function saveVisibleColumns(visible: Set<MomentColumnId>): void {
 
 type Props = {
   moments: DashboardMoment[];
-  evalByQuestion: Map<string, FullJudgeResult>;
+  evalByMomentId: Map<string, FullJudgeResult>;
   loading: boolean;
   error: string | null;
   onRefresh: () => void;
@@ -208,6 +223,59 @@ function CategoryBadge({ category }: { category: QueryCategory }) {
   );
 }
 
+function HoverTooltip({
+  children,
+  tooltip,
+  className,
+  align = "left",
+  placement = "below",
+}: {
+  children: React.ReactNode;
+  tooltip: string;
+  className?: string;
+  align?: "left" | "right";
+  placement?: "above" | "below";
+}) {
+  const [show, setShow] = useState(false);
+  if (!tooltip) {
+    return <span className={className}>{children}</span>;
+  }
+  const positionClass =
+    placement === "above"
+      ? "bottom-full mb-1.5"
+      : "top-full mt-1.5";
+  return (
+    <span
+      className={`relative inline-flex ${className ?? ""}`}
+      onMouseEnter={() => setShow(true)}
+      onMouseLeave={() => setShow(false)}
+      onFocus={() => setShow(true)}
+      onBlur={() => setShow(false)}
+    >
+      {children}
+      {show && (
+        <span
+          role="tooltip"
+          className={`absolute z-[100] w-max max-w-[18rem] whitespace-pre-line rounded-md border border-[var(--border)] bg-[var(--bg)] px-2.5 py-2 text-[11px] font-normal normal-case leading-snug text-[var(--text)] shadow-xl pointer-events-none ${positionClass} ${
+            align === "right" ? "right-0" : "left-0"
+          }`}
+        >
+          {tooltip}
+        </span>
+      )}
+    </span>
+  );
+}
+
+function columnHeaderTitle(id: MomentColumnId): string | undefined {
+  if (id === "sqlJudge") return formatSqlJudgeHeaderTooltip();
+  if (id === "judge") return formatJudgeHeaderTooltip();
+  if (id === "cplx") return "Complexity score";
+  if (id === "resultQuality") return "Result quality (0–10): does Athena data answer the question?";
+  if (id === "vizFit") return "Viz fit (0–10): is map/chart/table right for this question?";
+  return undefined;
+}
+
 function complexityTooltip(m: DashboardMoment): string {
   const c = m.sqlComplexity;
   return `${c.cteCount} CTEs, ${c.joinCount} JOINs, ${c.tableCount} tables, ${c.charLength} chars`;
@@ -252,6 +320,7 @@ function ExpandedSqlToolbar({
 function MomentRow({
   moment: m,
   evalResult,
+  evalSqlDiffers,
   expanded,
   onToggle,
   copied,
@@ -261,6 +330,7 @@ function MomentRow({
 }: {
   moment: DashboardMoment;
   evalResult: FullJudgeResult | undefined;
+  evalSqlDiffers: boolean;
   expanded: boolean;
   onToggle: () => void;
   copied: boolean;
@@ -327,11 +397,25 @@ function MomentRow({
         );
       case "tokens":
         return m.tokenCount ?? "—";
+      case "sqlJudge":
+        return evalResult ? (
+          <span className={judgeScoreColor(getSqlOverall(evalResult))}>
+            {getSqlOverall(evalResult).toFixed(1)}/10
+          </span>
+        ) : (
+          <span className="text-[var(--muted)]">—</span>
+        );
       case "judge":
         return evalResult ? (
-          <span className={judgeScoreColor(evalResult.overall)}>
-            {evalResult.overall.toFixed(1)}/10
-          </span>
+          <HoverTooltip
+            tooltip={formatJudgeCellTooltip(evalResult)}
+            align="right"
+            className="cursor-help border-b border-dotted border-[var(--muted)]"
+          >
+            <span className={judgeScoreColor(evalResult.overall)}>
+              {evalResult.overall.toFixed(1)}/10
+            </span>
+          </HoverTooltip>
         ) : (
           <span className="text-[var(--muted)]">—</span>
         );
@@ -431,6 +515,18 @@ function MomentRow({
                     {evalResult.verdict}
                   </span>
                 </div>
+                <p className="text-xs text-[var(--muted)] font-mono">
+                  SQL judge: {getSqlOverall(evalResult).toFixed(1)}/10
+                  {evalResult.resultEval ? (
+                    <>
+                      {" "}
+                      · Judge = (SQL {getSqlOverall(evalResult).toFixed(1)} + 2×Result{" "}
+                      {evalResult.resultEval.resultQuality.toFixed(1)} + Viz{" "}
+                      {evalResult.resultEval.vizFit.toFixed(1)}) / {JUDGE_BLEND_DIVISOR} →{" "}
+                      {evalResult.overall.toFixed(1)}/10
+                    </>
+                  ) : null}
+                </p>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
                   <div className="rounded border border-[var(--border)] px-2 py-1.5">
                     <span className="text-[var(--muted)]">Validity</span>
@@ -478,6 +574,11 @@ function MomentRow({
 
             {evalResult?.resultEval && (
               <div className="space-y-2 border-t border-[var(--border)] pt-3">
+                {evalSqlDiffers && (
+                  <p className="text-xs text-amber-400/90">
+                    Full eval from replay SQL (differs from p8k8 snapshot below).
+                  </p>
+                )}
                 <p className="text-xs text-[var(--muted)]">
                   Result: {evalResult.resultEval.athenaStatus}
                   {evalResult.resultEval.rowCount != null &&
@@ -604,7 +705,7 @@ function ColumnPicker({
 
 export function MomentsTable({
   moments,
-  evalByQuestion,
+  evalByMomentId,
   loading,
   error,
   onRefresh,
@@ -656,7 +757,7 @@ export function MomentsTable({
   };
 
   return (
-    <div className="rounded-lg border border-[var(--border)] bg-[var(--panel)] overflow-hidden">
+    <div className="rounded-lg border border-[var(--border)] bg-[var(--panel)] overflow-x-auto overflow-y-visible">
       <div className="flex flex-wrap items-center gap-3 px-4 py-3 border-b border-[var(--border)]">
         <input
           type="search"
@@ -697,10 +798,25 @@ export function MomentsTable({
             {visibleColumns.map((col) => (
               <th
                 key={col.id}
-                className={`px-3 py-3 font-medium ${col.headerClass ?? ""}`}
-                title={col.id === "cplx" ? "Complexity score" : undefined}
+                className={`px-3 py-3 font-medium ${col.headerClass ?? ""} ${
+                  col.id === "judge" ? "overflow-visible" : ""
+                }`}
+                title={
+                  col.id === "judge" ? undefined : columnHeaderTitle(col.id)
+                }
               >
-                {col.label}
+                {col.id === "judge" ? (
+                  <HoverTooltip
+                    tooltip={formatJudgeHeaderTooltip()}
+                    placement="above"
+                    align="right"
+                    className="cursor-help border-b border-dotted border-[var(--muted)] uppercase"
+                  >
+                    {col.label}
+                  </HoverTooltip>
+                ) : (
+                  col.label
+                )}
               </th>
             ))}
           </tr>
@@ -724,14 +840,17 @@ export function MomentsTable({
           <tbody>
             {filtered.map((m) => {
               const expanded = expandedId === m.id;
-              const evalResult = evalByQuestion.get(
-                evalMatchKey(m.question, m.sql)
-              );
+              const evalResult = evalByMomentId.get(m.id);
+              const evalSqlDiffers =
+                evalResult != null &&
+                evalResult.resultEval != null &&
+                !evalMatchesMoment(evalResult, m);
               return (
                 <MomentRow
                   key={m.id}
                   moment={m}
                   evalResult={evalResult}
+                  evalSqlDiffers={evalSqlDiffers}
                   expanded={expanded}
                   onToggle={() => setExpandedId(expanded ? null : m.id)}
                   copied={copiedId === m.id}

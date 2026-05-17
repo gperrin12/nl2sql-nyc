@@ -1,6 +1,9 @@
 /**
- * Match dashboard moments to judge results by question + SQL (not question alone).
+ * Match dashboard moments to judge results.
+ * Prefer full eval (resultEval) by question when replay SQL differs from p8k8.
  */
+
+import type { FullJudgeResult } from "@/lib/judge";
 
 export function normalizeSqlForMatch(sql: string): string {
   return sql.replace(/\s+/g, " ").trim();
@@ -20,4 +23,68 @@ export function evalMatchesMoment(
     evalResult.question.trim() === moment.question.trim() &&
     normalizeSqlForMatch(evalResult.sql) === normalizeSqlForMatch(moment.sql)
   );
+}
+
+export type EvalIndex = {
+  byExactKey: Map<string, FullJudgeResult>;
+  byQuestion: Map<string, FullJudgeResult[]>;
+};
+
+/** Index evals for dashboard lookup (newest first per question). */
+export function buildEvalIndex(evals: FullJudgeResult[]): EvalIndex {
+  const byExactKey = new Map<string, FullJudgeResult>();
+  const byQuestion = new Map<string, FullJudgeResult[]>();
+
+  const sorted = [...evals].sort(
+    (a, b) =>
+      new Date(b.judgedAt).getTime() - new Date(a.judgedAt).getTime()
+  );
+
+  for (const e of sorted) {
+    byExactKey.set(evalMatchKey(e.question, e.sql), e);
+    const q = e.question.trim();
+    const list = byQuestion.get(q) ?? [];
+    list.push(e);
+    byQuestion.set(q, list);
+  }
+
+  return { byExactKey, byQuestion };
+}
+
+/**
+ * Find the best eval for a dashboard moment.
+ * 1. Exact question+SQL with resultEval
+ * 2. Newest same-question entry with resultEval (full replay eval)
+ * 3. Exact question+SQL (SQL-only)
+ * 4. Newest same-question entry
+ */
+export function findEvalForMoment(
+  moment: { question: string; sql: string },
+  index: EvalIndex
+): FullJudgeResult | undefined {
+  const exactKey = evalMatchKey(moment.question, moment.sql);
+  const exact = index.byExactKey.get(exactKey);
+  if (exact?.resultEval) return exact;
+
+  const q = moment.question.trim();
+  const byQ = index.byQuestion.get(q) ?? [];
+  const fullEval = byQ.find((e) => e.resultEval);
+  if (fullEval) return fullEval;
+
+  if (exact) return exact;
+  return byQ[0];
+}
+
+/** Build moment id → eval for dashboard rows. */
+export function buildEvalByMomentId(
+  moments: { id: string; question: string; sql: string }[],
+  evals: FullJudgeResult[]
+): Map<string, FullJudgeResult> {
+  const index = buildEvalIndex(evals);
+  const map = new Map<string, FullJudgeResult>();
+  for (const m of moments) {
+    const e = findEvalForMoment(m, index);
+    if (e) map.set(m.id, e);
+  }
+  return map;
 }
