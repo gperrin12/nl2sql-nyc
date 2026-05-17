@@ -44,31 +44,57 @@ function baseUrl(): string {
   return (process.env.APP_URL ?? "http://localhost:3000").replace(/\/$/, "");
 }
 
-function parseAuthCookie(setCookie: string | null): string | null {
+function parseAuthCookieFromHeaders(headers: Headers): string | null {
+  const fromGetSetCookie =
+    typeof headers.getSetCookie === "function"
+      ? headers.getSetCookie()
+      : [];
+  for (const line of fromGetSetCookie) {
+    const match = line.match(/(?:^|,\s*)auth=([^;]+)/);
+    if (match) return match[1];
+  }
+  const setCookie = headers.get("set-cookie");
   if (!setCookie) return null;
   const match = setCookie.match(/(?:^|,\s*)auth=([^;]+)/);
   return match ? match[1] : null;
 }
 
-async function login(): Promise<string | null> {
+async function login(): Promise<{ cookie: string | null; error?: string }> {
   const password = process.env.APP_PASSWORD?.trim();
-  if (!password) return null;
-
-  const res = await fetch(`${baseUrl()}/api/login`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ password }),
-  });
-
-  if (!res.ok) {
-    throw new Error(`Login failed: HTTP ${res.status}`);
+  if (!password) {
+    return {
+      cookie: null,
+      error:
+        "APP_PASSWORD is not set — login skipped; start will fail if the app requires auth",
+    };
   }
 
-  const cookie = parseAuthCookie(res.headers.get("set-cookie"));
-  if (!cookie) {
-    throw new Error("Login succeeded but no auth cookie returned");
+  try {
+    const res = await fetch(`${baseUrl()}/api/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ password }),
+    });
+
+    if (!res.ok) {
+      return { cookie: null, error: `Login failed: HTTP ${res.status}` };
+    }
+
+    const cookie = parseAuthCookieFromHeaders(res.headers);
+    if (!cookie) {
+      return {
+        cookie: null,
+        error: "Login succeeded but no auth cookie returned",
+      };
+    }
+    return { cookie };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return {
+      cookie: null,
+      error: `Cannot reach app at ${baseUrl()} — is npm run dev running? (${msg})`,
+    };
   }
-  return cookie;
 }
 
 function authHeaders(cookie: string | null): HeadersInit {
@@ -101,14 +127,28 @@ function errorReplay(
 
 /** Replay a question through the running app and capture Athena result data. */
 export async function replayQuestion(question: string): Promise<ReplayResult> {
-  const cookie = await login();
+  const { cookie, error: loginError } = await login();
+  if (loginError && !cookie) {
+    return errorReplay(question, "", loginError);
+  }
+
   const headers = authHeaders(cookie);
 
-  const startRes = await fetch(`${baseUrl()}/api/query/start`, {
-    method: "POST",
-    headers,
-    body: JSON.stringify({ question }),
-  });
+  let startRes: Response;
+  try {
+    startRes = await fetch(`${baseUrl()}/api/query/start`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ question }),
+    });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return errorReplay(
+      question,
+      "",
+      `Cannot reach ${baseUrl()}/api/query/start — is npm run dev running? (${msg})`
+    );
+  }
 
   let startBody: StartResponse;
   try {

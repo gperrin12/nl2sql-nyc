@@ -177,6 +177,9 @@ async function main(): Promise<void> {
         "Note: APP_PASSWORD not set — login skipped (only works if app has no auth)"
       );
     }
+    console.warn(
+      "Full eval hits the running app (npm run dev). Athena/AWS env must be valid on that server — not only in this shell."
+    );
   }
 
   const sessionId = resolveP8k8ChatId();
@@ -218,9 +221,18 @@ async function main(): Promise<void> {
 
       console.log("  → replaying through app...");
       const replay = await replayQuestion(question);
+      const errHint = replay.errorReason ? ` — ${replay.errorReason}` : "";
       console.log(
-        `  → athena: ${replay.athenaStatus}, rows: ${replay.rowCount ?? "n/a"}`
+        `  → athena: ${replay.athenaStatus}, rows: ${replay.rowCount ?? "n/a"}${errHint}`
       );
+      if (
+        replay.athenaStatus === "ERROR" &&
+        replay.errorReason?.includes("output bucket")
+      ) {
+        console.log(
+          "  → hint: fix ATHENA_OUTPUT_LOCATION in .env (used by npm run dev), then restart dev"
+        );
+      }
 
       if (hasFullEval(existing, question, replay.sql)) {
         console.log("  → already judged with resultEval, skipping");
