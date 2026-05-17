@@ -1,4 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
+import type { ReplayResult } from "@/lib/replay";
+import type { VizType } from "@/lib/viz-infer";
 import {
   classifyQuestion,
   type QueryCategory,
@@ -28,6 +30,20 @@ export type JudgeResult = {
   issues: string[];
   verdict: "good" | "acceptable" | "poor";
   judgedAt: string;
+};
+
+export type ResultEval = {
+  rowCount: number | null;
+  emptyResult: boolean;
+  vizType: VizType | null;
+  athenaStatus: string;
+  resultQuality: number;
+  vizFit: number;
+  resultIssues: string[];
+};
+
+export type FullJudgeResult = JudgeResult & {
+  resultEval?: ResultEval;
 };
 
 function buildUserMessage(question: string, sql: string): string {
@@ -166,4 +182,129 @@ export async function judgeQueryPair(
     .join("\n");
 
   return parseJudgeResponse(question, sql, category, text);
+}
+
+function buildResultUserMessage(
+  question: string,
+  sql: string,
+  replay: ReplayResult
+): string {
+  const sqlBlock = buildUserMessage(question, sql);
+  const columnsStr =
+    replay.columns?.length ? replay.columns.join(", ") : "(none)";
+  const sampleStr = replay.sampleRows?.length
+    ? JSON.stringify(replay.sampleRows, null, 2)
+    : "(none)";
+  const vizStr = replay.vizType ?? "unknown";
+  const emptyStr = replay.emptyResult ? "yes" : "no";
+  const errorLine =
+    replay.athenaStatus === "FAILED" ||
+    replay.athenaStatus === "ERROR" ||
+    replay.athenaStatus === "TIMEOUT"
+      ? `\n- Error: ${replay.errorReason ?? replay.athenaStatus}`
+      : "";
+
+  return `${sqlBlock}
+
+ATHENA EXECUTION RESULT:
+- Status: ${replay.athenaStatus}
+- Row count: ${replay.rowCount ?? "n/a"}
+- Columns: ${columnsStr}
+- Sample rows (first 5):
+${sampleStr}
+- Inferred visualization: ${vizStr}
+- Empty result: ${emptyStr}${errorLine}
+
+Now evaluate two additional dimensions:
+
+5. Result quality (0-10): Does the returned data actually answer the question?
+   - 0 rows when rows are expected = 0
+   - FAILED query = 0
+   - Correct shape and meaningful values = 8-10
+   - Partially correct (wrong columns, unexpected nulls) = 4-7
+
+6. Visualization fit (0-10): Is ${vizStr} the right choice for this question?
+   - Spatial question + map result = 10
+   - Time-series question + chart = 10
+   - Wrong viz type chosen = 3-5
+   - Can't tell from data = 5
+
+Respond with JSON only:
+{
+  "resultQuality": <0-10>,
+  "vizFit": <0-10>,
+  "resultIssues": ["issue 1", "issue 2"]
+}`;
+}
+
+type ParsedResultBody = {
+  resultQuality?: number;
+  vizFit?: number;
+  resultIssues?: string[];
+};
+
+function parseResultJudgeResponse(text: string): {
+  resultQuality: number;
+  vizFit: number;
+  resultIssues: string[];
+} {
+  try {
+    const parsed = JSON.parse(extractJsonText(text)) as ParsedResultBody;
+    return {
+      resultQuality: clampScore(parsed.resultQuality),
+      vizFit: clampScore(parsed.vizFit),
+      resultIssues: Array.isArray(parsed.resultIssues)
+        ? parsed.resultIssues.filter((i): i is string => typeof i === "string")
+        : [],
+    };
+  } catch {
+    return {
+      resultQuality: 0,
+      vizFit: 5,
+      resultIssues: ["result judge parse error"],
+    };
+  }
+}
+
+export async function judgeFullResult(
+  question: string,
+  sql: string,
+  replay: ReplayResult
+): Promise<FullJudgeResult> {
+  const sqlEval = await judgeQueryPair(question, sql);
+  const judgedAt = new Date().toISOString();
+
+  const response = await client.messages.create({
+    model: JUDGE_MODEL,
+    max_tokens: 1024,
+    system: JUDGE_SYSTEM,
+    messages: [
+      { role: "user", content: buildResultUserMessage(question, sql, replay) },
+    ],
+  });
+
+  const text = response.content
+    .filter((b) => b.type === "text")
+    .map((b) => b.text)
+    .join("\n");
+
+  const parsed = parseResultJudgeResponse(text);
+  const overall =
+    sqlEval.overall * 0.6 + parsed.resultQuality * 0.25 + parsed.vizFit * 0.15;
+
+  return {
+    ...sqlEval,
+    overall: clampScore(overall),
+    verdict: verdictFromOverall(overall),
+    judgedAt,
+    resultEval: {
+      rowCount: replay.rowCount,
+      emptyResult: replay.emptyResult,
+      vizType: replay.vizType,
+      athenaStatus: replay.athenaStatus,
+      resultQuality: parsed.resultQuality,
+      vizFit: parsed.vizFit,
+      resultIssues: parsed.resultIssues,
+    },
+  };
 }

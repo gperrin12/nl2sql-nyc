@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { AppNav } from "@/components/AppNav";
 import { MomentsTable } from "@/components/MomentsTable";
 import { evalMatchKey } from "@/lib/eval-match";
-import type { JudgeResult } from "@/lib/judge";
+import type { FullJudgeResult } from "@/lib/judge";
 import type { DashboardMoment } from "@/lib/p8k8-moments";
 import { formatLatencyMs } from "@/lib/sql-metrics";
 
@@ -23,7 +23,7 @@ export function DashboardClient() {
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [evalByQuestion, setEvalByQuestion] = useState<
-    Map<string, JudgeResult>
+    Map<string, FullJudgeResult>
   >(new Map());
 
   const load = useCallback(async (nextOffset: number) => {
@@ -50,12 +50,12 @@ export function DashboardClient() {
         );
       }
 
-      let evals: JudgeResult[] = [];
+      let evals: FullJudgeResult[] = [];
       if (evalsRes.ok) {
         const raw = (await evalsRes.json()) as unknown;
-        if (Array.isArray(raw)) evals = raw as JudgeResult[];
+        if (Array.isArray(raw)) evals = raw as FullJudgeResult[];
       }
-      const evalMap = new Map<string, JudgeResult>();
+      const evalMap = new Map<string, FullJudgeResult>();
       for (const e of evals) {
         evalMap.set(evalMatchKey(e.question, e.sql), e);
       }

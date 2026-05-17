@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { evalMatchKey } from "@/lib/eval-match";
-import type { JudgeResult } from "@/lib/judge";
+import type { FullJudgeResult } from "@/lib/judge";
 import type { DashboardMoment } from "@/lib/p8k8-moments";
 import {
   classifyQuestion,
@@ -10,7 +10,7 @@ import {
 } from "@/lib/query-category";
 import { formatLatencyMs } from "@/lib/sql-metrics";
 
-const COLUMN_STORAGE_KEY = "nl2sql-dashboard-columns-v2";
+const COLUMN_STORAGE_KEY = "nl2sql-dashboard-columns-v3";
 
 export type MomentColumnId =
   | "timestamp"
@@ -22,7 +22,9 @@ export type MomentColumnId =
   | "cplx"
   | "model"
   | "tokens"
-  | "judge";
+  | "judge"
+  | "resultQuality"
+  | "vizFit";
 
 type ColumnDef = {
   id: MomentColumnId;
@@ -99,6 +101,20 @@ const COLUMN_DEFS: ColumnDef[] = [
     headerClass: "w-[5.5rem] text-right",
     cellClass: "text-right tabular-nums whitespace-nowrap",
   },
+  {
+    id: "resultQuality",
+    label: "Result",
+    defaultVisible: false,
+    headerClass: "w-[4.5rem] text-right",
+    cellClass: "text-right tabular-nums whitespace-nowrap",
+  },
+  {
+    id: "vizFit",
+    label: "Viz",
+    defaultVisible: false,
+    headerClass: "w-[3.5rem] text-right",
+    cellClass: "text-right tabular-nums whitespace-nowrap",
+  },
 ];
 
 const DEFAULT_VISIBLE = new Set(
@@ -130,7 +146,7 @@ function saveVisibleColumns(visible: Set<MomentColumnId>): void {
 
 type Props = {
   moments: DashboardMoment[];
-  evalByQuestion: Map<string, JudgeResult>;
+  evalByQuestion: Map<string, FullJudgeResult>;
   loading: boolean;
   error: string | null;
   onRefresh: () => void;
@@ -176,7 +192,7 @@ function judgeScoreColor(overall: number): string {
   return "text-amber-400";
 }
 
-function verdictBadgeClass(verdict: JudgeResult["verdict"]): string {
+function verdictBadgeClass(verdict: FullJudgeResult["verdict"]): string {
   if (verdict === "good") return "bg-green-500/20 text-green-400 border-green-500/30";
   if (verdict === "poor") return "bg-red-500/20 text-red-400 border-red-500/30";
   return "bg-amber-500/20 text-amber-400 border-amber-500/30";
@@ -244,7 +260,7 @@ function MomentRow({
   colCount,
 }: {
   moment: DashboardMoment;
-  evalResult: JudgeResult | undefined;
+  evalResult: FullJudgeResult | undefined;
   expanded: boolean;
   onToggle: () => void;
   copied: boolean;
@@ -315,6 +331,22 @@ function MomentRow({
         return evalResult ? (
           <span className={judgeScoreColor(evalResult.overall)}>
             {evalResult.overall.toFixed(1)}/10
+          </span>
+        ) : (
+          <span className="text-[var(--muted)]">—</span>
+        );
+      case "resultQuality":
+        return evalResult?.resultEval != null ? (
+          <span className={judgeScoreColor(evalResult.resultEval.resultQuality)}>
+            {evalResult.resultEval.resultQuality.toFixed(1)}/10
+          </span>
+        ) : (
+          <span className="text-[var(--muted)]">—</span>
+        );
+      case "vizFit":
+        return evalResult?.resultEval != null ? (
+          <span className={judgeScoreColor(evalResult.resultEval.vizFit)}>
+            {evalResult.resultEval.vizFit.toFixed(1)}/10
           </span>
         ) : (
           <span className="text-[var(--muted)]">—</span>
@@ -436,6 +468,47 @@ function MomentRow({
                             : "text-amber-400"
                         }
                       >
+                        • {issue}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
+
+            {evalResult?.resultEval && (
+              <div className="space-y-2 border-t border-[var(--border)] pt-3">
+                <p className="text-xs text-[var(--muted)]">
+                  Result: {evalResult.resultEval.athenaStatus}
+                  {evalResult.resultEval.rowCount != null &&
+                    ` · ${evalResult.resultEval.rowCount} rows`}
+                  {evalResult.resultEval.vizType &&
+                    ` · ${evalResult.resultEval.vizType}`}
+                </p>
+                <div className="flex flex-wrap gap-4 text-xs">
+                  <span>
+                    Result quality:{" "}
+                    <span
+                      className={judgeScoreColor(
+                        evalResult.resultEval.resultQuality
+                      )}
+                    >
+                      {evalResult.resultEval.resultQuality}/10
+                    </span>
+                  </span>
+                  <span>
+                    Viz fit:{" "}
+                    <span
+                      className={judgeScoreColor(evalResult.resultEval.vizFit)}
+                    >
+                      {evalResult.resultEval.vizFit}/10
+                    </span>
+                  </span>
+                </div>
+                {evalResult.resultEval.resultIssues.length > 0 && (
+                  <ul className="text-xs space-y-1">
+                    {evalResult.resultEval.resultIssues.map((issue, i) => (
+                      <li key={i} className="text-amber-400">
                         • {issue}
                       </li>
                     ))}
