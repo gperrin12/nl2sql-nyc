@@ -4,16 +4,25 @@
  * Usage:
  * ANTHROPIC_API_KEY=... P8K8_URL=... P8K8_AUTH_TOKEN=... npx tsx scripts/eval-moments.ts
  *
+ * Full eval (replay through running app + Athena result judge):
+ * APP_URL=http://localhost:3000 APP_PASSWORD=... npm run eval:full
+ *
  * Optional:
- * EVAL_LIMIT=50     (default 100)
- * EVAL_DELAY_MS=600 (default 600)
+ * EVAL_LIMIT=50       (default 100)
+ * EVAL_DELAY_MS=600   (default 600, SQL-only judge delay)
+ * REPLAY_DELAY_MS=2000 (default 2000, delay between full replays)
  *
  * Production (Vercel): set EVALS_S3_URI=s3://bucket/path/evals.json (same on
  * Vercel env + local when running eval). Uses AWS_REGION / AWS_* credentials.
  */
 
 import { evalMatchKey } from "../lib/eval-match";
-import { judgeQueryPair, type JudgeResult } from "../lib/judge";
+import {
+  judgeFullResult,
+  judgeQueryPair,
+  type FullJudgeResult,
+} from "../lib/judge";
+import { replayQuestion } from "../lib/replay";
 import {
   evalsStorageDescription,
   loadEvals,
@@ -25,12 +34,16 @@ import {
 } from "../lib/p8k8-moments";
 import { resolveP8k8ChatId } from "../lib/p8k8";
 
+const FULL_EVAL = process.argv.includes("--full");
 const P8K8_URL = process.env.P8K8_URL?.replace(/\/$/, "");
 const P8K8_AUTH_TOKEN = process.env.P8K8_AUTH_TOKEN;
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
+const APP_URL = process.env.APP_URL?.replace(/\/$/, "");
 const EVAL_LIMIT = Number.parseInt(process.env.EVAL_LIMIT ?? "100", 10) || 100;
 const EVAL_DELAY_MS =
   Number.parseInt(process.env.EVAL_DELAY_MS ?? "600", 10) || 600;
+const REPLAY_DELAY_MS =
+  Number.parseInt(process.env.REPLAY_DELAY_MS ?? "2000", 10) || 2000;
 
 function requireEnv(name: string, value: string | undefined): string {
   if (!value) {
@@ -48,29 +61,33 @@ function hasSqlStatement(sql: string): boolean {
   return /\b(SELECT|WITH)\b/i.test(sql);
 }
 
-async function loadExisting(): Promise<JudgeResult[]> {
-  return loadEvals();
-}
-
 function mergeByPairKey(
-  existing: JudgeResult[],
-  added: JudgeResult[]
-): JudgeResult[] {
-  const map = new Map<string, JudgeResult>();
+  existing: FullJudgeResult[],
+  added: FullJudgeResult[]
+): FullJudgeResult[] {
+  const map = new Map<string, FullJudgeResult>();
   for (const e of existing) map.set(evalMatchKey(e.question, e.sql), e);
   for (const e of added) map.set(evalMatchKey(e.question, e.sql), e);
   return Array.from(map.values());
 }
 
-function printSummary(newResults: JudgeResult[], all: JudgeResult[]): void {
+function hasFullEval(
+  existing: FullJudgeResult[],
+  question: string,
+  sql: string
+): boolean {
+  const key = evalMatchKey(question, sql);
+  const entry = existing.find((e) => evalMatchKey(e.question, e.sql) === key);
+  return Boolean(entry?.resultEval);
+}
+
+function printSummary(newResults: FullJudgeResult[], all: FullJudgeResult[]): void {
   const good = newResults.filter((r) => r.verdict === "good").length;
   const acceptable = newResults.filter((r) => r.verdict === "acceptable").length;
   const poor = newResults.filter((r) => r.verdict === "poor").length;
   const n = newResults.length;
   const avg =
-    n > 0
-      ? newResults.reduce((s, r) => s + r.overall, 0) / n
-      : 0;
+    n > 0 ? newResults.reduce((s, r) => s + r.overall, 0) / n : 0;
 
   const byCategory = new Map<string, { count: number; sum: number }>();
   for (const r of newResults) {
@@ -105,10 +122,65 @@ function printSummary(newResults: JudgeResult[], all: JudgeResult[]): void {
   console.log(`Written to ${evalsStorageDescription()} (${all.length} total)`);
 }
 
+function printFullSummary(newResults: FullJudgeResult[]): void {
+  const withResult = newResults.filter((r) => r.resultEval);
+  if (withResult.length === 0) return;
+
+  const counts = {
+    SUCCEEDED: 0,
+    FAILED: 0,
+    TIMEOUT: 0,
+    ERROR: 0,
+  };
+  let empty = 0;
+  let sumQuality = 0;
+  let sumVizFit = 0;
+
+  for (const r of withResult) {
+    const re = r.resultEval!;
+    const status = re.athenaStatus as keyof typeof counts;
+    if (status in counts) counts[status] += 1;
+    if (re.emptyResult) empty += 1;
+    sumQuality += re.resultQuality;
+    sumVizFit += re.vizFit;
+  }
+
+  const n = withResult.length;
+  console.log("");
+  console.log("FULL EVAL RESULTS");
+  console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+  console.log("Athena outcomes:");
+  console.log(`  SUCCEEDED:  ${counts.SUCCEEDED}`);
+  console.log(`  FAILED:     ${counts.FAILED}  ← investigate these`);
+  console.log(`  TIMEOUT:    ${counts.TIMEOUT}`);
+  console.log(`  ERROR:      ${counts.ERROR}`);
+  console.log(`  Empty (0 rows): ${empty}  ← silent failures`);
+  console.log("");
+  console.log(`Avg result quality: ${(sumQuality / n).toFixed(1)} / 10`);
+  console.log(`Avg viz fit:        ${(sumVizFit / n).toFixed(1)} / 10`);
+  console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+}
+
 async function main(): Promise<void> {
   requireEnv("P8K8_URL", P8K8_URL);
   requireEnv("P8K8_AUTH_TOKEN", P8K8_AUTH_TOKEN);
   requireEnv("ANTHROPIC_API_KEY", ANTHROPIC_API_KEY);
+
+  if (FULL_EVAL) {
+    if (!APP_URL && !process.env.APP_URL) {
+      console.warn(
+        "Note: APP_URL not set — defaulting to http://localhost:3000"
+      );
+    }
+    if (!process.env.APP_PASSWORD?.trim()) {
+      console.warn(
+        "Note: APP_PASSWORD not set — login skipped (only works if app has no auth)"
+      );
+    }
+    console.warn(
+      "Full eval hits the running app (npm run dev). Athena/AWS env must be valid on that server — not only in this shell."
+    );
+  }
 
   const sessionId = resolveP8k8ChatId();
   const url = `${P8K8_URL}/moments/session/${encodeURIComponent(sessionId)}?limit=${EVAL_LIMIT}`;
@@ -129,24 +201,68 @@ async function main(): Promise<void> {
     hasSqlStatement(p.sql)
   );
 
-  const existing = await loadExisting();
-  const judgedKeys = new Set(
-    existing.map((e) => evalMatchKey(e.question, e.sql))
-  );
+  const existing = await loadEvals();
+  const newResults: FullJudgeResult[] = [];
 
-  const toJudge = pairs.filter(
-    (p) => !judgedKeys.has(evalMatchKey(p.question, p.sql))
-  );
-  const newResults: JudgeResult[] = [];
+  if (FULL_EVAL) {
+    const seenQuestions = new Set<string>();
+    const toRun = pairs.filter((p) => {
+      const q = p.question.trim();
+      if (seenQuestions.has(q)) return false;
+      seenQuestions.add(q);
+      return true;
+    });
 
-  for (let i = 0; i < toJudge.length; i++) {
-    const { question, sql } = toJudge[i];
-    console.log(
-      `Judging [${i + 1}/${toJudge.length}]: "${question.slice(0, 60)}${question.length > 60 ? "..." : ""}"`
+    for (let i = 0; i < toRun.length; i++) {
+      const { question } = toRun[i];
+      console.log(
+        `Full eval [${i + 1}/${toRun.length}]: "${question.slice(0, 60)}${question.length > 60 ? "..." : ""}"`
+      );
+
+      console.log("  → replaying through app...");
+      const replay = await replayQuestion(question);
+      const errHint = replay.errorReason ? ` — ${replay.errorReason}` : "";
+      console.log(
+        `  → athena: ${replay.athenaStatus}, rows: ${replay.rowCount ?? "n/a"}${errHint}`
+      );
+      if (
+        replay.athenaStatus === "ERROR" &&
+        replay.errorReason?.includes("output bucket")
+      ) {
+        console.log(
+          "  → hint: fix ATHENA_OUTPUT_LOCATION in .env (used by npm run dev), then restart dev"
+        );
+      }
+
+      if (hasFullEval(existing, question, replay.sql)) {
+        console.log("  → already judged with resultEval, skipping");
+        if (i < toRun.length - 1) await sleep(REPLAY_DELAY_MS);
+        continue;
+      }
+
+      console.log("  → judging (SQL + result)...");
+      const result = await judgeFullResult(question, replay.sql, replay);
+      newResults.push(result);
+
+      if (i < toRun.length - 1) await sleep(REPLAY_DELAY_MS);
+    }
+  } else {
+    const judgedKeys = new Set(
+      existing.map((e) => evalMatchKey(e.question, e.sql))
     );
-    const result = await judgeQueryPair(question, sql);
-    newResults.push(result);
-    if (i < toJudge.length - 1) await sleep(EVAL_DELAY_MS);
+    const toJudge = pairs.filter(
+      (p) => !judgedKeys.has(evalMatchKey(p.question, p.sql))
+    );
+
+    for (let i = 0; i < toJudge.length; i++) {
+      const { question, sql } = toJudge[i];
+      console.log(
+        `Judging [${i + 1}/${toJudge.length}]: "${question.slice(0, 60)}${question.length > 60 ? "..." : ""}"`
+      );
+      const result = await judgeQueryPair(question, sql);
+      newResults.push(result);
+      if (i < toJudge.length - 1) await sleep(EVAL_DELAY_MS);
+    }
   }
 
   const merged = mergeByPairKey(existing, newResults);
@@ -165,6 +281,7 @@ async function main(): Promise<void> {
   }
 
   printSummary(newResults, merged);
+  if (FULL_EVAL) printFullSummary(newResults);
 }
 
 main().catch((e) => {

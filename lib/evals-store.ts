@@ -12,7 +12,7 @@ import {
   PutObjectCommand,
   S3Client,
 } from "@aws-sdk/client-s3";
-import type { JudgeResult } from "@/lib/judge";
+import type { FullJudgeResult } from "@/lib/judge";
 
 const LOCAL_PATH = path.join(process.cwd(), "data", "evals.json");
 
@@ -46,20 +46,20 @@ export function evalsStorageDescription(): string {
   return LOCAL_PATH;
 }
 
-function parseEvalsJson(raw: string): JudgeResult[] {
+function parseEvalsJson(raw: string): FullJudgeResult[] {
   const parsed = JSON.parse(raw) as unknown;
   if (!Array.isArray(parsed)) return [];
   return parsed.filter(
-    (e): e is JudgeResult =>
+    (e): e is FullJudgeResult =>
       e &&
       typeof e === "object" &&
-      typeof (e as JudgeResult).question === "string" &&
-      typeof (e as JudgeResult).verdict === "string"
+      typeof (e as FullJudgeResult).question === "string" &&
+      typeof (e as FullJudgeResult).verdict === "string"
   );
 }
 
 /** Load evals from S3 (if EVALS_S3_URI) or data/evals.json. */
-export async function loadEvals(): Promise<JudgeResult[]> {
+export async function loadEvals(): Promise<FullJudgeResult[]> {
   const s3 = getS3Target();
   if (!s3) {
     try {
@@ -86,7 +86,7 @@ export async function loadEvals(): Promise<JudgeResult[]> {
 }
 
 /** Write evals to S3 (when EVALS_S3_URI is set) and data/evals.json. */
-export async function saveEvals(evals: JudgeResult[]): Promise<void> {
+export async function saveEvals(evals: FullJudgeResult[]): Promise<void> {
   const json = JSON.stringify(evals, null, 2);
   const s3 = getS3Target();
 
