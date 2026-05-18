@@ -64,7 +64,7 @@ KEY RULES this SQL must follow:
 3. Raw lat/lon columns only exist on nypd_collisions, nyc_311, and par — NOT on gtp_tlc_data or taxi_zones.
 4. ST_Point takes (longitude, latitude) — X then Y. Never swap.
 5. census_tracts joins census_tract_demographics ONLY on geoid. Never on borough name or tract label.
-6. TLC location IDs (pulocationid/dolocationid) are VARCHAR — always cast both sides of joins to the same type.
+6. TLC zone IDs (pulocationid/dolocationid/locationid): never TRIM() — often integer; use IS NOT NULL and CAST/TRY_CAST both sides of joins to the same type. TRIM(pulocationid) <> '' is invalid.
 7. nyc_311.borough is UPPERCASE ('BROOKLYN'). census_tracts.boroname is Title Case ('Brooklyn'). Never equate directly.
 8. ACS measure columns are STRING — use TRY_CAST(TRIM(REGEXP_REPLACE(col, ',', '')) AS DOUBLE) for math.
 

@@ -16,7 +16,7 @@ export const TABLE_SCHEMAS: Record<string, TableSchema> = {
       "Taxi trip data (yellow and green taxis) with neighborhood-level geography. " +
       "Uses pulocationid and dolocationid (~200 taxi zones); join to taxi_zones for geometry. " +
       "There are NO latitude/longitude columns—never reference lat/lon on this table; zone polygons live only on taxi_zones via geometry_wkt. " +
-      "pulocationid / dolocationid are VARCHAR in Athena — taxi_zones.locationid may be INTEGER or VARCHAR by catalog; JOIN and IN (SELECT ...) require the same type on both sides (TRY_CAST both to BIGINT or CAST both to VARCHAR) or you get TYPE_MISMATCH (row(integer) vs row(locationid varchar)). " +
+      "pulocationid / dolocationid may be INTEGER or VARCHAR depending on catalog — never TRIM() these columns (FUNCTION_NOT_FOUND on integer). Filter with IS NOT NULL; join taxi_zones with TRY_CAST both sides to BIGINT or CAST both to VARCHAR (TYPE_MISMATCH if types differ). " +
       "No raw lat/lon—locations are aggregated to zone IDs. " +
       "Partitioned by type (yellow/green/fhv/fhvhv), year (STRING), month (STRING).",
     columns: [

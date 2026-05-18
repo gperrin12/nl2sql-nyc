@@ -39,5 +39,17 @@ export function checkSql(rawSql: string): GuardrailResult {
     }
   }
 
+  if (
+    /\bTRIM\s*\(\s*(?:(?:\w+)\.)?(pulocationid|dolocationid|locationid)\s*\)/i.test(
+      stripped
+    )
+  ) {
+    return {
+      ok: false,
+      reason:
+        "TRIM() on pulocationid/dolocationid/locationid is invalid (zone IDs are numeric). Use pulocationid IS NOT NULL and CAST/TRY_CAST for taxi_zones joins",
+    };
+  }
+
   return { ok: true, sql: stripped };
 }
