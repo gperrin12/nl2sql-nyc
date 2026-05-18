@@ -7,16 +7,22 @@ import {
 
 type TriviaLeaderboardProps = {
   entries: TriviaHiScoreEntry[];
+  loading?: boolean;
+  error?: string | null;
   highlightId?: string | null;
   sessionScore?: number;
+  onRefresh?: () => void;
   onPlayAgain?: () => void;
   onBack?: () => void;
 };
 
 export function TriviaLeaderboard({
   entries,
+  loading = false,
+  error = null,
   highlightId,
   sessionScore,
+  onRefresh,
   onPlayAgain,
   onBack,
 }: TriviaLeaderboardProps) {
@@ -34,8 +40,22 @@ export function TriviaLeaderboard({
                 Your run: {sessionScore}/10
               </p>
             )}
+            <p className="text-[10px] text-[var(--muted)] normal-case tracking-normal">
+              Global board · refreshes every 30s
+            </p>
           </div>
 
+          {error && (
+            <p className="text-center text-sm text-[var(--error)] normal-case tracking-normal">
+              {error}
+            </p>
+          )}
+
+          {loading && entries.length === 0 ? (
+            <p className="text-center text-sm text-[var(--muted)] animate-pulse py-8">
+              Loading scores…
+            </p>
+          ) : (
           <table className="w-full text-sm">
             <thead>
               <tr className="text-[var(--muted)] text-xs border-b border-[var(--border)]">
@@ -105,8 +125,19 @@ export function TriviaLeaderboard({
               })}
             </tbody>
           </table>
+          )}
 
           <div className="flex flex-col items-center gap-3 pt-2">
+            {onRefresh && (
+              <button
+                type="button"
+                onClick={onRefresh}
+                disabled={loading}
+                className="text-xs text-[var(--muted)] hover:text-[var(--accent)] underline normal-case tracking-normal disabled:opacity-40"
+              >
+                {loading ? "Refreshing…" : "Refresh now"}
+              </button>
+            )}
             {onPlayAgain && (
               <button
                 type="button"

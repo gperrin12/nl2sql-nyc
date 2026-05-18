@@ -29,7 +29,15 @@ export function TriviaClient() {
     reset: resetScore,
   } = useTriviaScore();
 
-  const { board, qualifies, submitScore } = useTriviaHiScores();
+  const {
+    board,
+    loading: hiScoresLoading,
+    submitting: hiScoresSubmitting,
+    error: hiScoresError,
+    qualifies,
+    submitScore,
+    refresh: refreshHiScores,
+  } = useTriviaHiScores({ pollWhileLeaderboard: phase === "leaderboard" });
 
   const {
     current: data,
@@ -66,10 +74,14 @@ export function TriviaClient() {
     }
   };
 
-  const handleInitialsComplete = (initials: string) => {
-    const entry = submitScore(initials, sessionCorrect);
-    setNewEntryId(entry.id);
-    setPhase("leaderboard");
+  const handleInitialsComplete = async (initials: string) => {
+    try {
+      const entry = await submitScore(initials, sessionCorrect);
+      setNewEntryId(entry.id);
+      setPhase("leaderboard");
+    } catch {
+      // error surfaced via hiScoresError
+    }
   };
 
   const handlePlayAgain = () => {
@@ -84,6 +96,7 @@ export function TriviaClient() {
   const viewLeaderboard = () => {
     setNewEntryId(null);
     setPhase("leaderboard");
+    void refreshHiScores();
   };
 
   const answered = selectedIndex !== null;
@@ -169,21 +182,32 @@ export function TriviaClient() {
       )}
 
       {phase === "initials" && (
-        <TriviaInitialsPicker
-          score={sessionCorrect}
-          total={TRIVIA_SESSION_LENGTH}
-          onComplete={handleInitialsComplete}
-          onSkip={() => handleInitialsComplete("???")}
-        />
+        <>
+          <TriviaInitialsPicker
+            score={sessionCorrect}
+            total={TRIVIA_SESSION_LENGTH}
+            disabled={hiScoresSubmitting}
+            onComplete={(initials) => void handleInitialsComplete(initials)}
+            onSkip={() => void handleInitialsComplete("???")}
+          />
+          {hiScoresError && (
+            <p className="text-center text-sm text-[var(--error)] font-mono">
+              {hiScoresError}
+            </p>
+          )}
+        </>
       )}
 
       {phase === "leaderboard" && (
         <TriviaLeaderboard
           entries={board}
+          loading={hiScoresLoading}
+          error={hiScoresError}
           highlightId={newEntryId}
           sessionScore={
             sessionAnswered >= TRIVIA_SESSION_LENGTH ? sessionCorrect : undefined
           }
+          onRefresh={() => void refreshHiScores()}
           onPlayAgain={
             sessionAnswered >= TRIVIA_SESSION_LENGTH ? handlePlayAgain : undefined
           }

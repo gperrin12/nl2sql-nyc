@@ -11,6 +11,7 @@ const MAX_INITIALS = 3;
 type TriviaInitialsPickerProps = {
   score: number;
   total: number;
+  disabled?: boolean;
   onComplete: (initials: string) => void;
   onSkip?: () => void;
 };
@@ -18,6 +19,7 @@ type TriviaInitialsPickerProps = {
 export function TriviaInitialsPicker({
   score,
   total,
+  disabled = false,
   onComplete,
   onSkip,
 }: TriviaInitialsPickerProps) {
@@ -34,6 +36,7 @@ export function TriviaInitialsPicker({
 
   const pickChar = useCallback(
     (ch: string) => {
+      if (disabled) return;
       const next = [...chars];
       next[slotIndex] = ch;
       setChars(next);
@@ -45,7 +48,7 @@ export function TriviaInitialsPicker({
         onComplete(initials);
       }
     },
-    [slotIndex, chars, onComplete]
+    [slotIndex, chars, onComplete, disabled]
   );
 
   useEffect(() => {
@@ -154,8 +157,9 @@ export function TriviaInitialsPicker({
             <button
               key={`${ch}-${i}`}
               type="button"
+              disabled={disabled}
               onClick={() => pickChar(ch)}
-              className={`h-10 text-sm border transition-colors ${
+              className={`h-10 text-sm border transition-colors disabled:opacity-40 ${
                 focused
                   ? "border-[var(--accent)] bg-[var(--accent)]/20 text-[var(--accent)]"
                   : "border-[var(--border)] bg-[var(--panel)] text-[var(--text)] hover:border-[var(--accent-dim)]"
