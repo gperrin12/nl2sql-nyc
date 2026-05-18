@@ -4,7 +4,11 @@ import { waitForAthenaResults } from "@/lib/athena-wait";
 import { isAuthenticated } from "@/lib/auth";
 import { checkSql } from "@/lib/guardrails";
 import { generateTriviaQuestion } from "@/lib/trivia";
-import { resolveTriviaProofFromResults } from "@/lib/trivia-proof";
+import {
+  proofWithShuffledIndex,
+  resolveTriviaProofFromResults,
+  shuffleTriviaOptions,
+} from "@/lib/trivia-proof";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
@@ -76,7 +80,13 @@ export async function POST(_req: NextRequest) {
       continue;
     }
 
-    const { correctIndex, proof } = resolved;
+    const { correctIndex: dataCorrectIndex, proof: resolvedProof } = resolved;
+    const { options, correctIndex } = shuffleTriviaOptions(
+      generated.options,
+      dataCorrectIndex
+    );
+    const proof = proofWithShuffledIndex(resolvedProof, correctIndex, options);
+
     const explanation = proof.correctedFromModel
       ? `The data ranks ${proof.winnerLabel} first` +
         (proof.winnerMetric
@@ -87,7 +97,7 @@ export async function POST(_req: NextRequest) {
 
     return NextResponse.json({
       question: generated.question,
-      options: generated.options,
+      options,
       correctIndex,
       sql: guard.sql,
       explanation,

@@ -217,3 +217,30 @@ export function triviaProofIsValid(
 ): boolean {
   return resolution != null;
 }
+
+/** Shuffle MC options so the correct answer is not always slot A. */
+export function shuffleTriviaOptions(
+  options: string[],
+  correctIndex: number
+): { options: string[]; correctIndex: number } {
+  const items = options.map((text, originalIndex) => ({ text, originalIndex }));
+  for (let i = items.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [items[i], items[j]] = [items[j], items[i]];
+  }
+  const shuffledOptions = items.map((x) => x.text);
+  const newCorrectIndex = items.findIndex((x) => x.originalIndex === correctIndex);
+  return { options: shuffledOptions, correctIndex: newCorrectIndex };
+}
+
+export function proofWithShuffledIndex(
+  proof: TriviaProof,
+  correctIndex: number,
+  options: string[]
+): TriviaProof {
+  return {
+    ...proof,
+    correctOption: options[correctIndex],
+    correctLabel: LABELS[correctIndex] ?? String(correctIndex + 1),
+  };
+}
