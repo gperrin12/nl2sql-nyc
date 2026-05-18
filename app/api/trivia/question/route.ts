@@ -4,7 +4,7 @@ import { waitForAthenaResults } from "@/lib/athena-wait";
 import { isAuthenticated } from "@/lib/auth";
 import { checkSql } from "@/lib/guardrails";
 import { generateTriviaQuestion } from "@/lib/trivia";
-import { deriveTriviaProof, triviaProofIsValid } from "@/lib/trivia-proof";
+import { resolveTriviaProofFromResults } from "@/lib/trivia-proof";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
@@ -60,26 +60,37 @@ export async function POST(_req: NextRequest) {
       continue;
     }
 
-    const proof = deriveTriviaProof(
+    const resolved = resolveTriviaProofFromResults(
       generated.options,
       generated.correctIndex,
       results
     );
-    if (!triviaProofIsValid(proof)) {
+    if (resolved == null) {
+      const top = findRankingWinnerForFeedback(results);
       lastSql = guard.sql;
       lastFeedback =
-        `Athena results do not contain the correct option "${generated.options[generated.correctIndex]}". ` +
-        "SQL must SELECT a column (e.g. answer_label) whose value in the winning row exactly matches that option text. " +
-        `Returned columns: ${results.columns.join(", ")}; first row: ${JSON.stringify(results.rows[0])}.`;
+        "Athena winner must match one of the four options. " +
+        `Top row by metric: ${top ?? JSON.stringify(results.rows[0])}. ` +
+        `Options: ${JSON.stringify(generated.options)}. ` +
+        "Set correctIndex to the option that equals the highest-metric row's label (answer_label).";
       continue;
     }
+
+    const { correctIndex, proof } = resolved;
+    const explanation = proof.correctedFromModel
+      ? `The data ranks ${proof.winnerLabel} first` +
+        (proof.winnerMetric
+          ? ` (${proof.winnerMetric.column} = ${proof.winnerMetric.value})`
+          : "") +
+        `.`
+      : generated.explanation;
 
     return NextResponse.json({
       question: generated.question,
       options: generated.options,
-      correctIndex: generated.correctIndex,
+      correctIndex,
       sql: guard.sql,
-      explanation: generated.explanation,
+      explanation,
       model: generated.model,
       proof,
       results: {
@@ -103,4 +114,19 @@ export async function POST(_req: NextRequest) {
 
 function errorMessage(e: unknown): string {
   return e instanceof Error ? e.message : String(e);
+}
+
+function findRankingWinnerForFeedback(
+  results: Awaited<ReturnType<typeof waitForAthenaResults>>
+): string | null {
+  const { columns, rows } = results;
+  if (!rows.length) return null;
+  const label = columns[0];
+  const metric = columns[1];
+  if (!label) return null;
+  const parts = rows.slice(0, 4).map((r) => {
+    const m = metric ? ` (${metric}=${r[metric]})` : "";
+    return `${r[label]}${m}`;
+  });
+  return parts.join("; ");
 }

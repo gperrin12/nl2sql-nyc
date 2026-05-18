@@ -53,7 +53,7 @@ SQL RULES (critical):
 - No DDL/DML.
 
 DESIGN:
-- The correct option text must match what the SQL result actually returns (e.g. if SQL returns borough name, one option is exactly that name).
+- correctIndex MUST be the option that matches the row with the HIGHEST numeric metric in your SQL result (not merely any row that appears). After ORDER BY metric DESC, the first row's answer_label must equal options[correctIndex].
 - Distractors should be real NYC boroughs, zones, or plausible numbers — not joke answers.
 - Questions should feel like bar trivia: comparative, top-N, surprising rankings.
 

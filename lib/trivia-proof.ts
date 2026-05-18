@@ -7,15 +7,22 @@ export type TriviaProofMatch = {
 };
 
 export type TriviaProof = {
-  /** Plain-English line tying Athena data to the correct option */
   summary: string;
   correctOption: string;
   correctLabel: string;
   matches: TriviaProofMatch[];
-  /** First row when used as ranking proof (label + metric columns) */
-  rankingLabel?: string;
-  rankingMetric?: { column: string; value: string };
+  winnerLabel: string;
+  winnerMetric?: { column: string; value: string };
+  /** True when Athena data overrode the model's correctIndex */
+  correctedFromModel: boolean;
 };
+
+export type TriviaProofResolution = {
+  correctIndex: number;
+  proof: TriviaProof;
+};
+
+const LABELS = ["A", "B", "C", "D"] as const;
 
 function normalize(s: string): string {
   return s.trim().toLowerCase().replace(/\s+/g, " ");
@@ -40,98 +47,173 @@ export function cellMatchesOption(
   return false;
 }
 
-function findMatches(
-  correctOption: string,
+function parseNumeric(value: string | null | undefined): number | null {
+  if (value == null || value === "") return null;
+  const n = Number(digitsOnly(value));
+  return Number.isNaN(n) ? null : n;
+}
+
+type RankingWinner = {
+  rowIndex: number;
+  labelColumn: string;
+  labelValue: string;
+  metricColumn: string;
+  metricValue: string;
+};
+
+/** Row with the highest numeric metric (ground-truth winner for ranking questions). */
+function findRankingWinner(
   columns: string[],
   rows: Record<string, string | null>[]
-): TriviaProofMatch[] {
-  const matches: TriviaProofMatch[] = [];
-  for (let rowIndex = 0; rowIndex < rows.length; rowIndex++) {
-    for (const column of columns) {
-      const value = rows[rowIndex][column];
-      if (cellMatchesOption(value, correctOption)) {
-        matches.push({
-          rowIndex,
-          column,
-          value: value ?? "",
-        });
-      }
+): RankingWinner | null {
+  if (rows.length === 0 || columns.length === 0) return null;
+
+  const metricScores = columns.map((col) => {
+    const parsed = rows.map((r) => parseNumeric(r[col])).filter((n) => n !== null);
+    return { col, count: parsed.length, max: parsed.length ? Math.max(...parsed) : -1 };
+  });
+  const metricCandidates = metricScores
+    .filter((m) => m.count > 0)
+    .sort((a, b) => b.count - a.count || b.max - a.max);
+  const metricColumn = metricCandidates[0]?.col;
+  if (!metricColumn) return null;
+
+  const labelColumn =
+    columns.find(
+      (c) =>
+        c !== metricColumn &&
+        /answer|label|borough|zone|name|type/i.test(c)
+    ) ??
+    columns.find((c) => c !== metricColumn) ??
+    columns[0];
+
+  let bestRow = 0;
+  let bestVal = -Infinity;
+  for (let i = 0; i < rows.length; i++) {
+    const n = parseNumeric(rows[i][metricColumn]);
+    if (n !== null && n > bestVal) {
+      bestVal = n;
+      bestRow = i;
     }
   }
-  return matches;
+
+  const labelValue = rows[bestRow][labelColumn];
+  const metricValue = rows[bestRow][metricColumn];
+  if (labelValue == null || labelValue === "") return null;
+
+  return {
+    rowIndex: bestRow,
+    labelColumn,
+    labelValue,
+    metricColumn,
+    metricValue: metricValue ?? "",
+  };
 }
 
-function firstNumericMetric(
-  row: Record<string, string | null>,
-  columns: string[],
-  skipColumn: string
-): { column: string; value: string } | undefined {
-  for (const column of columns) {
-    if (column === skipColumn) continue;
-    const value = row[column];
-    if (value == null || value === "") continue;
-    const n = Number(digitsOnly(value));
-    if (!Number.isNaN(n) && digitsOnly(value).length > 0) {
-      return { column, value };
+function optionIndexForValue(
+  options: string[],
+  value: string
+): number | null {
+  for (let i = 0; i < options.length; i++) {
+    if (cellMatchesOption(value, options[i])) return i;
+  }
+  return null;
+}
+
+/**
+ * Resolve the correct answer from Athena data (winner = max metric row).
+ * Overrides the model's correctIndex when they disagree.
+ */
+export function resolveTriviaProofFromResults(
+  options: string[],
+  modelCorrectIndex: number,
+  results: Pick<AthenaResults, "columns" | "rows">
+): TriviaProofResolution | null {
+  const { columns, rows } = results;
+  if (columns.length === 0 || rows.length === 0) return null;
+
+  // Scalar / single-row answers
+  if (rows.length === 1) {
+    for (const col of columns) {
+      const val = rows[0][col];
+      const idx = optionIndexForValue(options, val ?? "");
+      if (idx === null) continue;
+      const metricCol = columns.find((c) => c !== col && parseNumeric(rows[0][c]) !== null);
+      return buildResolution(
+        options,
+        idx,
+        modelCorrectIndex,
+        {
+          rowIndex: 0,
+          labelColumn: col,
+          labelValue: val ?? "",
+          metricColumn: metricCol ?? col,
+          metricValue: metricCol ? (rows[0][metricCol] ?? "") : (val ?? ""),
+        }
+      );
     }
   }
-  return undefined;
+
+  const winner = findRankingWinner(columns, rows);
+  if (!winner) return null;
+
+  const idx = optionIndexForValue(options, winner.labelValue);
+  if (idx === null) return null;
+  return buildResolution(options, idx, modelCorrectIndex, winner);
 }
 
-const LABELS = ["A", "B", "C", "D"] as const;
+function buildResolution(
+  options: string[],
+  dataCorrectIndex: number,
+  modelCorrectIndex: number,
+  winner: RankingWinner
+): TriviaProofResolution {
+  const correctedFromModel = dataCorrectIndex !== modelCorrectIndex;
+  const correctOption = options[dataCorrectIndex];
+  const correctLabel = LABELS[dataCorrectIndex] ?? String(dataCorrectIndex + 1);
 
+  const summary = correctedFromModel
+    ? `Athena ranks ${winner.labelValue} #1 (${winner.metricColumn} = ${winner.metricValue}) — answer ${correctLabel}: ${correctOption}. (Verified from data; model pick did not match the top row.)`
+    : `Athena ranks ${winner.labelValue} #1 (${winner.metricColumn} = ${winner.metricValue}) — answer ${correctLabel}: ${correctOption}.`;
+
+  const proof: TriviaProof = {
+    summary,
+    correctOption,
+    correctLabel,
+    matches: [
+      {
+        rowIndex: winner.rowIndex,
+        column: winner.labelColumn,
+        value: winner.labelValue,
+      },
+      {
+        rowIndex: winner.rowIndex,
+        column: winner.metricColumn,
+        value: winner.metricValue,
+      },
+    ],
+    winnerLabel: winner.labelValue,
+    winnerMetric: {
+      column: winner.metricColumn,
+      value: winner.metricValue,
+    },
+    correctedFromModel,
+  };
+
+  return { correctIndex: dataCorrectIndex, proof };
+}
+
+/** @deprecated Use resolveTriviaProofFromResults */
 export function deriveTriviaProof(
   options: string[],
   correctIndex: number,
   results: Pick<AthenaResults, "columns" | "rows">
 ): TriviaProof | null {
-  const correctOption = options[correctIndex];
-  if (!correctOption) return null;
-
-  const correctLabel = LABELS[correctIndex] ?? String(correctIndex + 1);
-  const { columns, rows } = results;
-  if (columns.length === 0 || rows.length === 0) return null;
-
-  const matches = findMatches(correctOption, columns, rows);
-
-  if (matches.length > 0) {
-    const primary = matches[0];
-    const row = rows[primary.rowIndex];
-    const metric = firstNumericMetric(row, columns, primary.column);
-    const summary = metric
-      ? `Athena returned ${primary.value} with ${metric.column} = ${metric.value} — that matches answer ${correctLabel}: ${correctOption}.`
-      : `Athena returned "${primary.value}" — that matches answer ${correctLabel}: ${correctOption}.`;
-
-    return {
-      summary,
-      correctOption,
-      correctLabel,
-      matches,
-      rankingLabel: primary.value,
-      rankingMetric: metric,
-    };
-  }
-
-  // Ranking-style: first row's first column is often the winner label
-  const firstCol = columns[0];
-  const firstVal = rows[0][firstCol];
-  if (firstVal && cellMatchesOption(firstVal, correctOption)) {
-    const metric = firstNumericMetric(rows[0], columns, firstCol);
-    return {
-      summary: metric
-        ? `Top row: ${firstVal} (${metric.column} = ${metric.value}) — answer ${correctLabel}: ${correctOption}.`
-        : `Top row: ${firstVal} — answer ${correctLabel}: ${correctOption}.`,
-      correctOption,
-      correctLabel,
-      matches: [{ rowIndex: 0, column: firstCol, value: firstVal }],
-      rankingLabel: firstVal,
-      rankingMetric: metric,
-    };
-  }
-
-  return null;
+  return resolveTriviaProofFromResults(options, correctIndex, results)?.proof ?? null;
 }
 
-export function triviaProofIsValid(proof: TriviaProof | null): boolean {
-  return proof != null && proof.matches.length > 0;
+export function triviaProofIsValid(
+  resolution: TriviaProofResolution | null
+): boolean {
+  return resolution != null;
 }
