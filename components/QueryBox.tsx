@@ -11,10 +11,10 @@ const EXAMPLES = [
   "Map NYPD collision locations in Brooklyn in 2024",
   "Show a heatmap of 311 complaints at H3 resolution 9 in Brooklyn in 2024",
   "How many 311 complaints were filed in each borough in 2024?",
-  "Top 10 yellow taxi pickup zones by trip count in 2023",
+  "Top 10 yellow taxi pickup zones by trip count in 2025",
   "How many noise complaints were filed in 2024?",
   "311 complaint rate per 1000 residents by borough in 2024 (ACS 2023 population)",
-  "Compare average yellow cab tip percentage: weekday vs weekend in Manhattan, 2024",
+  "Compare average yellow cab tip percentage: weekday vs weekend in Manhattan, 2025",
 ];
 
 export function QueryBox({ onSubmit, disabled }: Props) {
