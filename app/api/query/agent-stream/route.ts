@@ -5,7 +5,7 @@ import { generateSqlViaP8k8WithEvents } from "@/lib/p8k8";
 import { pickBackend } from "@/lib/route";
 import { runSqlAgentWithEvents } from "@/lib/sql-agent/run";
 import type { AgentStreamPayload } from "@/lib/sql-agent/types";
-import { checkSql } from "@/lib/guardrails";
+import { ensureGuardedSql } from "@/lib/ensure-guarded-sql";
 import { startQuery } from "@/lib/athena";
 import { isAuthenticated } from "@/lib/auth";
 import { recordGenerationMetrics } from "@/lib/record-generation-metrics";
@@ -60,29 +60,43 @@ export async function POST(req: NextRequest) {
           generation = await generateSql(parsed.question);
         }
 
-        await recordGenerationMetrics(parsed.question, generation, backend);
-
         await push({ type: "sql_generated", sql: generation.sql });
 
-        const guard = checkSql(generation.sql);
-        if (!guard.ok) {
+        const guarded = await ensureGuardedSql(parsed.question, generation, {
+          onRepair: async ({ attempt, reason, sql }) => {
+            await push({
+              type: "reason",
+              text: `Guardrails rejected SQL (${reason}). Auto-repair ${attempt}…`,
+            });
+            await push({ type: "sql_generated", sql });
+          },
+        });
+        if (!guarded.ok) {
           await push({
             type: "guardrails_failed",
-            reason: guard.reason,
-            sql: generation.sql,
+            reason: guarded.reason,
+            sql: guarded.sql,
           });
           controller.close();
           return;
         }
+        generation = guarded.generation;
+        await recordGenerationMetrics(parsed.question, generation, backend);
+        if (guarded.repairCount > 0) {
+          await push({
+            type: "reason",
+            text: `Guardrail repair succeeded (${guarded.repairCount} pass${guarded.repairCount === 1 ? "" : "es"}).`,
+          });
+        }
 
         let executionId: string;
         try {
-          executionId = await startQuery(guard.sql);
+          executionId = await startQuery(guarded.sql);
         } catch (e) {
           await push({
             type: "athena_failed",
             detail: errorMessage(e),
-            sql: guard.sql,
+            sql: guarded.sql,
           });
           controller.close();
           return;

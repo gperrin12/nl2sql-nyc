@@ -8,7 +8,7 @@
  *
  * Env:
  *   APP_URL          (default http://localhost:3000)
- *   APP_PASSWORD     (required unless app has no auth)
+ *   APP_PASSWORD     (optional — only if app has password protection enabled)
  *   SEED_DELAY_MS    (default 4000)
  *   SEED_CATEGORY    optional filter
  *   SEED_DIFFICULTY  optional filter
@@ -92,14 +92,6 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function requireEnv(name: string, value: string | undefined): string {
-  if (!value?.trim()) {
-    console.error(`Error: ${name} env var is required`);
-    process.exit(1);
-  }
-  return value.trim();
-}
-
 function parseAuthCookie(headers: Headers): string | null {
   const fromGetSetCookie =
     typeof headers.getSetCookie === "function" ? headers.getSetCookie() : [];
@@ -113,8 +105,10 @@ function parseAuthCookie(headers: Headers): string | null {
   return m ? m[1] : null;
 }
 
-async function login(): Promise<string> {
-  const password = requireEnv("APP_PASSWORD", process.env.APP_PASSWORD);
+async function login(): Promise<string | null> {
+  const password = process.env.APP_PASSWORD?.trim();
+  if (!password) return null;
+
   const res = await fetch(`${APP_URL}/api/login`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -128,6 +122,14 @@ async function login(): Promise<string> {
     throw new Error("Login succeeded but no auth cookie returned");
   }
   return cookie;
+}
+
+function authHeaders(cookie: string | null): HeadersInit {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+  if (cookie) headers.Cookie = `auth=${cookie}`;
+  return headers;
 }
 
 /** questions.json uses // section headers — strip line comments before parse */
@@ -249,7 +251,7 @@ function baseResult(q: Question): Omit<SeedResult, "status" | "seededAt"> {
 
 async function pollAthena(
   executionId: string,
-  cookie: string
+  cookie: string | null
 ): Promise<{
   status: "succeeded" | "failed" | "timeout" | "empty";
   columns?: string[];
@@ -264,7 +266,7 @@ async function pollAthena(
     await sleep(POLL_MS);
 
     const res = await fetch(`${APP_URL}/api/query/${executionId}`, {
-      headers: { Cookie: `auth=${cookie}` },
+      headers: cookie ? { Cookie: `auth=${cookie}` } : {},
     });
 
     let poll: PollResponse;
@@ -440,9 +442,6 @@ function printSummary(results: SeedResult[]): void {
 }
 
 async function main(): Promise<void> {
-  if (!SEED_DRY_RUN) {
-    requireEnv("APP_PASSWORD", process.env.APP_PASSWORD);
-  }
 
   const allQuestions = loadQuestions();
   const questions = applyFilters(allQuestions);
@@ -488,10 +487,7 @@ async function main(): Promise<void> {
     try {
       const startRes = await fetch(`${APP_URL}/api/query/start`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Cookie: `auth=${cookie}`,
-        },
+        headers: authHeaders(cookie),
         body: JSON.stringify({ question: q.question }),
       });
 

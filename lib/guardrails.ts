@@ -39,5 +39,29 @@ export function checkSql(rawSql: string): GuardrailResult {
     }
   }
 
+  if (
+    /\bTRIM\s*\(\s*(?:(?:\w+)\.)?(pulocationid|dolocationid|locationid)\s*\)/i.test(
+      stripped
+    )
+  ) {
+    return {
+      ok: false,
+      reason:
+        "TRIM() on pulocationid/dolocationid/locationid is invalid (zone IDs are numeric). Use pulocationid IS NOT NULL and CAST/TRY_CAST for taxi_zones joins",
+    };
+  }
+
+  if (
+    /\bSUBSTRING\s*\(\s*(?:(?:\w+)\.)?(tpep_pickup_datetime|tpep_dropoff_datetime|created_date|closed_date|crash_date|pickup_datetime|dropoff_datetime)\b/i.test(
+      stripped
+    )
+  ) {
+    return {
+      ok: false,
+      reason:
+        "SUBSTRING() on datetime columns is invalid — use day_of_week(FROM_ISO8601_TIMESTAMP(col)) or day_of_week(col) for weekday/weekend",
+    };
+  }
+
   return { ok: true, sql: stripped };
 }

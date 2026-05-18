@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { generateSqlWithRepair } from "@/lib/claude";
-import { checkSql } from "@/lib/guardrails";
+import { ensureGuardedSql } from "@/lib/ensure-guarded-sql";
 import { startQuery } from "@/lib/athena";
 import { isAuthenticated } from "@/lib/auth";
 
@@ -34,27 +34,28 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const check = checkSql(generation.sql);
-  if (!check.ok) {
+  const guarded = await ensureGuardedSql(parsed.question, generation);
+  if (!guarded.ok) {
     return NextResponse.json(
       {
         error: "SQL rejected by guardrails",
-        reason: check.reason,
-        sql: generation.sql,
+        reason: guarded.reason,
+        sql: guarded.sql,
       },
       { status: 400 }
     );
   }
+  generation = guarded.generation;
 
   let executionId;
   try {
-    executionId = await startQuery(check.sql);
+    executionId = await startQuery(guarded.sql);
   } catch (e) {
     return NextResponse.json(
       {
         error: "Athena rejected the query",
         detail: errorMessage(e),
-        sql: check.sql,
+        sql: guarded.sql,
       },
       { status: 502 }
     );
@@ -62,7 +63,7 @@ export async function POST(req: NextRequest) {
 
   return NextResponse.json({
     executionId,
-    sql: check.sql,
+    sql: guarded.sql,
     model: generation.model,
     usage: {
       inputTokens: generation.inputTokens,

@@ -5,7 +5,6 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { QueryBox } from "@/components/QueryBox";
 import { SqlDisplay } from "@/components/SqlDisplay";
 import { ResultsPanel } from "@/components/ResultsPanel";
-import { LoginForm } from "@/components/LoginForm";
 import { AgentStreamTrace } from "@/components/AgentStreamTrace";
 import { AppNav } from "@/components/AppNav";
 import type { AgentStreamPayload } from "@/lib/sql-agent/types";
@@ -38,8 +37,6 @@ type ErrorResponse = {
   sql?: string;
 };
 
-type Props = { initialAuthed: boolean };
-
 const MAX_REPAIR_ATTEMPTS = 5;
 
 /** Live trace panel uses POST /api/query/agent-stream (not /api/query/start). */
@@ -47,8 +44,7 @@ const USE_QUERY_STREAM =
   process.env.NEXT_PUBLIC_AGENT_SSE === "true" ||
   process.env.NEXT_PUBLIC_USE_P8K8 === "true";
 
-export function HomeClient({ initialAuthed }: Props) {
-  const [authed, setAuthed] = useState(initialAuthed);
+export function HomeClient() {
   const [executionId, setExecutionId] = useState<string | null>(null);
   const [generatedSql, setGeneratedSql] = useState<string | null>(null);
   const [generatedModel, setGeneratedModel] = useState<string | null>(null);
@@ -72,7 +68,6 @@ export function HomeClient({ initialAuthed }: Props) {
       });
       const data = await res.json();
       if (!res.ok) {
-        if (res.status === 401) setAuthed(false);
         const err = data as ErrorResponse;
         throw Object.assign(new Error(err.error ?? "Error"), { data: err });
       }
@@ -106,7 +101,6 @@ export function HomeClient({ initialAuthed }: Props) {
       });
       const data = await res.json();
       if (!res.ok) {
-        if (res.status === 401) setAuthed(false);
         const err = data as ErrorResponse;
         throw Object.assign(new Error(err.error ?? "Repair failed"), {
           data: err,
@@ -161,7 +155,6 @@ export function HomeClient({ initialAuthed }: Props) {
     queryFn: async () => {
       const res = await fetch(`/api/query/${executionId}`);
       if (!res.ok) {
-        if (res.status === 401) setAuthed(false);
         throw new Error("Failed to fetch status");
       }
       return res.json();
@@ -173,8 +166,6 @@ export function HomeClient({ initialAuthed }: Props) {
       return 1000;
     },
   });
-
-  if (!authed) return <LoginForm onSuccess={() => setAuthed(true)} />;
 
   const handleSubmit = (question: string) => {
     repairMutation.reset();
@@ -206,11 +197,6 @@ export function HomeClient({ initialAuthed }: Props) {
         credentials: "same-origin",
         body: JSON.stringify({ question }),
       });
-
-      if (res.status === 401) {
-        setAuthed(false);
-        return;
-      }
 
       const ct = res.headers.get("content-type") ?? "";
       if (!res.ok && !ct.includes("event-stream")) {
