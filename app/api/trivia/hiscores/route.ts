@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { isAuthenticated } from "@/lib/auth";
 import {
-  isValidHiScoreInitials,
+  isValidHiScoreName,
+  HISCORE_NAME_MAX_LENGTH,
   qualifiesForHiScores,
   TRIVIA_SESSION_LENGTH,
   type TriviaHiScoreEntry,
@@ -31,6 +32,7 @@ export async function GET() {
 }
 
 type PostBody = {
+  name?: string;
   initials?: string;
   score?: number;
   total?: number;
@@ -48,13 +50,20 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
-  const initials = typeof body.initials === "string" ? body.initials : "";
+  const name =
+    typeof body.name === "string"
+      ? body.name
+      : typeof body.initials === "string"
+        ? body.initials
+        : "";
   const score = body.score;
   const total = body.total ?? TRIVIA_SESSION_LENGTH;
 
-  if (!isValidHiScoreInitials(initials)) {
+  if (!isValidHiScoreName(name)) {
     return NextResponse.json(
-      { error: "Initials must be 1–3 characters (A–Z, space, !, ?)" },
+      {
+        error: `Name must be 1–${HISCORE_NAME_MAX_LENGTH} characters (letters, numbers, space, ', -)`,
+      },
       { status: 400 }
     );
   }
@@ -99,7 +108,7 @@ export async function POST(req: Request) {
   }
 
   try {
-    const result = await submitHiScore(initials, score, total);
+    const result = await submitHiScore(name, score, total);
     return NextResponse.json({
       entries: result.board,
       entry: result.entry,

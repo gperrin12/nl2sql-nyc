@@ -12,9 +12,7 @@ export function TriviaGameOver({ score, total, onContinue }: TriviaGameOverProps
   return (
     <div className="trivia-retro-screen animate-trivia-fade-in font-mono uppercase tracking-wider text-center space-y-8 py-10">
       <div className="space-y-2">
-        <p className="text-xs text-[var(--muted)] animate-pulse">
-          ▶ INSERT COIN ◀
-        </p>
+        <p className="text-xs text-[var(--muted)]">— End of Run —</p>
         <h2 className="text-3xl sm:text-4xl text-[var(--error)] drop-shadow-[0_0_12px_rgba(239,68,68,0.35)]">
           Game Over
         </h2>

@@ -1,29 +1,34 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { HISCORE_NAME_MAX_LENGTH } from "@/lib/trivia-hiscores";
 
 const LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
-const SPECIAL = [" ", "!", "?"] as const;
-const CHARSET = [...LETTERS, ...SPECIAL];
-const COLS = 6;
-const MAX_INITIALS = 3;
+const DIGITS = "0123456789".split("");
+const SPECIAL = [" ", "-", "'"] as const;
+const CHARSET = [...LETTERS, ...DIGITS, ...SPECIAL];
+const COLS = 8;
 
-type TriviaInitialsPickerProps = {
+type TriviaNamePickerProps = {
   score: number;
   total: number;
   disabled?: boolean;
-  onComplete: (initials: string) => void;
+  onComplete: (name: string) => void;
   onSkip?: () => void;
 };
 
-export function TriviaInitialsPicker({
+function emptySlots(): string[] {
+  return Array.from({ length: HISCORE_NAME_MAX_LENGTH }, () => "");
+}
+
+export function TriviaNamePicker({
   score,
   total,
   disabled = false,
   onComplete,
   onSkip,
-}: TriviaInitialsPickerProps) {
-  const [chars, setChars] = useState<string[]>(["", "", ""]);
+}: TriviaNamePickerProps) {
+  const [chars, setChars] = useState(emptySlots);
   const [slotIndex, setSlotIndex] = useState(0);
   const [gridIndex, setGridIndex] = useState(0);
   const [cursorVisible, setCursorVisible] = useState(true);
@@ -34,35 +39,39 @@ export function TriviaInitialsPicker({
     return () => window.clearInterval(id);
   }, []);
 
+  const composedName = chars.join("").trim().toUpperCase();
+
+  const submitName = useCallback(() => {
+    if (disabled || composedName.length < 1) return;
+    onComplete(composedName.slice(0, HISCORE_NAME_MAX_LENGTH));
+  }, [composedName, disabled, onComplete]);
+
   const pickChar = useCallback(
     (ch: string) => {
       if (disabled) return;
-      const next = [...chars];
-      next[slotIndex] = ch;
-      setChars(next);
-      if (slotIndex < MAX_INITIALS - 1) {
+      setChars((prev) => {
+        const next = [...prev];
+        next[slotIndex] = ch;
+        return next;
+      });
+      if (slotIndex < HISCORE_NAME_MAX_LENGTH - 1) {
         setSlotIndex((s) => s + 1);
         setGridIndex(0);
-      } else {
-        const initials = next.join("").toUpperCase().padEnd(3, " ").slice(0, 3);
-        onComplete(initials);
       }
     },
-    [slotIndex, chars, onComplete, disabled]
+    [slotIndex, disabled]
   );
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      const row = Math.floor(gridIndex / COLS);
-      const col = gridIndex % COLS;
-
       switch (e.key) {
         case "ArrowUp":
           e.preventDefault();
           setGridIndex((i) => {
             const r = Math.floor(i / COLS);
             const c = i % COLS;
-            const nr = (r - 1 + Math.ceil(CHARSET.length / COLS)) % Math.ceil(CHARSET.length / COLS);
+            const maxRow = Math.ceil(CHARSET.length / COLS) - 1;
+            const nr = (r - 1 + maxRow + 1) % (maxRow + 1);
             return Math.min(nr * COLS + c, CHARSET.length - 1);
           });
           break;
@@ -87,20 +96,40 @@ export function TriviaInitialsPicker({
           );
           break;
         case "Enter":
+          e.preventDefault();
+          if (e.shiftKey || slotIndex === HISCORE_NAME_MAX_LENGTH - 1) {
+            submitName();
+          } else {
+            pickChar(CHARSET[gridIndex] ?? "A");
+          }
+          break;
         case " ":
           e.preventDefault();
           pickChar(CHARSET[gridIndex] ?? "A");
           break;
         case "Backspace":
           e.preventDefault();
-          if (slotIndex > 0 && chars[slotIndex] === "") {
-            setSlotIndex((s) => s - 1);
-          }
           setChars((prev) => {
             const next = [...prev];
-            next[slotIndex] = "";
+            if (next[slotIndex] !== "") {
+              next[slotIndex] = "";
+              return next;
+            }
+            if (slotIndex > 0) {
+              const ni = slotIndex - 1;
+              next[ni] = "";
+              setSlotIndex(ni);
+            }
             return next;
           });
+          break;
+        case "Tab":
+          e.preventDefault();
+          setSlotIndex((s) =>
+            e.shiftKey
+              ? Math.max(0, s - 1)
+              : Math.min(HISCORE_NAME_MAX_LENGTH - 1, s + 1)
+          );
           break;
         default:
           break;
@@ -109,11 +138,12 @@ export function TriviaInitialsPicker({
 
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [gridIndex, pickChar, slotIndex, chars]);
+  }, [gridIndex, pickChar, slotIndex, submitName]);
 
-  const displayChars = chars.map((c, i) =>
-    i === slotIndex && cursorVisible ? (c || "_") : c || "_"
-  );
+  const displayChars = chars.map((c, i) => {
+    const show = i === slotIndex && cursorVisible;
+    return show ? (c || "_") : c || "_";
+  });
 
   return (
     <div
@@ -122,32 +152,30 @@ export function TriviaInitialsPicker({
       tabIndex={-1}
     >
       <div className="text-center space-y-2">
-        <p className="text-xs text-[var(--muted)] animate-pulse">
-          ▶ NEW HIGH SCORE ◀
-        </p>
-        <h2 className="text-xl text-[var(--accent)]">Enter Initials</h2>
-        <p className="text-xs text-[var(--muted)]">
-          Score {score}/{total} — arrows + enter, or click
+        <p className="text-xs text-[var(--muted)]">— Save Data —</p>
+        <h2 className="text-xl text-[var(--accent)]">Enter Name</h2>
+        <p className="text-xs text-[var(--muted)] normal-case tracking-normal">
+          Score {score}/{total} · up to {HISCORE_NAME_MAX_LENGTH} characters
         </p>
       </div>
 
-      <div className="flex justify-center gap-3 text-3xl tabular-nums">
+      <div className="flex flex-wrap justify-center gap-1.5 sm:gap-2 max-w-md mx-auto text-2xl sm:text-3xl tabular-nums">
         {displayChars.map((ch, i) => (
           <span
             key={i}
-            className={`w-12 h-14 flex items-center justify-center border-2 ${
+            className={`w-8 h-10 sm:w-9 sm:h-12 flex items-center justify-center border-2 text-sm sm:text-base ${
               i === slotIndex
                 ? "border-[var(--accent)] text-[var(--accent)] bg-[var(--accent)]/10"
                 : "border-[var(--border)] text-[var(--muted)]"
             }`}
           >
-            {ch}
+            {ch === " " ? "·" : ch}
           </span>
         ))}
       </div>
 
       <div
-        className="grid gap-1 max-w-xs mx-auto"
+        className="grid gap-1 max-w-lg mx-auto"
         style={{ gridTemplateColumns: `repeat(${COLS}, minmax(0, 1fr))` }}
       >
         {CHARSET.map((ch, i) => {
@@ -159,7 +187,7 @@ export function TriviaInitialsPicker({
               type="button"
               disabled={disabled}
               onClick={() => pickChar(ch)}
-              className={`h-10 text-sm border transition-colors disabled:opacity-40 ${
+              className={`h-9 text-xs sm:text-sm border transition-colors disabled:opacity-40 ${
                 focused
                   ? "border-[var(--accent)] bg-[var(--accent)]/20 text-[var(--accent)]"
                   : "border-[var(--border)] bg-[var(--panel)] text-[var(--text)] hover:border-[var(--accent-dim)]"
@@ -171,17 +199,26 @@ export function TriviaInitialsPicker({
         })}
       </div>
 
-      {onSkip && (
-        <p className="text-center">
+      <div className="flex flex-col items-center gap-3">
+        <button
+          type="button"
+          disabled={disabled || composedName.length < 1}
+          onClick={submitName}
+          className="px-8 py-2.5 border-2 border-[var(--accent)] text-[var(--accent)] text-sm hover:bg-[var(--accent)] hover:text-black transition-colors disabled:opacity-40"
+        >
+          Save Name ▶
+        </button>
+        {onSkip && (
           <button
             type="button"
+            disabled={disabled}
             onClick={onSkip}
-            className="text-xs text-[var(--muted)] hover:text-[var(--text)] underline"
+            className="text-xs text-[var(--muted)] hover:text-[var(--text)] underline normal-case tracking-normal"
           >
-            Skip (use ???)
+            Skip (save as GUEST)
           </button>
-        </p>
-      )}
+        )}
+      </div>
     </div>
   );
 }

@@ -5,6 +5,8 @@
 
 export const TRIVIA_SESSION_LENGTH = 10;
 export const TRIVIA_LEADERBOARD_SIZE = 10;
+/** Max characters on the SNES-style name entry screen. */
+export const HISCORE_NAME_MAX_LENGTH = 8;
 
 /** @deprecated Browser cache key; global board uses the API + S3. */
 export const TRIVIA_HISCORES_STORAGE_KEY = "nyc-trivia-hiscores";
@@ -42,18 +44,23 @@ export function parseHiScoresJson(raw: string): TriviaHiScoreEntry[] {
   return parsed.filter(isHiScoreEntry);
 }
 
-export function normalizeInitials(initials: string): string {
-  return initials.toUpperCase().slice(0, 3).padEnd(3, " ");
+/** Stored in `initials` for backward compatibility with existing S3 JSON. */
+export function normalizeHiScoreName(name: string): string {
+  return name.trim().toUpperCase().slice(0, HISCORE_NAME_MAX_LENGTH);
+}
+
+export function formatHiScoreName(stored: string): string {
+  return stored.trim() || "—";
 }
 
 export function buildHiScoreEntry(
-  initials: string,
+  name: string,
   score: number,
   total: number = TRIVIA_SESSION_LENGTH
 ): TriviaHiScoreEntry {
   return {
     id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-    initials: normalizeInitials(initials),
+    initials: normalizeHiScoreName(name),
     score,
     total,
     date: new Date().toISOString(),
@@ -76,12 +83,15 @@ export function qualifiesForHiScores(
   return score >= lowest;
 }
 
-/** Validate initials for API / picker (A–Z, space, !, ?). */
-export function isValidHiScoreInitials(initials: string): boolean {
-  const t = initials.trim();
-  if (t.length < 1 || t.length > 3) return false;
-  return /^[A-Z!? ]+$/i.test(t);
+/** Validate name for API / picker. */
+export function isValidHiScoreName(name: string): boolean {
+  const t = name.trim();
+  if (t.length < 1 || t.length > HISCORE_NAME_MAX_LENGTH) return false;
+  return /^[A-Z0-9 '-]+$/i.test(t);
 }
+
+/** @deprecated Use isValidHiScoreName */
+export const isValidHiScoreInitials = isValidHiScoreName;
 
 export function formatHiScoreDate(iso: string): string {
   try {

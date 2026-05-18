@@ -4,7 +4,7 @@ import { useCallback, useState } from "react";
 import { AppNav } from "@/components/AppNav";
 import { SqlDisplay } from "@/components/SqlDisplay";
 import { TriviaGameOver } from "@/components/trivia/TriviaGameOver";
-import { TriviaInitialsPicker } from "@/components/trivia/TriviaInitialsPicker";
+import { TriviaNamePicker } from "@/components/trivia/TriviaNamePicker";
 import { TriviaLeaderboard } from "@/components/trivia/TriviaLeaderboard";
 import { useTriviaHiScores } from "@/lib/hooks/useTriviaHiScores";
 import { useTriviaQuestion } from "@/lib/hooks/useTriviaQuestion";
@@ -13,7 +13,7 @@ import { TRIVIA_SESSION_LENGTH } from "@/lib/trivia-hiscores";
 
 const LABELS = ["A", "B", "C", "D"] as const;
 
-type GamePhase = "playing" | "gameover" | "initials" | "leaderboard";
+type GamePhase = "playing" | "gameover" | "name" | "leaderboard";
 
 export function TriviaClient() {
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
@@ -67,16 +67,16 @@ export function TriviaClient() {
 
   const handleGameOverContinue = () => {
     if (qualifies(sessionCorrect)) {
-      setPhase("initials");
+      setPhase("name");
     } else {
       setNewEntryId(null);
       setPhase("leaderboard");
     }
   };
 
-  const handleInitialsComplete = async (initials: string) => {
+  const handleNameComplete = async (name: string) => {
     try {
-      const entry = await submitScore(initials, sessionCorrect);
+      const entry = await submitScore(name, sessionCorrect);
       setNewEntryId(entry.id);
       setPhase("leaderboard");
     } catch {
@@ -181,14 +181,14 @@ export function TriviaClient() {
         />
       )}
 
-      {phase === "initials" && (
+      {phase === "name" && (
         <>
-          <TriviaInitialsPicker
+          <TriviaNamePicker
             score={sessionCorrect}
             total={TRIVIA_SESSION_LENGTH}
             disabled={hiScoresSubmitting}
-            onComplete={(initials) => void handleInitialsComplete(initials)}
-            onSkip={() => void handleInitialsComplete("???")}
+            onComplete={(name) => void handleNameComplete(name)}
+            onSkip={() => void handleNameComplete("GUEST")}
           />
           {hiScoresError && (
             <p className="text-center text-sm text-[var(--error)] font-mono">

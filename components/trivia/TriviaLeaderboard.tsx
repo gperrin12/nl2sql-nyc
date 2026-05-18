@@ -2,6 +2,7 @@
 
 import {
   formatHiScoreDate,
+  formatHiScoreName,
   type TriviaHiScoreEntry,
 } from "@/lib/trivia-hiscores";
 
@@ -92,7 +93,7 @@ export function TriviaLeaderboard({
                       {String(rank + 1).padStart(2, "0")}
                     </td>
                     <td
-                      className={`py-2.5 tracking-[0.2em] ${
+                      className={`py-2.5 tracking-wide truncate max-w-[10rem] sm:max-w-none ${
                         isTop
                           ? "text-[var(--accent)] font-semibold"
                           : empty
@@ -100,7 +101,7 @@ export function TriviaLeaderboard({
                             : "text-[var(--muted)]"
                       } ${isHighlight ? "text-[var(--accent)]" : ""}`}
                     >
-                      {empty ? "— — —" : entry.initials}
+                      {empty ? "—" : formatHiScoreName(entry.initials)}
                     </td>
                     <td
                       className={`py-2.5 text-right tabular-nums ${
@@ -155,11 +156,6 @@ export function TriviaLeaderboard({
               >
                 ◀ Back to Game
               </button>
-            )}
-            {(onPlayAgain || onBack) && (
-              <p className="text-[10px] text-[var(--muted)] animate-pulse">
-                INSERT COIN TO CONTINUE
-              </p>
             )}
           </div>
         </div>

@@ -125,12 +125,12 @@ export async function saveHiScores(
 
 /** Read → merge → write; returns updated board and new entry. */
 export async function submitHiScore(
-  initials: string,
+  name: string,
   score: number,
   total: number = TRIVIA_SESSION_LENGTH
 ): Promise<{ board: TriviaHiScoreEntry[]; entry: TriviaHiScoreEntry }> {
   const board = await loadHiScores();
-  const entry = buildHiScoreEntry(initials, score, total);
+  const entry = buildHiScoreEntry(name, score, total);
   const next = await saveHiScores(mergeHiScore(board, entry));
   return { board: next, entry };
 }

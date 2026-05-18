@@ -74,14 +74,14 @@ export function useTriviaHiScores(options?: { pollWhileLeaderboard?: boolean }) 
   );
 
   const submitScore = useCallback(
-    async (initials: string, score: number): Promise<TriviaHiScoreEntry> => {
+    async (name: string, score: number): Promise<TriviaHiScoreEntry> => {
       setSubmitting(true);
       setError(null);
       try {
         const res = await fetch("/api/trivia/hiscores", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ initials, score, total: TRIVIA_SESSION_LENGTH }),
+          body: JSON.stringify({ name, score, total: TRIVIA_SESSION_LENGTH }),
         });
         const data = (await res.json()) as {
           entries?: TriviaHiScoreEntry[];
