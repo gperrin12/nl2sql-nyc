@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { AppNav } from "@/components/AppNav";
 import { SqlDisplay } from "@/components/SqlDisplay";
+import { useTriviaScore } from "@/lib/hooks/useTriviaScore";
 
 type TriviaResponse = {
   question: string;
@@ -30,8 +31,15 @@ const LABELS = ["A", "B", "C", "D"] as const;
 
 export function TriviaClient() {
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
-  const [correctCount, setCorrectCount] = useState(0);
-  const [answeredCount, setAnsweredCount] = useState(0);
+  const {
+    correct: correctCount,
+    answered: answeredCount,
+    bestStreak,
+    currentStreak,
+    accuracy,
+    recordAnswer,
+    reset: resetScore,
+  } = useTriviaScore();
 
   const questionMutation = useMutation({
     mutationFn: async () => {
@@ -61,10 +69,8 @@ export function TriviaClient() {
   const handleSelect = (index: number) => {
     if (selectedIndex !== null || !questionMutation.data) return;
     setSelectedIndex(index);
-    setAnsweredCount((n) => n + 1);
-    if (index === questionMutation.data.correctIndex) {
-      setCorrectCount((n) => n + 1);
-    }
+    const wasCorrect = index === questionMutation.data.correctIndex;
+    recordAnswer(wasCorrect);
   };
 
   const data = questionMutation.data;
@@ -88,7 +94,39 @@ export function TriviaClient() {
               / {answeredCount}
             </span>
           </p>
-          <p className="text-xs text-[var(--muted)]">correct</p>
+          <p className="text-xs text-[var(--muted)]">
+            {accuracy != null
+              ? `${Math.round(accuracy * 100)}% accuracy`
+              : "correct"}
+            {currentStreak > 0 && (
+              <span className="text-[var(--accent)]">
+                {" "}
+                · streak {currentStreak}
+              </span>
+            )}
+          </p>
+          {bestStreak > 0 && (
+            <p className="text-xs text-[var(--muted)]">
+              Best streak: {bestStreak}
+            </p>
+          )}
+          {answeredCount > 0 && (
+            <button
+              type="button"
+              onClick={() => {
+                if (
+                  window.confirm(
+                    "Reset your trivia score? This cannot be undone."
+                  )
+                ) {
+                  resetScore();
+                }
+              }}
+              className="text-xs text-[var(--muted)] hover:text-[var(--text)] underline"
+            >
+              Reset score
+            </button>
+          )}
         </div>
       </header>
 
