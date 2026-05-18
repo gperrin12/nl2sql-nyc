@@ -86,16 +86,18 @@ export async function loadHiScores(): Promise<TriviaHiScoreEntry[]> {
   }
 }
 
-/** Persist hi-scores to S3 (when configured) and data/trivia-hiscores.json. */
+function writeLocalHiScores(json: string): void {
+  mkdirSync(path.dirname(LOCAL_PATH), { recursive: true });
+  writeFileSync(LOCAL_PATH, json, "utf8");
+}
+
+/** Persist hi-scores to S3 (when configured) or data/trivia-hiscores.json (dev). */
 export async function saveHiScores(
   entries: TriviaHiScoreEntry[]
 ): Promise<TriviaHiScoreEntry[]> {
   const sorted = sortHiScores(entries).slice(0, TRIVIA_LEADERBOARD_SIZE);
   const json = JSON.stringify(sorted, null, 2);
   const s3 = getS3Target();
-
-  mkdirSync(path.dirname(LOCAL_PATH), { recursive: true });
-  writeFileSync(LOCAL_PATH, json, "utf8");
 
   if (s3) {
     await s3Client().send(
@@ -106,6 +108,16 @@ export async function saveHiScores(
         ContentType: "application/json",
       })
     );
+    // Mirror to disk in local dev only (Vercel FS is read-only).
+    if (process.env.NODE_ENV === "development") {
+      try {
+        writeLocalHiScores(json);
+      } catch {
+        // ignore — S3 is source of truth when configured
+      }
+    }
+  } else {
+    writeLocalHiScores(json);
   }
 
   return sorted;

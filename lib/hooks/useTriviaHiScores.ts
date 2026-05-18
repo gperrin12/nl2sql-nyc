@@ -9,11 +9,21 @@ import {
 
 const POLL_MS = 30_000;
 
+function formatApiError(message: string, detail?: string): string {
+  if (!detail || detail === message) return message;
+  return `${message}: ${detail}`;
+}
+
 async function fetchHiScores(): Promise<TriviaHiScoreEntry[]> {
   const res = await fetch("/api/trivia/hiscores", { cache: "no-store" });
   if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(body.error ?? `Failed to load hi-scores (${res.status})`);
+    const body = (await res.json().catch(() => ({}))) as {
+      error?: string;
+      detail?: string;
+    };
+    throw new Error(
+      formatApiError(body.error ?? `Failed to load hi-scores (${res.status})`, body.detail)
+    );
   }
   const data = (await res.json()) as { entries: TriviaHiScoreEntry[] };
   return data.entries ?? [];
@@ -77,9 +87,15 @@ export function useTriviaHiScores(options?: { pollWhileLeaderboard?: boolean }) 
           entries?: TriviaHiScoreEntry[];
           entry?: TriviaHiScoreEntry;
           error?: string;
+          detail?: string;
         };
         if (!res.ok) {
-          throw new Error(data.error ?? `Failed to save score (${res.status})`);
+          throw new Error(
+            formatApiError(
+              data.error ?? `Failed to save score (${res.status})`,
+              data.detail
+            )
+          );
         }
         const entries = data.entries ?? [];
         const entry = data.entry;
