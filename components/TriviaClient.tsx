@@ -23,17 +23,17 @@ export function TriviaClient() {
   const {
     current: data,
     loading,
-    loadingNext,
+    advancing,
     error,
     prefetchReady,
-    loadNext,
+    advance,
     retry,
   } = useTriviaQuestion();
 
   const loadQuestion = useCallback(() => {
     setSelectedIndex(null);
-    void loadNext();
-  }, [loadNext]);
+    void advance();
+  }, [advance]);
 
   const handleSelect = (index: number) => {
     if (selectedIndex !== null || !data) return;
@@ -45,7 +45,6 @@ export function TriviaClient() {
   const isCorrect =
     answered && data != null && selectedIndex === data.correctIndex;
   const showSkeleton = loading && !data;
-  const pendingNext = loadingNext;
 
   return (
     <main className="max-w-3xl mx-auto p-6 space-y-6">
@@ -115,7 +114,7 @@ export function TriviaClient() {
       {showSkeleton && <TriviaSkeleton />}
 
       {data && !showSkeleton && (
-        <div className={`space-y-6 ${pendingNext ? "opacity-60 pointer-events-none" : ""}`}>
+        <div key={data.question} className="space-y-6">
           <div className="rounded-lg border border-[var(--border)] bg-[var(--panel)] p-6">
             <p className="text-lg font-medium leading-relaxed text-[var(--text)]">
               {data.question}
@@ -144,7 +143,7 @@ export function TriviaClient() {
                 <button
                   key={`${label}-${option}`}
                   type="button"
-                  disabled={answered || pendingNext}
+                  disabled={answered}
                   onClick={() => handleSelect(index)}
                   className={`flex items-start gap-3 rounded-lg border px-4 py-3 text-left text-sm transition-colors disabled:cursor-default ${style}`}
                 >
@@ -225,12 +224,12 @@ export function TriviaClient() {
                 <button
                   type="button"
                   onClick={loadQuestion}
-                  disabled={pendingNext}
+                  disabled={advancing}
                   className="px-6 py-2.5 rounded-md bg-[var(--accent)] text-black text-sm font-medium hover:bg-[var(--accent-dim)] disabled:opacity-40"
                 >
-                  {pendingNext ? "Loading…" : "Next Question"}
+                  {advancing ? "Loading…" : "Next Question"}
                 </button>
-                {prefetchReady && !pendingNext && (
+                {prefetchReady && !advancing && (
                   <span className="text-xs text-[var(--accent)]">
                     Next question ready
                   </span>
@@ -241,9 +240,7 @@ export function TriviaClient() {
 
           {!answered && (
             <p className="text-xs text-center text-[var(--muted)]">
-              {prefetchReady
-                ? "Next question is loading in the background."
-                : "Pick an answer — every question is verified against live Athena data."}
+              Pick an answer — every question is verified against live Athena data.
             </p>
           )}
         </div>
