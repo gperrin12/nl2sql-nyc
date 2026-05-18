@@ -162,6 +162,18 @@ export function resolveTriviaProofFromResults(
   return buildResolution(options, idx, modelCorrectIndex, winner);
 }
 
+function formatProofSummary(
+  winner: RankingWinner,
+  correctLabel: string,
+  correctOption: string,
+  correctedFromModel: boolean
+): string {
+  const base = `Athena ranks ${winner.labelValue} #1 (${winner.metricColumn} = ${winner.metricValue}) — answer ${correctLabel}: ${correctOption}.`;
+  return correctedFromModel
+    ? `${base} (Verified from data; model pick did not match the top row.)`
+    : base;
+}
+
 function buildResolution(
   options: string[],
   dataCorrectIndex: number,
@@ -172,9 +184,12 @@ function buildResolution(
   const correctOption = options[dataCorrectIndex];
   const correctLabel = LABELS[dataCorrectIndex] ?? String(dataCorrectIndex + 1);
 
-  const summary = correctedFromModel
-    ? `Athena ranks ${winner.labelValue} #1 (${winner.metricColumn} = ${winner.metricValue}) — answer ${correctLabel}: ${correctOption}. (Verified from data; model pick did not match the top row.)`
-    : `Athena ranks ${winner.labelValue} #1 (${winner.metricColumn} = ${winner.metricValue}) — answer ${correctLabel}: ${correctOption}.`;
+  const summary = formatProofSummary(
+    winner,
+    correctLabel,
+    correctOption,
+    correctedFromModel
+  );
 
   const proof: TriviaProof = {
     summary,
@@ -238,9 +253,25 @@ export function proofWithShuffledIndex(
   correctIndex: number,
   options: string[]
 ): TriviaProof {
+  const correctOption = options[correctIndex];
+  const correctLabel = LABELS[correctIndex] ?? String(correctIndex + 1);
+  const winner: RankingWinner = {
+    rowIndex: proof.matches[0]?.rowIndex ?? 0,
+    labelColumn: proof.matches[0]?.column ?? "answer_label",
+    labelValue: proof.winnerLabel,
+    metricColumn: proof.winnerMetric?.column ?? "value",
+    metricValue: proof.winnerMetric?.value ?? "",
+  };
+
   return {
     ...proof,
-    correctOption: options[correctIndex],
-    correctLabel: LABELS[correctIndex] ?? String(correctIndex + 1),
+    correctOption,
+    correctLabel,
+    summary: formatProofSummary(
+      winner,
+      correctLabel,
+      correctOption,
+      proof.correctedFromModel
+    ),
   };
 }
