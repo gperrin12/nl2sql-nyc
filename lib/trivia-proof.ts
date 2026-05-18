@@ -165,13 +165,9 @@ export function resolveTriviaProofFromResults(
 function formatProofSummary(
   winner: RankingWinner,
   correctLabel: string,
-  correctOption: string,
-  correctedFromModel: boolean
+  correctOption: string
 ): string {
-  const base = `Athena ranks ${winner.labelValue} #1 (${winner.metricColumn} = ${winner.metricValue}) — answer ${correctLabel}: ${correctOption}.`;
-  return correctedFromModel
-    ? `${base} (Verified from data; model pick did not match the top row.)`
-    : base;
+  return `Athena ranks ${winner.labelValue} #1 (${winner.metricColumn} = ${winner.metricValue}) — answer ${correctLabel}: ${correctOption}.`;
 }
 
 function buildResolution(
@@ -184,12 +180,7 @@ function buildResolution(
   const correctOption = options[dataCorrectIndex];
   const correctLabel = LABELS[dataCorrectIndex] ?? String(dataCorrectIndex + 1);
 
-  const summary = formatProofSummary(
-    winner,
-    correctLabel,
-    correctOption,
-    correctedFromModel
-  );
+  const summary = formatProofSummary(winner, correctLabel, correctOption);
 
   const proof: TriviaProof = {
     summary,
@@ -267,11 +258,6 @@ export function proofWithShuffledIndex(
     ...proof,
     correctOption,
     correctLabel,
-    summary: formatProofSummary(
-      winner,
-      correctLabel,
-      correctOption,
-      proof.correctedFromModel
-    ),
+    summary: formatProofSummary(winner, correctLabel, correctOption),
   };
 }

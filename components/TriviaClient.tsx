@@ -187,12 +187,6 @@ export function TriviaClient() {
                     <p className="text-sm text-[var(--text)] leading-relaxed">
                       {data.proof.summary}
                     </p>
-                    {data.proof.correctedFromModel && (
-                      <p className="text-xs text-amber-400/90 mt-2">
-                        Answer verified from Athena (#1 row by metric), not the
-                        model&apos;s initial pick.
-                      </p>
-                    )}
                   </div>
                 )}
                 <div className="px-4 py-2 border-b border-[var(--border)] flex flex-wrap items-center justify-between gap-2 bg-[var(--panel)]">
