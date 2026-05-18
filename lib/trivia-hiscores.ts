@@ -96,10 +96,10 @@ export const isValidHiScoreInitials = isValidHiScoreName;
 export function formatHiScoreDate(iso: string): string {
   try {
     const d = new Date(iso);
-    return d.toLocaleDateString(undefined, {
+    return d.toLocaleDateString("en-US", {
       month: "short",
       day: "numeric",
-      year: "2-digit",
+      year: "numeric",
     });
   } catch {
     return "—";
