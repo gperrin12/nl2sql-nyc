@@ -44,7 +44,7 @@ export function TriviaClient() {
   const answered = selectedIndex !== null;
   const isCorrect =
     answered && data != null && selectedIndex === data.correctIndex;
-  const showSkeleton = loading && !data;
+  const showSkeleton = !data && (loading || advancing);
 
   return (
     <main className="max-w-3xl mx-auto p-6 space-y-6">
@@ -111,9 +111,11 @@ export function TriviaClient() {
         </div>
       )}
 
-      {showSkeleton && <TriviaSkeleton />}
+      {showSkeleton && (
+        <TriviaSkeleton message={advancing ? "Loading next question…" : undefined} />
+      )}
 
-      {data && !showSkeleton && (
+      {data && (
         <div key={data.question} className="space-y-6">
           <div className="rounded-lg border border-[var(--border)] bg-[var(--panel)] p-6">
             <p className="text-lg font-medium leading-relaxed text-[var(--text)]">
@@ -262,7 +264,7 @@ function TriviaPageHeader() {
   );
 }
 
-function TriviaSkeleton() {
+function TriviaSkeleton({ message }: { message?: string }) {
   return (
     <div className="space-y-6 animate-pulse">
       <div className="h-24 rounded-lg bg-[var(--panel)] border border-[var(--border)]" />
@@ -275,7 +277,8 @@ function TriviaSkeleton() {
         ))}
       </div>
       <p className="text-center text-sm text-[var(--muted)]">
-        Generating question &amp; running Athena (first load may take ~15–30s)…
+        {message ??
+          "Generating question & running Athena (first load may take ~15–30s)…"}
       </p>
     </div>
   );

@@ -8,7 +8,7 @@ import {
 
 /**
  * Loads trivia questions with a one-ahead prefetch.
- * Prefetch never mutates `current` — only "Next Question" swaps it in.
+ * Prefetch only fills cache; advancing swaps `current` (clears stale UI first).
  */
 export function useTriviaQuestion() {
   const [current, setCurrent] = useState<TriviaQuestionResponse | null>(null);
@@ -18,16 +18,15 @@ export function useTriviaQuestion() {
   const [prefetchReady, setPrefetchReady] = useState(false);
 
   const cacheRef = useRef<TriviaQuestionResponse | null>(null);
-  const prefetchInflightRef = useRef(false);
+  const prefetchPromiseRef = useRef<Promise<void> | null>(null);
   const advanceGenRef = useRef(0);
 
   const startPrefetch = useCallback(() => {
-    if (cacheRef.current || prefetchInflightRef.current) return;
+    if (cacheRef.current || prefetchPromiseRef.current) return;
 
-    prefetchInflightRef.current = true;
     setPrefetchReady(false);
 
-    void fetchTriviaQuestion()
+    const promise = fetchTriviaQuestion()
       .then((data) => {
         cacheRef.current = data;
         setPrefetchReady(true);
@@ -37,8 +36,10 @@ export function useTriviaQuestion() {
         setPrefetchReady(false);
       })
       .finally(() => {
-        prefetchInflightRef.current = false;
+        prefetchPromiseRef.current = null;
       });
+
+    prefetchPromiseRef.current = promise;
   }, []);
 
   const consumeCached = useCallback((): TriviaQuestionResponse | null => {
@@ -60,30 +61,19 @@ export function useTriviaQuestion() {
       return;
     }
 
+    // Drop the previous question immediately so it is not shown while waiting.
+    setCurrent(null);
     setAdvancing(true);
-    try {
-      let data: TriviaQuestionResponse;
 
-      if (prefetchInflightRef.current) {
-        await new Promise<void>((resolve) => {
-          const tick = () => {
-            if (!prefetchInflightRef.current) {
-              resolve();
-              return;
-            }
-            window.setTimeout(tick, 100);
-          };
-          tick();
-        });
-        const afterWait = consumeCached();
-        if (afterWait) {
-          data = afterWait;
-        } else {
-          data = await fetchTriviaQuestion();
-        }
-      } else {
-        data = await fetchTriviaQuestion();
+    try {
+      if (prefetchPromiseRef.current) {
+        await prefetchPromiseRef.current;
       }
+
+      if (gen !== advanceGenRef.current) return;
+
+      const fromPrefetch = consumeCached();
+      const data = fromPrefetch ?? (await fetchTriviaQuestion());
 
       if (gen !== advanceGenRef.current) return;
       setCurrent(data);
