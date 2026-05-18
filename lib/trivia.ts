@@ -1,9 +1,9 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
-import { renderSchemaForPrompt } from "@/lib/schemas";
+import { renderTriviaSchemaForPrompt } from "@/lib/schemas";
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-const DEFAULT_MODEL = "claude-sonnet-4-5";
+const DEFAULT_TRIVIA_MODEL = "claude-3-5-haiku-20241022";
 
 export const TRIVIA_CATEGORIES = [
   "borough comparison for 311 complaints",
@@ -44,7 +44,7 @@ SQL RULES (critical):
 - Partitioned tables (gtp_tlc_data, nypd_collisions, nyc_311): always filter year (and month when practical). year/month are VARCHAR — use quoted literals (year = '2025').
 - Yellow/green taxi (gtp_tlc_data): use year = '2025' (2023/2024 partitions may be empty in this warehouse).
 - nyc_311 / nypd_collisions: prefer year = '2024' or year = '2025' with reasonable scope.
-- LIMIT 4–10 rows; trivia SQL must return a readable proof table.
+- LIMIT 4 rows only; trivia SQL must return a small proof table (fast scans).
 - REQUIRED proof shape: include a VARCHAR column (alias proofColumn) whose value in the winning row exactly equals options[correctIndex] — e.g. SELECT borough AS answer_label, COUNT(*) AS complaint_count ... GROUP BY borough ORDER BY 2 DESC LIMIT 4, where answer_label for the top row is the correct option text. For numeric-only answers, SELECT CAST(the_number AS VARCHAR) AS answer_label so the value appears in results.
 - options[correctIndex] text must match Athena output exactly (same spelling/casing as returned: BROOKLYN vs Brooklyn vs Manhattan).
 - TRY_CAST for numeric math on VARCHAR columns; nyc_311.borough is UPPERCASE ('BROOKLYN'); taxi_zones.borough is Title Case ('Manhattan').
@@ -58,7 +58,7 @@ DESIGN:
 - Questions should feel like bar trivia: comparative, top-N, surprising rankings.
 
 SCHEMA:
-${renderSchemaForPrompt()}`;
+${renderTriviaSchemaForPrompt()}`;
 
 function pickCategory(): (typeof TRIVIA_CATEGORIES)[number] {
   return TRIVIA_CATEGORIES[Math.floor(Math.random() * TRIVIA_CATEGORIES.length)];
@@ -77,7 +77,10 @@ export async function generateTriviaQuestion(options?: {
   feedback?: string;
   previousSql?: string;
 }): Promise<TriviaQuestionPayload & { model: string }> {
-  const model = process.env.CLAUDE_MODEL ?? DEFAULT_MODEL;
+  const model =
+    process.env.TRIVIA_CLAUDE_MODEL ??
+    process.env.CLAUDE_MODEL ??
+    DEFAULT_TRIVIA_MODEL;
   const category = options?.category ?? pickCategory();
 
   let userContent = `Category focus: ${category}\n\nGenerate one new trivia question JSON.`;
@@ -88,7 +91,7 @@ export async function generateTriviaQuestion(options?: {
 
   const response = await client.messages.create({
     model,
-    max_tokens: 2048,
+    max_tokens: 1024,
     system: TRIVIA_SYSTEM,
     messages: [{ role: "user", content: userContent }],
   });

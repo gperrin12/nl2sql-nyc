@@ -1,33 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { useMutation } from "@tanstack/react-query";
+import { useCallback, useState } from "react";
 import { AppNav } from "@/components/AppNav";
 import { SqlDisplay } from "@/components/SqlDisplay";
+import { useTriviaQuestion } from "@/lib/hooks/useTriviaQuestion";
 import { useTriviaScore } from "@/lib/hooks/useTriviaScore";
-import type { TriviaProof } from "@/lib/trivia-proof";
-
-type TriviaResponse = {
-  question: string;
-  options: string[];
-  correctIndex: number;
-  sql: string;
-  explanation: string;
-  model: string;
-  proof?: TriviaProof;
-  results: {
-    columns: string[];
-    rows: Record<string, string | null>[];
-  };
-  scannedBytes: number;
-  runtimeMs: number;
-};
-
-type ErrorResponse = {
-  error: string;
-  detail?: string;
-  sql?: string;
-};
 
 const LABELS = ["A", "B", "C", "D"] as const;
 
@@ -43,42 +20,32 @@ export function TriviaClient() {
     reset: resetScore,
   } = useTriviaScore();
 
-  const questionMutation = useMutation({
-    mutationFn: async () => {
-      const res = await fetch("/api/trivia/question", { method: "POST" });
-      const data = (await res.json()) as TriviaResponse | ErrorResponse;
-      if (!res.ok) {
-        const err = data as ErrorResponse;
-        throw new Error(err.detail ?? err.error ?? "Failed to load question");
-      }
-      return data as TriviaResponse;
-    },
-    onMutate: () => {
-      setSelectedIndex(null);
-    },
-  });
+  const {
+    current: data,
+    loading,
+    loadingNext,
+    error,
+    prefetchReady,
+    loadNext,
+    retry,
+  } = useTriviaQuestion();
 
   const loadQuestion = useCallback(() => {
-    questionMutation.mutate();
-  }, [questionMutation]);
-
-  useEffect(() => {
-    questionMutation.mutate();
-    // Initial load only
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    setSelectedIndex(null);
+    void loadNext();
+  }, [loadNext]);
 
   const handleSelect = (index: number) => {
-    if (selectedIndex !== null || !questionMutation.data) return;
+    if (selectedIndex !== null || !data) return;
     setSelectedIndex(index);
-    const wasCorrect = index === questionMutation.data.correctIndex;
-    recordAnswer(wasCorrect);
+    recordAnswer(index === data.correctIndex);
   };
 
-  const data = questionMutation.data;
   const answered = selectedIndex !== null;
   const isCorrect =
     answered && data != null && selectedIndex === data.correctIndex;
+  const showSkeleton = loading && !data;
+  const pendingNext = loadingNext;
 
   return (
     <main className="max-w-3xl mx-auto p-6 space-y-6">
@@ -86,7 +53,7 @@ export function TriviaClient() {
 
       <header className="flex flex-wrap items-start justify-between gap-4">
         <TriviaPageHeader />
-        <div className="text-right shrink-0">
+        <div className="text-right shrink-0 space-y-1">
           <p className="text-xs uppercase tracking-wide text-[var(--muted)]">
             Score
           </p>
@@ -132,12 +99,12 @@ export function TriviaClient() {
         </div>
       </header>
 
-      {questionMutation.isError && (
+      {error && (
         <div className="rounded-lg border border-[var(--error)]/40 bg-[var(--error)]/10 px-4 py-3 text-sm text-[var(--error)]">
-          {(questionMutation.error as Error).message}
+          {error}
           <button
             type="button"
-            onClick={loadQuestion}
+            onClick={() => void retry()}
             className="ml-3 underline hover:no-underline"
           >
             Retry
@@ -145,10 +112,10 @@ export function TriviaClient() {
         </div>
       )}
 
-      {questionMutation.isPending && <TriviaSkeleton />}
+      {showSkeleton && <TriviaSkeleton />}
 
-      {data && !questionMutation.isPending && (
-        <div className="space-y-6">
+      {data && !showSkeleton && (
+        <div className={`space-y-6 ${pendingNext ? "opacity-60 pointer-events-none" : ""}`}>
           <div className="rounded-lg border border-[var(--border)] bg-[var(--panel)] p-6">
             <p className="text-lg font-medium leading-relaxed text-[var(--text)]">
               {data.question}
@@ -177,7 +144,7 @@ export function TriviaClient() {
                 <button
                   key={`${label}-${option}`}
                   type="button"
-                  disabled={answered}
+                  disabled={answered || pendingNext}
                   onClick={() => handleSelect(index)}
                   className={`flex items-start gap-3 rounded-lg border px-4 py-3 text-left text-sm transition-colors disabled:cursor-default ${style}`}
                 >
@@ -254,21 +221,29 @@ export function TriviaClient() {
                 />
               </div>
 
-              <button
-                type="button"
-                onClick={loadQuestion}
-                disabled={questionMutation.isPending}
-                className="w-full sm:w-auto px-6 py-2.5 rounded-md bg-[var(--accent)] text-black text-sm font-medium hover:bg-[var(--accent-dim)] disabled:opacity-40"
-              >
-                Next Question
-              </button>
+              <div className="flex flex-wrap items-center gap-3">
+                <button
+                  type="button"
+                  onClick={loadQuestion}
+                  disabled={pendingNext}
+                  className="px-6 py-2.5 rounded-md bg-[var(--accent)] text-black text-sm font-medium hover:bg-[var(--accent-dim)] disabled:opacity-40"
+                >
+                  {pendingNext ? "Loading…" : "Next Question"}
+                </button>
+                {prefetchReady && !pendingNext && (
+                  <span className="text-xs text-[var(--accent)]">
+                    Next question ready
+                  </span>
+                )}
+              </div>
             </div>
           )}
 
           {!answered && (
             <p className="text-xs text-center text-[var(--muted)]">
-              Pick an answer — every question is verified against live Athena
-              data.
+              {prefetchReady
+                ? "Next question is loading in the background."
+                : "Pick an answer — every question is verified against live Athena data."}
             </p>
           )}
         </div>
@@ -303,7 +278,7 @@ function TriviaSkeleton() {
         ))}
       </div>
       <p className="text-center text-sm text-[var(--muted)]">
-        Generating question and running Athena…
+        Generating question &amp; running Athena (first load may take ~15–30s)…
       </p>
     </div>
   );
@@ -324,6 +299,7 @@ function TriviaResultTable({
     );
   const isProofRow = (rowIndex: number) =>
     highlightMatches.some((m) => m.rowIndex === rowIndex);
+
   if (columns.length === 0) {
     return (
       <p className="px-4 py-3 text-sm text-[var(--muted)]">No columns</p>

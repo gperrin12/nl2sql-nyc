@@ -50,7 +50,7 @@ export async function POST(_req: NextRequest) {
     let results;
     try {
       const executionId = await startQuery(guard.sql);
-      results = await waitForAthenaResults(executionId);
+      results = await waitForAthenaResults(executionId, { pollMs: 400 });
     } catch (e) {
       lastSql = guard.sql;
       lastFeedback = `Athena error: ${errorMessage(e)}`;
