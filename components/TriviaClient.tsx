@@ -3,22 +3,41 @@
 import { useCallback, useState } from "react";
 import { AppNav } from "@/components/AppNav";
 import { SqlDisplay } from "@/components/SqlDisplay";
+import { TriviaGameOver } from "@/components/trivia/TriviaGameOver";
+import { TriviaNamePicker } from "@/components/trivia/TriviaNamePicker";
+import { TriviaLeaderboard } from "@/components/trivia/TriviaLeaderboard";
+import { useTriviaHiScores } from "@/lib/hooks/useTriviaHiScores";
 import { useTriviaQuestion } from "@/lib/hooks/useTriviaQuestion";
 import { useTriviaScore } from "@/lib/hooks/useTriviaScore";
+import { TRIVIA_SESSION_LENGTH } from "@/lib/trivia-hiscores";
 
 const LABELS = ["A", "B", "C", "D"] as const;
 
+type GamePhase = "playing" | "gameover" | "name" | "leaderboard";
+
 export function TriviaClient() {
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
+  const [phase, setPhase] = useState<GamePhase>("playing");
+  const [sessionCorrect, setSessionCorrect] = useState(0);
+  const [sessionAnswered, setSessionAnswered] = useState(0);
+  const [newEntryId, setNewEntryId] = useState<string | null>(null);
+
   const {
-    correct: correctCount,
-    answered: answeredCount,
     bestStreak,
     currentStreak,
-    accuracy,
     recordAnswer,
     reset: resetScore,
   } = useTriviaScore();
+
+  const {
+    board,
+    loading: hiScoresLoading,
+    submitting: hiScoresSubmitting,
+    error: hiScoresError,
+    qualifies,
+    submitScore,
+    refresh: refreshHiScores,
+  } = useTriviaHiScores({ pollWhileLeaderboard: phase === "leaderboard" });
 
   const {
     current: data,
@@ -36,15 +55,59 @@ export function TriviaClient() {
   }, [advance]);
 
   const handleSelect = (index: number) => {
-    if (selectedIndex !== null || !data) return;
+    if (selectedIndex !== null || !data || phase !== "playing") return;
+    const correct = index === data.correctIndex;
     setSelectedIndex(index);
-    recordAnswer(index === data.correctIndex);
+    recordAnswer(correct);
+    setSessionCorrect((c) => c + (correct ? 1 : 0));
+    setSessionAnswered((a) => a + 1);
+  };
+
+  const finishGame = () => setPhase("gameover");
+
+  const handleGameOverContinue = () => {
+    if (qualifies(sessionCorrect)) {
+      setPhase("name");
+    } else {
+      setNewEntryId(null);
+      setPhase("leaderboard");
+    }
+  };
+
+  const handleNameComplete = async (name: string) => {
+    try {
+      const entry = await submitScore(name, sessionCorrect);
+      setNewEntryId(entry.id);
+      setPhase("leaderboard");
+    } catch {
+      // error surfaced via hiScoresError
+    }
+  };
+
+  const handlePlayAgain = () => {
+    setPhase("playing");
+    setSessionCorrect(0);
+    setSessionAnswered(0);
+    setNewEntryId(null);
+    setSelectedIndex(null);
+    void advance();
+  };
+
+  const viewLeaderboard = () => {
+    setNewEntryId(null);
+    setPhase("leaderboard");
+    void refreshHiScores();
   };
 
   const answered = selectedIndex !== null;
   const isCorrect =
     answered && data != null && selectedIndex === data.correctIndex;
-  const showSkeleton = !data && (loading || advancing);
+  const showSkeleton = phase === "playing" && !data && (loading || advancing);
+  const questionNumber = Math.min(sessionAnswered + 1, TRIVIA_SESSION_LENGTH);
+  const isLastQuestion =
+    sessionAnswered === TRIVIA_SESSION_LENGTH && answered;
+  const showQuestion =
+    sessionAnswered < TRIVIA_SESSION_LENGTH || isLastQuestion;
 
   return (
     <main className="max-w-3xl mx-auto p-6 space-y-6">
@@ -54,51 +117,109 @@ export function TriviaClient() {
         <TriviaPageHeader />
         <div className="text-right shrink-0 space-y-1">
           <p className="text-xs uppercase tracking-wide text-[var(--muted)]">
-            Score
+            {phase === "playing" ? "Session" : "Run"}
           </p>
-          <p className="text-2xl font-semibold tabular-nums text-[var(--accent)]">
-            {correctCount}{" "}
+          <p className="text-2xl font-semibold tabular-nums text-[var(--accent)] font-mono">
+            {sessionCorrect}{" "}
             <span className="text-base font-normal text-[var(--muted)]">
-              / {answeredCount}
+              / {sessionAnswered}
             </span>
           </p>
-          <p className="text-xs text-[var(--muted)]">
-            {accuracy != null
-              ? `${Math.round(accuracy * 100)}% accuracy`
-              : "correct"}
-            {currentStreak > 0 && (
-              <span className="text-[var(--accent)]">
-                {" "}
-                · streak {currentStreak}
-              </span>
-            )}
-          </p>
-          {bestStreak > 0 && (
-            <p className="text-xs text-[var(--muted)]">
-              Best streak: {bestStreak}
+          {phase === "playing" && (
+            <p className="text-xs text-[var(--muted)] font-mono uppercase">
+              Q {questionNumber} / {TRIVIA_SESSION_LENGTH}
             </p>
           )}
-          {answeredCount > 0 && (
-            <button
-              type="button"
-              onClick={() => {
-                if (
-                  window.confirm(
-                    "Reset your trivia score? This cannot be undone."
-                  )
-                ) {
-                  resetScore();
-                }
-              }}
-              className="text-xs text-[var(--muted)] hover:text-[var(--text)] underline"
-            >
-              Reset score
-            </button>
+          {currentStreak > 0 && phase === "playing" && (
+            <p className="text-xs text-[var(--muted)]">
+              Streak{" "}
+              <span className="text-[var(--accent)]">{currentStreak}</span>
+              {bestStreak > 0 && (
+                <span className="text-[var(--muted)]">
+                  {" "}
+                  · best {bestStreak}
+                </span>
+              )}
+            </p>
           )}
+          <div className="flex flex-col items-end gap-1">
+            {phase === "playing" && (
+              <button
+                type="button"
+                onClick={viewLeaderboard}
+                className="text-xs text-[var(--muted)] hover:text-[var(--accent)] underline font-mono uppercase"
+              >
+                High Scores
+              </button>
+            )}
+            {sessionAnswered > 0 && phase === "playing" && (
+              <button
+                type="button"
+                onClick={() => {
+                  if (
+                    window.confirm(
+                      "Reset lifetime trivia stats? Hi-scores are kept."
+                    )
+                  ) {
+                    resetScore();
+                  }
+                }}
+                className="text-xs text-[var(--muted)] hover:text-[var(--text)] underline"
+              >
+                Reset stats
+              </button>
+            )}
+          </div>
         </div>
       </header>
 
-      {error && (
+      {phase === "gameover" && (
+        <TriviaGameOver
+          score={sessionCorrect}
+          total={TRIVIA_SESSION_LENGTH}
+          onContinue={handleGameOverContinue}
+        />
+      )}
+
+      {phase === "name" && (
+        <>
+          <TriviaNamePicker
+            score={sessionCorrect}
+            total={TRIVIA_SESSION_LENGTH}
+            disabled={hiScoresSubmitting}
+            onComplete={(name) => void handleNameComplete(name)}
+            onSkip={() => void handleNameComplete("GUEST")}
+          />
+          {hiScoresError && (
+            <p className="text-center text-sm text-[var(--error)] font-mono">
+              {hiScoresError}
+            </p>
+          )}
+        </>
+      )}
+
+      {phase === "leaderboard" && (
+        <TriviaLeaderboard
+          entries={board}
+          loading={hiScoresLoading}
+          error={hiScoresError}
+          highlightId={newEntryId}
+          sessionScore={
+            sessionAnswered >= TRIVIA_SESSION_LENGTH ? sessionCorrect : undefined
+          }
+          onRefresh={() => void refreshHiScores()}
+          onPlayAgain={
+            sessionAnswered >= TRIVIA_SESSION_LENGTH ? handlePlayAgain : undefined
+          }
+          onBack={
+            sessionAnswered < TRIVIA_SESSION_LENGTH
+              ? () => setPhase("playing")
+              : undefined
+          }
+        />
+      )}
+
+      {phase === "playing" && error && (
         <div className="rounded-lg border border-[var(--error)]/40 bg-[var(--error)]/10 px-4 py-3 text-sm text-[var(--error)]">
           {error}
           <button
@@ -111,11 +232,11 @@ export function TriviaClient() {
         </div>
       )}
 
-      {showSkeleton && (
+      {phase === "playing" && showSkeleton && (
         <TriviaSkeleton message={advancing ? "Loading next question…" : undefined} />
       )}
 
-      {data && (
+      {phase === "playing" && data && showQuestion && (
         <div key={data.question} className="space-y-6">
           <div className="rounded-lg border border-[var(--border)] bg-[var(--panel)] p-6">
             <p className="text-lg font-medium leading-relaxed text-[var(--text)]">
@@ -217,15 +338,25 @@ export function TriviaClient() {
               </div>
 
               <div className="flex flex-wrap items-center gap-3">
-                <button
-                  type="button"
-                  onClick={loadQuestion}
-                  disabled={advancing}
-                  className="px-6 py-2.5 rounded-md bg-[var(--accent)] text-black text-sm font-medium hover:bg-[var(--accent-dim)] disabled:opacity-40"
-                >
-                  {advancing ? "Loading…" : "Next Question"}
-                </button>
-                {prefetchReady && !advancing && (
+                {isLastQuestion ? (
+                  <button
+                    type="button"
+                    onClick={finishGame}
+                    className="px-6 py-2.5 rounded-md bg-[var(--accent)] text-black text-sm font-medium hover:bg-[var(--accent-dim)] font-mono uppercase tracking-wide"
+                  >
+                    Finish Game
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={loadQuestion}
+                    disabled={advancing}
+                    className="px-6 py-2.5 rounded-md bg-[var(--accent)] text-black text-sm font-medium hover:bg-[var(--accent-dim)] disabled:opacity-40"
+                  >
+                    {advancing ? "Loading…" : "Next Question"}
+                  </button>
+                )}
+                {prefetchReady && !advancing && !isLastQuestion && (
                   <span className="text-xs text-[var(--accent)]">
                     Next question ready
                   </span>
@@ -241,6 +372,7 @@ export function TriviaClient() {
           )}
         </div>
       )}
+
     </main>
   );
 }
@@ -252,7 +384,7 @@ function TriviaPageHeader() {
         NYC Data Trivia
       </h1>
       <p className="text-sm text-[var(--muted)]">
-        Pub-quiz questions backed by real Athena queries
+        {TRIVIA_SESSION_LENGTH}-question runs · Athena-verified answers
       </p>
     </div>
   );
