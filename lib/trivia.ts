@@ -22,6 +22,8 @@ const TriviaQuestionSchema = z.object({
   correctIndex: z.number().int().min(0).max(3),
   sql: z.string().min(20).max(12000),
   explanation: z.string().min(12).max(800),
+  /** Column in SQL result whose value equals options[correctIndex] (e.g. answer_label, borough) */
+  proofColumn: z.string().min(1).max(100).optional(),
 });
 
 export type TriviaQuestionPayload = z.infer<typeof TriviaQuestionSchema>;
@@ -34,6 +36,7 @@ OUTPUT — strict JSON only (no markdown, no code fences, no commentary). Keys:
 - correctIndex: 0-3 index of the correct option
 - sql: one SELECT or WITH for AWS Athena (Trino dialect)
 - explanation: 1-2 sentences plain English tying the correct option to the data
+- proofColumn: optional name of the result column that holds the winning answer text (must equal options[correctIndex] in at least one row)
 
 ALLOWED TABLES ONLY: nyc_311, nypd_collisions, gtp_tlc_data, taxi_zones, census_tracts, census_tract_demographics.
 
@@ -41,7 +44,9 @@ SQL RULES (critical):
 - Partitioned tables (gtp_tlc_data, nypd_collisions, nyc_311): always filter year (and month when practical). year/month are VARCHAR — use quoted literals (year = '2025').
 - Yellow/green taxi (gtp_tlc_data): use year = '2025' (2023/2024 partitions may be empty in this warehouse).
 - nyc_311 / nypd_collisions: prefer year = '2024' or year = '2025' with reasonable scope.
-- LIMIT 10 or fewer rows; trivia SQL should return a compact proof (top-1 borough name, a count, a percentage, etc.).
+- LIMIT 4–10 rows; trivia SQL must return a readable proof table.
+- REQUIRED proof shape: include a VARCHAR column (alias proofColumn) whose value in the winning row exactly equals options[correctIndex] — e.g. SELECT borough AS answer_label, COUNT(*) AS complaint_count ... GROUP BY borough ORDER BY 2 DESC LIMIT 4, where answer_label for the top row is the correct option text. For numeric-only answers, SELECT CAST(the_number AS VARCHAR) AS answer_label so the value appears in results.
+- options[correctIndex] text must match Athena output exactly (same spelling/casing as returned: BROOKLYN vs Brooklyn vs Manhattan).
 - TRY_CAST for numeric math on VARCHAR columns; nyc_311.borough is UPPERCASE ('BROOKLYN'); taxi_zones.borough is Title Case ('Manhattan').
 - TLC joins: TRY_CAST(pulocationid AS BIGINT) = TRY_CAST(locationid AS BIGINT); never TRIM(locationid).
 - Never SUBSTRING on timestamp columns — use day_of_week() for weekday/weekend.

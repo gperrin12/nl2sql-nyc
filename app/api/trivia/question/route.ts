@@ -4,6 +4,7 @@ import { waitForAthenaResults } from "@/lib/athena-wait";
 import { isAuthenticated } from "@/lib/auth";
 import { checkSql } from "@/lib/guardrails";
 import { generateTriviaQuestion } from "@/lib/trivia";
+import { deriveTriviaProof, triviaProofIsValid } from "@/lib/trivia-proof";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
@@ -59,6 +60,20 @@ export async function POST(_req: NextRequest) {
       continue;
     }
 
+    const proof = deriveTriviaProof(
+      generated.options,
+      generated.correctIndex,
+      results
+    );
+    if (!triviaProofIsValid(proof)) {
+      lastSql = guard.sql;
+      lastFeedback =
+        `Athena results do not contain the correct option "${generated.options[generated.correctIndex]}". ` +
+        "SQL must SELECT a column (e.g. answer_label) whose value in the winning row exactly matches that option text. " +
+        `Returned columns: ${results.columns.join(", ")}; first row: ${JSON.stringify(results.rows[0])}.`;
+      continue;
+    }
+
     return NextResponse.json({
       question: generated.question,
       options: generated.options,
@@ -66,6 +81,7 @@ export async function POST(_req: NextRequest) {
       sql: guard.sql,
       explanation: generated.explanation,
       model: generated.model,
+      proof,
       results: {
         columns: results.columns,
         rows: results.rows.slice(0, 10),
