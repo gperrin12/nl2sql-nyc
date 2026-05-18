@@ -4,7 +4,7 @@ import { generateSql } from "@/lib/claude";
 import { generateSqlViaP8k8 } from "@/lib/p8k8";
 import { mapSpatialIntent } from "@/lib/sql-agent/mapIntent";
 import { generateSqlWithAgent } from "@/lib/sql-agent/run";
-import { checkSql } from "@/lib/guardrails";
+import { ensureGuardedSql } from "@/lib/ensure-guarded-sql";
 import { startQuery } from "@/lib/athena";
 import { isAuthenticated } from "@/lib/auth";
 import { recordGenerationMetrics } from "@/lib/record-generation-metrics";
@@ -62,31 +62,31 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  await recordGenerationMetrics(parsed.question, generation, backend);
-
-  // 2. Guardrail check
-  const check = checkSql(generation.sql);
-  if (!check.ok) {
+  // 2. Guardrail check (auto-repair once or twice on rejection)
+  const guarded = await ensureGuardedSql(parsed.question, generation);
+  if (!guarded.ok) {
     return NextResponse.json(
       {
         error: "SQL rejected by guardrails",
-        reason: check.reason,
-        sql: generation.sql,
+        reason: guarded.reason,
+        sql: guarded.sql,
       },
       { status: 400 }
     );
   }
+  generation = guarded.generation;
+  await recordGenerationMetrics(parsed.question, generation, backend);
 
   // 3. Start the Athena query
   let executionId;
   try {
-    executionId = await startQuery(check.sql);
+    executionId = await startQuery(guarded.sql);
   } catch (e) {
     return NextResponse.json(
       {
         error: "Athena rejected the query",
         detail: errorMessage(e),
-        sql: check.sql,
+        sql: guarded.sql,
       },
       { status: 502 }
     );
@@ -94,7 +94,7 @@ export async function POST(req: NextRequest) {
 
   return NextResponse.json({
     executionId,
-    sql: check.sql,
+    sql: guarded.sql,
     model: generation.model,
     summary: generation.summary,
     usage: {
