@@ -4,7 +4,9 @@
     "question": "How many 311 complaints were filed in each borough in 2024?",
     "category": "aggregation",
     "difficulty": "easy",
-    "tables": ["nyc_311"],
+    "tables": [
+      "nyc_311"
+    ],
     "expectedViz": "chart"
   },
   {
@@ -12,7 +14,9 @@
     "question": "What are the top 10 complaint types in nyc_311 for 2024?",
     "category": "aggregation",
     "difficulty": "easy",
-    "tables": ["nyc_311"],
+    "tables": [
+      "nyc_311"
+    ],
     "expectedViz": "chart"
   },
   {
@@ -20,7 +24,9 @@
     "question": "How many yellow cab trips were taken in 2023?",
     "category": "aggregation",
     "difficulty": "easy",
-    "tables": ["gtp_tlc_data"],
+    "tables": [
+      "gtp_tlc_data"
+    ],
     "expectedViz": "table"
   },
   {
@@ -28,7 +34,9 @@
     "question": "What is the total number of pedestrians killed in NYC collisions in 2023?",
     "category": "aggregation",
     "difficulty": "easy",
-    "tables": ["nypd_collisions"],
+    "tables": [
+      "nypd_collisions"
+    ],
     "expectedViz": "table"
   },
   {
@@ -36,7 +44,9 @@
     "question": "How many 311 noise complaints were there in 2024?",
     "category": "aggregation",
     "difficulty": "easy",
-    "tables": ["nyc_311"],
+    "tables": [
+      "nyc_311"
+    ],
     "expectedViz": "table"
   },
   {
@@ -44,7 +54,9 @@
     "question": "What is the average yellow cab fare in 2023?",
     "category": "aggregation",
     "difficulty": "easy",
-    "tables": ["gtp_tlc_data"],
+    "tables": [
+      "gtp_tlc_data"
+    ],
     "expectedViz": "table"
   },
   {
@@ -52,17 +64,19 @@
     "question": "How many total collisions were reported by NYPD in 2022?",
     "category": "aggregation",
     "difficulty": "easy",
-    "tables": ["nypd_collisions"],
+    "tables": [
+      "nypd_collisions"
+    ],
     "expectedViz": "table"
   },
-
-  // ── AGGREGATION · MEDIUM ─────────────────────────────────────────────────
   {
     "id": "agg-008",
     "question": "How many 311 complaints were filed by borough and complaint type in 2024?",
     "category": "aggregation",
     "difficulty": "medium",
-    "tables": ["nyc_311"],
+    "tables": [
+      "nyc_311"
+    ],
     "expectedViz": "chart"
   },
   {
@@ -70,7 +84,9 @@
     "question": "What is the average tip amount for yellow cab trips by payment type in 2023?",
     "category": "aggregation",
     "difficulty": "medium",
-    "tables": ["gtp_tlc_data"],
+    "tables": [
+      "gtp_tlc_data"
+    ],
     "expectedViz": "chart"
   },
   {
@@ -78,7 +94,9 @@
     "question": "How many 311 complaints were open vs closed in each borough in 2023?",
     "category": "aggregation",
     "difficulty": "medium",
-    "tables": ["nyc_311"],
+    "tables": [
+      "nyc_311"
+    ],
     "expectedViz": "chart"
   },
   {
@@ -86,7 +104,9 @@
     "question": "What agency handles the most 311 complaints in 2024?",
     "category": "aggregation",
     "difficulty": "medium",
-    "tables": ["nyc_311"],
+    "tables": [
+      "nyc_311"
+    ],
     "expectedViz": "chart"
   },
   {
@@ -94,7 +114,9 @@
     "question": "How many collisions involved cyclist injuries by borough in 2023?",
     "category": "aggregation",
     "difficulty": "medium",
-    "tables": ["nypd_collisions"],
+    "tables": [
+      "nypd_collisions"
+    ],
     "expectedViz": "chart"
   },
   {
@@ -102,17 +124,20 @@
     "question": "What is the total revenue (fare + tip + tolls) for yellow cabs in 2023?",
     "category": "aggregation",
     "difficulty": "medium",
-    "tables": ["gtp_tlc_data"],
+    "tables": [
+      "gtp_tlc_data"
+    ],
     "expectedViz": "table"
   },
-
-  // ── AGGREGATION · HARD ───────────────────────────────────────────────────
   {
     "id": "agg-014",
     "question": "What is the 311 complaint rate per 1000 residents by borough in 2024 using ACS 2023 population?",
     "category": "aggregation",
     "difficulty": "hard",
-    "tables": ["nyc_311", "census_tract_demographics"],
+    "tables": [
+      "nyc_311",
+      "census_tract_demographics"
+    ],
     "expectedViz": "chart"
   },
   {
@@ -120,16 +145,21 @@
     "question": "What is the average number of passengers per yellow cab trip by pickup zone in 2023?",
     "category": "aggregation",
     "difficulty": "hard",
-    "tables": ["gtp_tlc_data", "taxi_zones"],
+    "tables": [
+      "gtp_tlc_data",
+      "taxi_zones"
+    ],
     "expectedViz": "chart"
   },
-
   {
     "id": "rnk-001",
     "question": "What are the top 10 taxi pickup zones by number of trips in 2023?",
     "category": "ranking",
     "difficulty": "easy",
-    "tables": ["gtp_tlc_data", "taxi_zones"],
+    "tables": [
+      "gtp_tlc_data",
+      "taxi_zones"
+    ],
     "expectedViz": "chart"
   },
   {
@@ -137,7 +167,9 @@
     "question": "Which 5 streets have the most NYPD collision reports in 2023?",
     "category": "ranking",
     "difficulty": "easy",
-    "tables": ["nypd_collisions"],
+    "tables": [
+      "nypd_collisions"
+    ],
     "expectedViz": "chart"
   },
   {
@@ -145,7 +177,9 @@
     "question": "What are the top 5 complaint types in Brooklyn in 2024?",
     "category": "ranking",
     "difficulty": "easy",
-    "tables": ["nyc_311"],
+    "tables": [
+      "nyc_311"
+    ],
     "expectedViz": "chart"
   },
   {
@@ -153,7 +187,10 @@
     "question": "Which taxi dropoff zone had the highest average fare in 2023?",
     "category": "ranking",
     "difficulty": "easy",
-    "tables": ["gtp_tlc_data", "taxi_zones"],
+    "tables": [
+      "gtp_tlc_data",
+      "taxi_zones"
+    ],
     "expectedViz": "chart"
   },
   {
@@ -161,17 +198,20 @@
     "question": "What are the top 10 zip codes for 311 complaints in 2024?",
     "category": "ranking",
     "difficulty": "easy",
-    "tables": ["nyc_311"],
+    "tables": [
+      "nyc_311"
+    ],
     "expectedViz": "chart"
   },
-
-  // ── RANKING · MEDIUM ─────────────────────────────────────────────────────
   {
     "id": "rnk-006",
     "question": "Which 10 taxi zones had the most yellow cab dropoffs in Manhattan in 2023?",
     "category": "ranking",
     "difficulty": "medium",
-    "tables": ["gtp_tlc_data", "taxi_zones"],
+    "tables": [
+      "gtp_tlc_data",
+      "taxi_zones"
+    ],
     "expectedViz": "chart"
   },
   {
@@ -179,7 +219,9 @@
     "question": "What are the top 5 contributing factors to collisions in NYC in 2023?",
     "category": "ranking",
     "difficulty": "medium",
-    "tables": ["nypd_collisions"],
+    "tables": [
+      "nypd_collisions"
+    ],
     "expectedViz": "chart"
   },
   {
@@ -187,7 +229,9 @@
     "question": "Which 5 boroughs have the worst average 311 response time in 2023?",
     "category": "ranking",
     "difficulty": "medium",
-    "tables": ["nyc_311"],
+    "tables": [
+      "nyc_311"
+    ],
     "expectedViz": "chart"
   },
   {
@@ -195,16 +239,21 @@
     "question": "What are the top 5 vehicle types involved in fatal collisions in 2022?",
     "category": "ranking",
     "difficulty": "medium",
-    "tables": ["nypd_collisions"],
+    "tables": [
+      "nypd_collisions"
+    ],
     "expectedViz": "chart"
   },
-
   {
     "id": "rnk-010",
     "question": "Which 10 census tracts have the highest noise complaint rate per capita in 2024?",
     "category": "ranking",
     "difficulty": "hard",
-    "tables": ["nyc_311", "census_tracts", "census_tract_demographics"],
+    "tables": [
+      "nyc_311",
+      "census_tracts",
+      "census_tract_demographics"
+    ],
     "expectedViz": "chart"
   },
   {
@@ -212,7 +261,10 @@
     "question": "Which taxi zones have the highest ratio of tips to fare amount for yellow cabs in 2023?",
     "category": "ranking",
     "difficulty": "hard",
-    "tables": ["gtp_tlc_data", "taxi_zones"],
+    "tables": [
+      "gtp_tlc_data",
+      "taxi_zones"
+    ],
     "expectedViz": "chart"
   },
   {
@@ -220,16 +272,21 @@
     "question": "Which 10 neighborhoods have the most collisions per capita in 2023?",
     "category": "ranking",
     "difficulty": "hard",
-    "tables": ["nypd_collisions", "census_tracts", "census_tract_demographics"],
+    "tables": [
+      "nypd_collisions",
+      "census_tracts",
+      "census_tract_demographics"
+    ],
     "expectedViz": "chart"
   },
-
   {
     "id": "ts-001",
     "question": "How many 311 complaints were filed each month in 2024?",
     "category": "time-series",
     "difficulty": "easy",
-    "tables": ["nyc_311"],
+    "tables": [
+      "nyc_311"
+    ],
     "expectedViz": "chart"
   },
   {
@@ -237,7 +294,9 @@
     "question": "How many yellow cab trips were taken each month in 2023?",
     "category": "time-series",
     "difficulty": "easy",
-    "tables": ["gtp_tlc_data"],
+    "tables": [
+      "gtp_tlc_data"
+    ],
     "expectedViz": "chart"
   },
   {
@@ -245,7 +304,9 @@
     "question": "How many NYPD collisions were reported each month in 2023?",
     "category": "time-series",
     "difficulty": "easy",
-    "tables": ["nypd_collisions"],
+    "tables": [
+      "nypd_collisions"
+    ],
     "expectedViz": "chart"
   },
   {
@@ -253,16 +314,19 @@
     "question": "What was the monthly average yellow cab fare in 2023?",
     "category": "time-series",
     "difficulty": "easy",
-    "tables": ["gtp_tlc_data"],
+    "tables": [
+      "gtp_tlc_data"
+    ],
     "expectedViz": "chart"
   },
-
   {
     "id": "ts-005",
     "question": "How did monthly noise complaints in NYC change from 2022 to 2024?",
     "category": "time-series",
     "difficulty": "medium",
-    "tables": ["nyc_311"],
+    "tables": [
+      "nyc_311"
+    ],
     "expectedViz": "chart"
   },
   {
@@ -270,7 +334,9 @@
     "question": "How many yellow vs green cab trips were made each month in 2023?",
     "category": "time-series",
     "difficulty": "medium",
-    "tables": ["gtp_tlc_data"],
+    "tables": [
+      "gtp_tlc_data"
+    ],
     "expectedViz": "chart"
   },
   {
@@ -278,7 +344,9 @@
     "question": "How did the number of pedestrian injuries from collisions change month by month in 2023?",
     "category": "time-series",
     "difficulty": "medium",
-    "tables": ["nypd_collisions"],
+    "tables": [
+      "nypd_collisions"
+    ],
     "expectedViz": "chart"
   },
   {
@@ -286,16 +354,19 @@
     "question": "Show monthly 311 complaint counts broken down by borough for 2024",
     "category": "time-series",
     "difficulty": "medium",
-    "tables": ["nyc_311"],
+    "tables": [
+      "nyc_311"
+    ],
     "expectedViz": "chart"
   },
-
   {
     "id": "ts-009",
     "question": "How did the year-over-year change in total yellow cab trips compare between 2019 and 2023 by month?",
     "category": "time-series",
     "difficulty": "hard",
-    "tables": ["gtp_tlc_data"],
+    "tables": [
+      "gtp_tlc_data"
+    ],
     "expectedViz": "chart"
   },
   {
@@ -303,7 +374,9 @@
     "question": "How did monthly 311 noise complaints per borough change between 2021 and 2024?",
     "category": "time-series",
     "difficulty": "hard",
-    "tables": ["nyc_311"],
+    "tables": [
+      "nyc_311"
+    ],
     "expectedViz": "chart"
   },
   {
@@ -311,16 +384,19 @@
     "question": "Show the monthly trend of cyclist fatalities in NYC from 2020 to 2023",
     "category": "time-series",
     "difficulty": "hard",
-    "tables": ["nypd_collisions"],
+    "tables": [
+      "nypd_collisions"
+    ],
     "expectedViz": "chart"
   },
-
   {
     "id": "spa-001",
     "question": "Show me where bike accidents happened in Brooklyn in 2024",
     "category": "spatial",
     "difficulty": "easy",
-    "tables": ["nypd_collisions"],
+    "tables": [
+      "nypd_collisions"
+    ],
     "expectedViz": "map"
   },
   {
@@ -328,7 +404,9 @@
     "question": "Map all pedestrian fatalities in NYC in 2023",
     "category": "spatial",
     "difficulty": "easy",
-    "tables": ["nypd_collisions"],
+    "tables": [
+      "nypd_collisions"
+    ],
     "expectedViz": "map"
   },
   {
@@ -336,7 +414,9 @@
     "question": "Show me where noise complaints were filed in Manhattan in January 2024",
     "category": "spatial",
     "difficulty": "easy",
-    "tables": ["nyc_311"],
+    "tables": [
+      "nyc_311"
+    ],
     "expectedViz": "map"
   },
   {
@@ -344,7 +424,9 @@
     "question": "Map all collisions involving drunk driving in NYC in 2023",
     "category": "spatial",
     "difficulty": "easy",
-    "tables": ["nypd_collisions"],
+    "tables": [
+      "nypd_collisions"
+    ],
     "expectedViz": "map"
   },
   {
@@ -352,17 +434,20 @@
     "question": "Where did yellow cab trips start in Midtown Manhattan in 2023?",
     "category": "spatial",
     "difficulty": "easy",
-    "tables": ["gtp_tlc_data", "taxi_zones"],
+    "tables": [
+      "gtp_tlc_data",
+      "taxi_zones"
+    ],
     "expectedViz": "map"
   },
-
-  // ── SPATIAL · MEDIUM ─────────────────────────────────────────────────────
   {
     "id": "spa-006",
     "question": "Show a heatmap of 311 complaints at H3 resolution 9 in Brooklyn in 2024",
     "category": "spatial",
     "difficulty": "medium",
-    "tables": ["nyc_311"],
+    "tables": [
+      "nyc_311"
+    ],
     "expectedViz": "map"
   },
   {
@@ -370,7 +455,9 @@
     "question": "Show a heatmap of collisions in NYC in 2023 using H3 resolution 8",
     "category": "spatial",
     "difficulty": "medium",
-    "tables": ["nypd_collisions"],
+    "tables": [
+      "nypd_collisions"
+    ],
     "expectedViz": "map"
   },
   {
@@ -378,7 +465,9 @@
     "question": "Map all 311 heat complaints in the Bronx in winter 2024 (January and February)",
     "category": "spatial",
     "difficulty": "medium",
-    "tables": ["nyc_311"],
+    "tables": [
+      "nyc_311"
+    ],
     "expectedViz": "map"
   },
   {
@@ -386,7 +475,9 @@
     "question": "Show collisions within 500 meters of Times Square in 2023",
     "category": "spatial",
     "difficulty": "medium",
-    "tables": ["nypd_collisions"],
+    "tables": [
+      "nypd_collisions"
+    ],
     "expectedViz": "map"
   },
   {
@@ -394,16 +485,22 @@
     "question": "Map all taxi pickups from JFK airport in 2023",
     "category": "spatial",
     "difficulty": "medium",
-    "tables": ["gtp_tlc_data", "taxi_zones"],
+    "tables": [
+      "gtp_tlc_data",
+      "taxi_zones"
+    ],
     "expectedViz": "map"
   },
-
   {
     "id": "spa-011",
     "question": "Show noise complaints per capita by census tract in Brooklyn in 2024",
     "category": "spatial",
     "difficulty": "hard",
-    "tables": ["nyc_311", "census_tracts", "census_tract_demographics"],
+    "tables": [
+      "nyc_311",
+      "census_tracts",
+      "census_tract_demographics"
+    ],
     "expectedViz": "map"
   },
   {
@@ -411,7 +508,10 @@
     "question": "Show collision density by census tract in Manhattan in 2023",
     "category": "spatial",
     "difficulty": "hard",
-    "tables": ["nypd_collisions", "census_tracts"],
+    "tables": [
+      "nypd_collisions",
+      "census_tracts"
+    ],
     "expectedViz": "map"
   },
   {
@@ -419,7 +519,9 @@
     "question": "Map 311 complaints within 1000 feet of Atlantic Ave in Brooklyn in 2024",
     "category": "spatial",
     "difficulty": "hard",
-    "tables": ["nyc_311"],
+    "tables": [
+      "nyc_311"
+    ],
     "expectedViz": "map"
   },
   {
@@ -427,7 +529,10 @@
     "question": "Show collision locations in Bed-Stuy in 2023",
     "category": "spatial",
     "difficulty": "hard",
-    "tables": ["nypd_collisions", "census_tracts"],
+    "tables": [
+      "nypd_collisions",
+      "census_tracts"
+    ],
     "expectedViz": "map"
   },
   {
@@ -435,16 +540,21 @@
     "question": "Show a choropleth map of median household income by census tract in Queens",
     "category": "spatial",
     "difficulty": "hard",
-    "tables": ["census_tracts", "census_tract_demographics"],
+    "tables": [
+      "census_tracts",
+      "census_tract_demographics"
+    ],
     "expectedViz": "map"
   },
-
   {
     "id": "dem-001",
     "question": "What is the total population of each NYC borough according to the 2023 ACS?",
     "category": "demographic",
     "difficulty": "easy",
-    "tables": ["census_tract_demographics", "census_tracts"],
+    "tables": [
+      "census_tract_demographics",
+      "census_tracts"
+    ],
     "expectedViz": "chart"
   },
   {
@@ -452,7 +562,10 @@
     "question": "What is the median household income by borough from the 2023 ACS?",
     "category": "demographic",
     "difficulty": "easy",
-    "tables": ["census_tract_demographics", "census_tracts"],
+    "tables": [
+      "census_tract_demographics",
+      "census_tracts"
+    ],
     "expectedViz": "chart"
   },
   {
@@ -460,7 +573,10 @@
     "question": "What is the median age by borough from the 2023 ACS?",
     "category": "demographic",
     "difficulty": "easy",
-    "tables": ["census_tract_demographics", "census_tracts"],
+    "tables": [
+      "census_tract_demographics",
+      "census_tracts"
+    ],
     "expectedViz": "chart"
   },
   {
@@ -468,16 +584,21 @@
     "question": "What is the poverty rate by borough from the 2023 ACS?",
     "category": "demographic",
     "difficulty": "easy",
-    "tables": ["census_tract_demographics", "census_tracts"],
+    "tables": [
+      "census_tract_demographics",
+      "census_tracts"
+    ],
     "expectedViz": "chart"
   },
-
   {
     "id": "dem-005",
     "question": "What are the 10 census tracts with the highest poverty rate in NYC from the 2023 ACS?",
     "category": "demographic",
     "difficulty": "medium",
-    "tables": ["census_tract_demographics", "census_tracts"],
+    "tables": [
+      "census_tract_demographics",
+      "census_tracts"
+    ],
     "expectedViz": "chart"
   },
   {
@@ -485,7 +606,10 @@
     "question": "How did median household income change between 2018 and 2023 ACS by borough?",
     "category": "demographic",
     "difficulty": "medium",
-    "tables": ["census_tract_demographics", "census_tracts"],
+    "tables": [
+      "census_tract_demographics",
+      "census_tracts"
+    ],
     "expectedViz": "chart"
   },
   {
@@ -493,7 +617,10 @@
     "question": "What is the unemployment rate by borough from the 2023 ACS?",
     "category": "demographic",
     "difficulty": "medium",
-    "tables": ["census_tract_demographics", "census_tracts"],
+    "tables": [
+      "census_tract_demographics",
+      "census_tracts"
+    ],
     "expectedViz": "chart"
   },
   {
@@ -501,16 +628,22 @@
     "question": "Which 10 census tracts in the Bronx have the lowest median household income in 2023?",
     "category": "demographic",
     "difficulty": "medium",
-    "tables": ["census_tract_demographics", "census_tracts"],
+    "tables": [
+      "census_tract_demographics",
+      "census_tracts"
+    ],
     "expectedViz": "chart"
   },
-
   {
     "id": "dem-009",
     "question": "Which census tracts with median income below $40,000 had the most 311 complaints per capita in 2024?",
     "category": "demographic",
     "difficulty": "hard",
-    "tables": ["nyc_311", "census_tracts", "census_tract_demographics"],
+    "tables": [
+      "nyc_311",
+      "census_tracts",
+      "census_tract_demographics"
+    ],
     "expectedViz": "chart"
   },
   {
@@ -518,7 +651,11 @@
     "question": "How does collision rate per capita correlate with poverty rate by census tract in Brooklyn in 2023?",
     "category": "demographic",
     "difficulty": "hard",
-    "tables": ["nypd_collisions", "census_tracts", "census_tract_demographics"],
+    "tables": [
+      "nypd_collisions",
+      "census_tracts",
+      "census_tract_demographics"
+    ],
     "expectedViz": "chart"
   },
   {
@@ -526,7 +663,10 @@
     "question": "Which neighborhoods saw the biggest change in per capita income between 2018 and 2023 ACS?",
     "category": "demographic",
     "difficulty": "hard",
-    "tables": ["census_tract_demographics", "census_tracts"],
+    "tables": [
+      "census_tract_demographics",
+      "census_tracts"
+    ],
     "expectedViz": "chart"
   },
   {
@@ -534,16 +674,20 @@
     "question": "What is the renter-to-owner occupancy ratio by borough from the 2023 ACS?",
     "category": "demographic",
     "difficulty": "medium",
-    "tables": ["census_tract_demographics", "census_tracts"],
+    "tables": [
+      "census_tract_demographics",
+      "census_tracts"
+    ],
     "expectedViz": "chart"
   },
-
   {
     "id": "cmp-001",
     "question": "How do yellow cab and green cab trip counts compare in 2023?",
     "category": "comparison",
     "difficulty": "easy",
-    "tables": ["gtp_tlc_data"],
+    "tables": [
+      "gtp_tlc_data"
+    ],
     "expectedViz": "chart"
   },
   {
@@ -551,7 +695,9 @@
     "question": "How does the number of 311 complaints in 2023 compare to 2024?",
     "category": "comparison",
     "difficulty": "easy",
-    "tables": ["nyc_311"],
+    "tables": [
+      "nyc_311"
+    ],
     "expectedViz": "chart"
   },
   {
@@ -559,16 +705,20 @@
     "question": "How do collision counts compare between weekdays and weekends in 2023?",
     "category": "comparison",
     "difficulty": "easy",
-    "tables": ["nypd_collisions"],
+    "tables": [
+      "nypd_collisions"
+    ],
     "expectedViz": "chart"
   },
-
   {
     "id": "cmp-004",
     "question": "How does average yellow cab trip distance compare by pickup borough in 2023?",
     "category": "comparison",
     "difficulty": "medium",
-    "tables": ["gtp_tlc_data", "taxi_zones"],
+    "tables": [
+      "gtp_tlc_data",
+      "taxi_zones"
+    ],
     "expectedViz": "chart"
   },
   {
@@ -576,7 +726,9 @@
     "question": "How do 311 noise complaint counts compare between Manhattan and Brooklyn in 2024 by month?",
     "category": "comparison",
     "difficulty": "medium",
-    "tables": ["nyc_311"],
+    "tables": [
+      "nyc_311"
+    ],
     "expectedViz": "chart"
   },
   {
@@ -584,7 +736,10 @@
     "question": "How does the average taxi tip percentage differ between JFK and LaGuardia airport pickups in 2023?",
     "category": "comparison",
     "difficulty": "medium",
-    "tables": ["gtp_tlc_data", "taxi_zones"],
+    "tables": [
+      "gtp_tlc_data",
+      "taxi_zones"
+    ],
     "expectedViz": "chart"
   },
   {
@@ -592,16 +747,21 @@
     "question": "Compare pedestrian vs cyclist injuries from collisions by borough in 2023",
     "category": "comparison",
     "difficulty": "medium",
-    "tables": ["nypd_collisions"],
+    "tables": [
+      "nypd_collisions"
+    ],
     "expectedViz": "chart"
   },
-
   {
     "id": "cmp-008",
     "question": "Compare the 311 complaint rate per capita in high-income vs low-income census tracts in 2024",
     "category": "comparison",
     "difficulty": "hard",
-    "tables": ["nyc_311", "census_tracts", "census_tract_demographics"],
+    "tables": [
+      "nyc_311",
+      "census_tracts",
+      "census_tract_demographics"
+    ],
     "expectedViz": "chart"
   },
   {
@@ -609,7 +769,10 @@
     "question": "How does taxi trip volume from Manhattan compare pre-pandemic (2019) vs post-pandemic (2023) by month?",
     "category": "comparison",
     "difficulty": "hard",
-    "tables": ["gtp_tlc_data", "taxi_zones"],
+    "tables": [
+      "gtp_tlc_data",
+      "taxi_zones"
+    ],
     "expectedViz": "chart"
   },
   {
@@ -617,16 +780,20 @@
     "question": "Compare median household income between 2018 and 2023 ACS for each NYC borough",
     "category": "comparison",
     "difficulty": "hard",
-    "tables": ["census_tract_demographics", "census_tracts"],
+    "tables": [
+      "census_tract_demographics",
+      "census_tracts"
+    ],
     "expectedViz": "chart"
   },
-
   {
     "id": "lkp-001",
     "question": "Show me 311 complaints on Atlantic Ave in 2024",
     "category": "lookup",
     "difficulty": "easy",
-    "tables": ["nyc_311"],
+    "tables": [
+      "nyc_311"
+    ],
     "expectedViz": "table"
   },
   {
@@ -634,7 +801,9 @@
     "question": "Show me all NYPD collisions at the intersection of Broadway and 42nd St in 2023",
     "category": "lookup",
     "difficulty": "easy",
-    "tables": ["nypd_collisions"],
+    "tables": [
+      "nypd_collisions"
+    ],
     "expectedViz": "table"
   },
   {
@@ -642,7 +811,9 @@
     "question": "What taxi zone does location ID 132 correspond to?",
     "category": "lookup",
     "difficulty": "easy",
-    "tables": ["taxi_zones"],
+    "tables": [
+      "taxi_zones"
+    ],
     "expectedViz": "table"
   },
   {
@@ -650,7 +821,9 @@
     "question": "Show me the 20 most recent 311 complaints in zip code 11201",
     "category": "lookup",
     "difficulty": "easy",
-    "tables": ["nyc_311"],
+    "tables": [
+      "nyc_311"
+    ],
     "expectedViz": "table"
   },
   {
@@ -658,16 +831,20 @@
     "question": "Show me all collisions with fatalities in Staten Island in 2023",
     "category": "lookup",
     "difficulty": "easy",
-    "tables": ["nypd_collisions"],
+    "tables": [
+      "nypd_collisions"
+    ],
     "expectedViz": "table"
   },
-
   {
     "id": "lkp-006",
     "question": "Show me all yellow cab trips from JFK airport in January 2024",
     "category": "lookup",
     "difficulty": "medium",
-    "tables": ["gtp_tlc_data", "taxi_zones"],
+    "tables": [
+      "gtp_tlc_data",
+      "taxi_zones"
+    ],
     "expectedViz": "table"
   },
   {
@@ -675,7 +852,9 @@
     "question": "List all 311 complaints filed on New Year's Day 2024",
     "category": "lookup",
     "difficulty": "medium",
-    "tables": ["nyc_311"],
+    "tables": [
+      "nyc_311"
+    ],
     "expectedViz": "table"
   },
   {
@@ -683,16 +862,19 @@
     "question": "Show me all NYPD collisions involving alcohol in Brooklyn in March 2023",
     "category": "lookup",
     "difficulty": "medium",
-    "tables": ["nypd_collisions"],
+    "tables": [
+      "nypd_collisions"
+    ],
     "expectedViz": "table"
   },
-
   {
     "id": "lkp-009",
     "question": "What census tract does the corner of 125th St and Lenox Ave fall in?",
     "category": "lookup",
     "difficulty": "hard",
-    "tables": ["census_tracts"],
+    "tables": [
+      "census_tracts"
+    ],
     "expectedViz": "table"
   },
   {
@@ -700,16 +882,23 @@
     "question": "Show me the ACS 2023 demographics for the census tract containing Barclays Center",
     "category": "lookup",
     "difficulty": "hard",
-    "tables": ["census_tracts", "census_tract_demographics"],
+    "tables": [
+      "census_tracts",
+      "census_tract_demographics"
+    ],
     "expectedViz": "table"
   },
-
   {
     "id": "xbl-001",
     "question": "Which taxi zones had the most yellow cab pickups in 2023 and what is the median household income in those zones?",
     "category": "comparison",
     "difficulty": "hard",
-    "tables": ["gtp_tlc_data", "taxi_zones", "census_tracts", "census_tract_demographics"],
+    "tables": [
+      "gtp_tlc_data",
+      "taxi_zones",
+      "census_tracts",
+      "census_tract_demographics"
+    ],
     "expectedViz": "chart"
   },
   {
@@ -717,7 +906,12 @@
     "question": "Compare average yellow cab trip distance for pickups in high-poverty vs low-poverty census tracts in 2023",
     "category": "comparison",
     "difficulty": "hard",
-    "tables": ["gtp_tlc_data", "taxi_zones", "census_tracts", "census_tract_demographics"],
+    "tables": [
+      "gtp_tlc_data",
+      "taxi_zones",
+      "census_tracts",
+      "census_tract_demographics"
+    ],
     "expectedViz": "chart"
   },
   {
@@ -725,7 +919,11 @@
     "question": "Which census tracts in the Bronx have both the highest noise complaints per capita and highest poverty rate in 2024?",
     "category": "demographic",
     "difficulty": "hard",
-    "tables": ["nyc_311", "census_tracts", "census_tract_demographics"],
+    "tables": [
+      "nyc_311",
+      "census_tracts",
+      "census_tract_demographics"
+    ],
     "expectedViz": "chart"
   },
   {
@@ -733,7 +931,10 @@
     "question": "Show a map of 311 complaint density by census tract in Queens in 2024",
     "category": "spatial",
     "difficulty": "hard",
-    "tables": ["nyc_311", "census_tracts"],
+    "tables": [
+      "nyc_311",
+      "census_tracts"
+    ],
     "expectedViz": "map"
   },
   {
@@ -741,7 +942,11 @@
     "question": "How does the number of collisions per census tract correlate with median age in Manhattan in 2023?",
     "category": "demographic",
     "difficulty": "hard",
-    "tables": ["nypd_collisions", "census_tracts", "census_tract_demographics"],
+    "tables": [
+      "nypd_collisions",
+      "census_tracts",
+      "census_tract_demographics"
+    ],
     "expectedViz": "chart"
   },
   {
@@ -749,7 +954,12 @@
     "question": "Which neighborhoods have both high taxi trip volume and high 311 complaint rates in 2023?",
     "category": "comparison",
     "difficulty": "hard",
-    "tables": ["gtp_tlc_data", "taxi_zones", "nyc_311", "census_tracts"],
+    "tables": [
+      "gtp_tlc_data",
+      "taxi_zones",
+      "nyc_311",
+      "census_tracts"
+    ],
     "expectedViz": "chart"
   },
   {
@@ -757,7 +967,10 @@
     "question": "Show monthly yellow cab trip counts from Penn Station in 2023",
     "category": "time-series",
     "difficulty": "medium",
-    "tables": ["gtp_tlc_data", "taxi_zones"],
+    "tables": [
+      "gtp_tlc_data",
+      "taxi_zones"
+    ],
     "expectedViz": "chart"
   },
   {
@@ -765,7 +978,11 @@
     "question": "Which 10 census tracts in Brooklyn had the most 311 noise complaints per capita in 2024?",
     "category": "spatial",
     "difficulty": "hard",
-    "tables": ["nyc_311", "census_tracts", "census_tract_demographics"],
+    "tables": [
+      "nyc_311",
+      "census_tracts",
+      "census_tract_demographics"
+    ],
     "expectedViz": "map"
   },
   {
@@ -773,7 +990,10 @@
     "question": "Show me a map of pedestrian injuries from collisions in the South Bronx in 2023",
     "category": "spatial",
     "difficulty": "hard",
-    "tables": ["nypd_collisions", "census_tracts"],
+    "tables": [
+      "nypd_collisions",
+      "census_tracts"
+    ],
     "expectedViz": "map"
   },
   {
@@ -781,16 +1001,20 @@
     "question": "How many yellow cab trips ended in each borough in 2023?",
     "category": "aggregation",
     "difficulty": "medium",
-    "tables": ["gtp_tlc_data", "taxi_zones"],
+    "tables": [
+      "gtp_tlc_data",
+      "taxi_zones"
+    ],
     "expectedViz": "chart"
   },
-
   {
     "id": "edg-001",
     "question": "Show me 311 complaints in BROOKLYN in 2024",
     "category": "lookup",
     "difficulty": "easy",
-    "tables": ["nyc_311"],
+    "tables": [
+      "nyc_311"
+    ],
     "expectedViz": "table",
     "notes": "Tests uppercase borough handling — rule 6"
   },
@@ -799,7 +1023,10 @@
     "question": "Show collisions in Williamsburg in 2023",
     "category": "spatial",
     "difficulty": "hard",
-    "tables": ["nypd_collisions", "census_tracts"],
+    "tables": [
+      "nypd_collisions",
+      "census_tracts"
+    ],
     "expectedViz": "map",
     "notes": "Tests ambiguous neighborhood name — rule 15"
   },
@@ -808,7 +1035,10 @@
     "question": "Show collisions in Bed-Stuy in 2023",
     "category": "spatial",
     "difficulty": "hard",
-    "tables": ["nypd_collisions", "census_tracts"],
+    "tables": [
+      "nypd_collisions",
+      "census_tracts"
+    ],
     "expectedViz": "map",
     "notes": "Tests Bed-Stuy NTA name resolution — rule 15"
   },
@@ -817,7 +1047,9 @@
     "question": "What is the total fare amount for all yellow cab trips in 2023 with no partition filter?",
     "category": "aggregation",
     "difficulty": "hard",
-    "tables": ["gtp_tlc_data"],
+    "tables": [
+      "gtp_tlc_data"
+    ],
     "expectedViz": "table",
     "notes": "Tests partition filter enforcement — rule 2"
   },
@@ -826,7 +1058,10 @@
     "question": "Show me taxi trips that started within 500 feet of Grand Central Terminal in 2023",
     "category": "spatial",
     "difficulty": "hard",
-    "tables": ["gtp_tlc_data", "taxi_zones"],
+    "tables": [
+      "gtp_tlc_data",
+      "taxi_zones"
+    ],
     "expectedViz": "map",
     "notes": "Tests TLC proximity — no lat/lon, must use zone geometry — rules 4, 8, 11"
   },
@@ -835,7 +1070,10 @@
     "question": "What is the average poverty rate for census tracts with more than 5000 residents in Brooklyn?",
     "category": "demographic",
     "difficulty": "hard",
-    "tables": ["census_tract_demographics", "census_tracts"],
+    "tables": [
+      "census_tract_demographics",
+      "census_tracts"
+    ],
     "expectedViz": "table",
     "notes": "Tests STRING→DOUBLE cast for ACS numeric columns — rule 7"
   },
@@ -844,7 +1082,9 @@
     "question": "Show H3 hex bins of 311 complaints in Manhattan at resolution 10 in 2024",
     "category": "spatial",
     "difficulty": "medium",
-    "tables": ["nyc_311"],
+    "tables": [
+      "nyc_311"
+    ],
     "expectedViz": "map",
     "notes": "Tests precomputed H3 column usage vs inventing UDF — rule 16"
   },
@@ -853,7 +1093,9 @@
     "question": "Which census tracts in Queens have a geoid starting with 36081?",
     "category": "lookup",
     "difficulty": "medium",
-    "tables": ["census_tracts"],
+    "tables": [
+      "census_tracts"
+    ],
     "expectedViz": "table",
     "notes": "Tests geoid string handling — rule 14"
   },
@@ -862,7 +1104,9 @@
     "question": "Show me yellow cab trips where the pickup location ID equals the dropoff location ID in 2023",
     "category": "lookup",
     "difficulty": "medium",
-    "tables": ["gtp_tlc_data"],
+    "tables": [
+      "gtp_tlc_data"
+    ],
     "expectedViz": "table",
     "notes": "Tests VARCHAR location ID handling — rule 10"
   },
@@ -871,7 +1115,9 @@
     "question": "What is the average latitude of 311 complaints in each borough in 2024?",
     "category": "aggregation",
     "difficulty": "medium",
-    "tables": ["nyc_311"],
+    "tables": [
+      "nyc_311"
+    ],
     "expectedViz": "table",
     "notes": "Tests TRY_CAST on latitude VARCHAR before AVG — rule 3"
   },
@@ -880,7 +1126,9 @@
     "question": "Show collisions where latitude is between 40.7 and 40.8 in 2023",
     "category": "lookup",
     "difficulty": "medium",
-    "tables": ["nypd_collisions"],
+    "tables": [
+      "nypd_collisions"
+    ],
     "expectedViz": "map",
     "notes": "Tests VARCHAR BETWEEN with lat/lon — must cast first — rule 3, 5"
   },
@@ -889,7 +1137,10 @@
     "question": "Join 311 complaints to census tracts using borough name in 2024",
     "category": "lookup",
     "difficulty": "hard",
-    "tables": ["nyc_311", "census_tracts"],
+    "tables": [
+      "nyc_311",
+      "census_tracts"
+    ],
     "expectedViz": "table",
     "notes": "Should NOT join on borough directly — UPPERCASE vs Title Case — rule 6"
   },
@@ -898,7 +1149,9 @@
     "question": "Show me pre-2016 taxi trips that started near Times Square",
     "category": "spatial",
     "difficulty": "hard",
-    "tables": ["par"],
+    "tables": [
+      "par"
+    ],
     "expectedViz": "map",
     "notes": "Tests par table with raw lat/lon for proximity — rule 8"
   },
@@ -907,7 +1160,10 @@
     "question": "How many 311 complaints were filed in each NTA neighborhood in Queens in 2024?",
     "category": "aggregation",
     "difficulty": "hard",
-    "tables": ["nyc_311", "census_tracts"],
+    "tables": [
+      "nyc_311",
+      "census_tracts"
+    ],
     "expectedViz": "chart",
     "notes": "Requires spatial join to assign tract/NTA — no direct NTA on 311 — rule 12"
   },
@@ -916,7 +1172,9 @@
     "question": "What taxi zones are within 1 mile of LaGuardia airport?",
     "category": "spatial",
     "difficulty": "hard",
-    "tables": ["taxi_zones"],
+    "tables": [
+      "taxi_zones"
+    ],
     "expectedViz": "table",
     "notes": "Tests zone proximity using geometry_wkt centroid — rules 4, 8, 11"
   }
