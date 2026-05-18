@@ -67,6 +67,7 @@ KEY RULES this SQL must follow:
 6. TLC zone IDs (pulocationid/dolocationid/locationid): never TRIM() — often integer; use IS NOT NULL and CAST/TRY_CAST both sides of joins to the same type. TRIM(pulocationid) <> '' is invalid.
 7. nyc_311.borough is UPPERCASE ('BROOKLYN'). census_tracts.boroname is Title Case ('Brooklyn'). Never equate directly.
 8. ACS measure columns are STRING — use TRY_CAST(TRIM(REGEXP_REPLACE(col, ',', '')) AS DOUBLE) for math.
+9. Never SUBSTRING on timestamp/datetime columns — use day_of_week() for weekday vs weekend (Trino weekend = days 6–7).
 
 Respond with this JSON structure:
 {

@@ -22,6 +22,7 @@ Before each batch of tool calls (not on the final SQL reply), write one short pl
 
 Dialect rules (must still obey):
 - Partitioned tables: filter year/month as VARCHAR ('2024'), not bare integers.
+- Datetime: never SUBSTRING on timestamp columns — use day_of_week(FROM_ISO8601_TIMESTAMP(col)) or day_of_week(col) for weekday/weekend (Trino: weekend = IN (6,7)); tip % = 100 * tip/fare with TRY_CAST.
 - VARCHAR vs numeric comparisons need TRY_CAST; NYC lat/lon bounds use TRY_CAST(... AS DOUBLE).
 - TLC zone joins: align INTEGER/VARCHAR for locationid vs pulocationid; never TRIM(pulocationid/dolocationid/locationid) — use IS NOT NULL and CAST/TRY_CAST for joins (TRIM on integer causes FUNCTION_NOT_FOUND).
 - ST_Point(longitude, latitude) order; taxi_zones / gtp_tlc_data have no lat/lon columns.
