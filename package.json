@@ -11,7 +11,12 @@
     "register-agent": "tsx scripts/register-p8k8-agent.ts",
     "eval": "tsx scripts/eval-moments.ts",
     "eval:full": "tsx scripts/eval-moments.ts --full",
-    "eval:upload": "tsx scripts/upload-evals-to-s3.ts"
+    "eval:seed": "tsx scripts/judge-seed-results.ts",
+    "eval:upload": "tsx scripts/upload-evals-to-s3.ts",
+    "seed": "tsx scripts/seed-questions.ts",
+    "seed:dry": "SEED_DRY_RUN=true tsx scripts/seed-questions.ts",
+    "seed:easy": "SEED_DIFFICULTY=easy tsx scripts/seed-questions.ts",
+    "seed:spatial": "SEED_CATEGORY=spatial tsx scripts/seed-questions.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.32.0",
