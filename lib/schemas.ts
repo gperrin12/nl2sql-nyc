@@ -236,3 +236,25 @@ export function renderSchemaForPrompt(): string {
   }
   return parts.join("\n");
 }
+
+const TRIVIA_TABLES = [
+  "nyc_311",
+  "nypd_collisions",
+  "gtp_tlc_data",
+  "taxi_zones",
+  "census_tracts",
+  "census_tract_demographics",
+] as const;
+
+/** Smaller schema block for trivia generation (faster Claude turn). */
+export function renderTriviaSchemaForPrompt(): string {
+  return TRIVIA_TABLES.map((name) => {
+    const info = TABLE_SCHEMAS[name];
+    if (!info) return "";
+    return (
+      `Table: ${name}\n` +
+      `Description: ${info.description}\n` +
+      `Columns: ${info.columns.join(", ")}\n`
+    );
+  }).join("\n");
+}
