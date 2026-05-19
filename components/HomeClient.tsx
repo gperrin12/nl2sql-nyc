@@ -240,9 +240,9 @@ export function HomeClient() {
         </p>
       </header>
 
-      <DataCatalogOverview />
-
       <QueryBox onSubmit={handleSubmit} disabled={!!isRunning} />
+
+      <DataCatalogOverview />
 
       {USE_QUERY_STREAM && (agentSteps.length > 0 || streamBusy) && (
         <AgentStreamTrace steps={agentSteps} busy={streamBusy} />
