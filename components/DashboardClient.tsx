@@ -16,6 +16,8 @@ import {
 import { formatLatencyMs } from "@/lib/sql-metrics";
 
 const PAGE_SIZE = 20;
+/** API caps at 200; load all moments once, then filter/paginate client-side. */
+const MOMENTS_FETCH_LIMIT = 200;
 
 type MomentsResponse = {
   moments: DashboardMoment[];
@@ -112,7 +114,7 @@ function FilterPills<T extends string>({
 export function DashboardClient() {
   const [moments, setMoments] = useState<DashboardMoment[]>([]);
   const [total, setTotal] = useState(0);
-  const [offset, setOffset] = useState(0);
+  const [pageOffset, setPageOffset] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
@@ -124,13 +126,13 @@ export function DashboardClient() {
     Map<string, FullJudgeResult>
   >(new Map());
 
-  const load = useCallback(async (nextOffset: number) => {
+  const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
       const [momentsRes, evalsRes] = await Promise.all([
         fetch(
-          `/api/dashboard/moments?limit=${PAGE_SIZE}&offset=${nextOffset}`,
+          `/api/dashboard/moments?limit=${MOMENTS_FETCH_LIMIT}&offset=0`,
           { cache: "no-store" }
         ),
         fetch("/api/dashboard/evals", { cache: "no-store" }),
@@ -156,7 +158,6 @@ export function DashboardClient() {
       setMoments(data.moments);
       setEvals(loadedEvals);
       setTotal(data.total);
-      setOffset(nextOffset);
       setEvalByMomentId(buildEvalByMomentId(data.moments, loadedEvals));
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load dashboard");
@@ -166,13 +167,25 @@ export function DashboardClient() {
   }, []);
 
   useEffect(() => {
-    void load(0);
+    void load();
   }, [load]);
 
   const allEvals = useMemo(() => dedupeEvalsByQuestion(evals), [evals]);
 
-  const tableMoments = useMemo(() => {
-    const filtered = moments.filter((m) => {
+  const filtersActive =
+    categoryFilter !== "all" ||
+    verdictFilter !== "all" ||
+    datasetFilter !== "all" ||
+    search.trim().length > 0;
+
+  useEffect(() => {
+    setPageOffset(0);
+  }, [categoryFilter, verdictFilter, datasetFilter, search]);
+
+  const filteredMoments = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return moments.filter((m) => {
+      if (q && !m.question.toLowerCase().includes(q)) return false;
       const ev = evalByMomentId.get(m.id);
       if (categoryFilter !== "all" && ev?.category !== categoryFilter) {
         return false;
@@ -188,19 +201,31 @@ export function DashboardClient() {
       }
       return true;
     });
-
-    return [...filtered].sort((a, b) => {
-      const sa = evalByMomentId.get(a.id)?.overall ?? -1;
-      const sb = evalByMomentId.get(b.id)?.overall ?? -1;
-      return sa - sb;
-    });
   }, [
     moments,
     evalByMomentId,
     categoryFilter,
     verdictFilter,
     datasetFilter,
+    search,
   ]);
+
+  const sortedMoments = useMemo(
+    () =>
+      [...filteredMoments].sort((a, b) => {
+        const sa = evalByMomentId.get(a.id)?.overall ?? -1;
+        const sb = evalByMomentId.get(b.id)?.overall ?? -1;
+        return sa - sb;
+      }),
+    [filteredMoments, evalByMomentId]
+  );
+
+  const pageMoments = useMemo(
+    () => sortedMoments.slice(pageOffset, pageOffset + PAGE_SIZE),
+    [sortedMoments, pageOffset]
+  );
+
+  const filteredTotal = sortedMoments.length;
 
   const stats = useMemo(() => {
     const models = new Set(
@@ -292,17 +317,22 @@ export function DashboardClient() {
       </div>
 
       <MomentsTable
-        moments={tableMoments}
+        moments={pageMoments}
         evalByMomentId={evalByMomentId}
         loading={loading}
         error={error}
-        onRefresh={() => load(offset)}
+        onRefresh={() => load()}
         search={search}
         onSearchChange={setSearch}
-        offset={offset}
-        total={total}
+        offset={pageOffset}
+        total={filteredTotal}
         pageSize={PAGE_SIZE}
-        onPageChange={(next) => load(next)}
+        onPageChange={setPageOffset}
+        emptyMessage={
+          filtersActive
+            ? "No queries match the current filters."
+            : undefined
+        }
       />
     </main>
   );
