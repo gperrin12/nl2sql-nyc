@@ -7,6 +7,7 @@ import { SqlDisplay } from "@/components/SqlDisplay";
 import { ResultsPanel } from "@/components/ResultsPanel";
 import { AgentStreamTrace } from "@/components/AgentStreamTrace";
 import { AppNav } from "@/components/AppNav";
+import { DataCatalogOverview } from "@/components/DataCatalogOverview";
 import type { AgentStreamPayload } from "@/lib/sql-agent/types";
 import { mapSpatialIntent } from "@/lib/sql-agent/mapIntent";
 
@@ -240,6 +241,8 @@ export function HomeClient() {
       </header>
 
       <QueryBox onSubmit={handleSubmit} disabled={!!isRunning} />
+
+      <DataCatalogOverview />
 
       {USE_QUERY_STREAM && (agentSteps.length > 0 || streamBusy) && (
         <AgentStreamTrace steps={agentSteps} busy={streamBusy} />

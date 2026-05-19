@@ -5,9 +5,12 @@ import {
   classifyQuestion,
   type QueryCategory,
 } from "@/lib/query-category";
+import { detectDatasets, type QueryDataset } from "@/lib/query-dataset";
 
 export type { QueryCategory } from "@/lib/query-category";
 export { classifyQuestion } from "@/lib/query-category";
+export type { QueryDataset } from "@/lib/query-dataset";
+export { detectDatasets, resolveEvalDataset } from "@/lib/query-dataset";
 
 const client = new Anthropic();
 const JUDGE_MODEL = "claude-sonnet-4-5";
@@ -20,6 +23,7 @@ export type JudgeResult = {
   question: string;
   sql: string;
   category: QueryCategory;
+  dataset: QueryDataset;
   scores: {
     validity: number;
     intent: number;
@@ -124,6 +128,7 @@ function parseJudgeResponse(
   question: string,
   sql: string,
   category: QueryCategory,
+  dataset: QueryDataset,
   text: string
 ): JudgeResult {
   const judgedAt = new Date().toISOString();
@@ -150,6 +155,7 @@ function parseJudgeResponse(
       question,
       sql,
       category,
+      dataset,
       scores,
       overall,
       issues,
@@ -161,6 +167,7 @@ function parseJudgeResponse(
       question,
       sql,
       category,
+      dataset,
       scores: { validity: 0, intent: 0, compliance: 0, efficiency: 0 },
       overall: 0,
       issues: ["judge parse error — could not parse model response"],
@@ -175,6 +182,7 @@ export async function judgeQueryPair(
   sql: string
 ): Promise<JudgeResult> {
   const category = classifyQuestion(question);
+  const dataset = detectDatasets(sql);
 
   const response = await client.messages.create({
     model: JUDGE_MODEL,
@@ -188,7 +196,7 @@ export async function judgeQueryPair(
     .map((b) => b.text)
     .join("\n");
 
-  return parseJudgeResponse(question, sql, category, text);
+  return parseJudgeResponse(question, sql, category, dataset, text);
 }
 
 function buildResultUserMessage(

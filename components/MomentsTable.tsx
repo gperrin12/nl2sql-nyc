@@ -171,6 +171,8 @@ type Props = {
   total: number;
   pageSize: number;
   onPageChange: (offset: number) => void;
+  /** When filters yield no rows (overrides default empty copy). */
+  emptyMessage?: string;
 };
 
 const CATEGORY_STYLES: Record<QueryCategory, string> = {
@@ -715,6 +717,7 @@ export function MomentsTable({
   total,
   pageSize,
   onPageChange,
+  emptyMessage,
 }: Props) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -738,12 +741,6 @@ export function MomentsTable({
     [visibleIds]
   );
   const colCount = visibleColumns.length;
-
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    if (!q) return moments;
-    return moments.filter((m) => m.question.toLowerCase().includes(q));
-  }, [moments, search]);
 
   const canPrev = offset > 0;
   const canNext = offset + pageSize < total;
@@ -823,22 +820,23 @@ export function MomentsTable({
         </thead>
         {loading || !columnsReady ? (
           <SkeletonRows colCount={colCount || DEFAULT_VISIBLE.size} />
-        ) : filtered.length === 0 ? (
+        ) : moments.length === 0 ? (
           <tbody>
             <tr>
               <td
                 colSpan={colCount}
                 className="px-4 py-12 text-center text-[var(--muted)]"
               >
-                {search.trim()
-                  ? "No queries match your search."
-                  : "No query pairs yet. Run npm run eval to populate judge scores."}
+                {emptyMessage ??
+                  (search.trim()
+                    ? "No queries match your search."
+                    : "No query pairs yet. Run npm run eval to populate judge scores.")}
               </td>
             </tr>
           </tbody>
         ) : (
           <tbody>
-            {filtered.map((m) => {
+            {moments.map((m) => {
               const expanded = expandedId === m.id;
               const evalResult = evalByMomentId.get(m.id);
               const evalSqlDiffers =
