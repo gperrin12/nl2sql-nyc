@@ -7,6 +7,7 @@ import { SqlDisplay } from "@/components/SqlDisplay";
 import { ResultsPanel } from "@/components/ResultsPanel";
 import { AgentStreamTrace } from "@/components/AgentStreamTrace";
 import { AppNav } from "@/components/AppNav";
+import { DataCatalogOverview } from "@/components/DataCatalogOverview";
 import type { AgentStreamPayload } from "@/lib/sql-agent/types";
 import { mapSpatialIntent } from "@/lib/sql-agent/mapIntent";
 
@@ -238,6 +239,8 @@ export function HomeClient() {
           NYPD collisions, and ACS census tracts.
         </p>
       </header>
+
+      <DataCatalogOverview />
 
       <QueryBox onSubmit={handleSubmit} disabled={!!isRunning} />
 
