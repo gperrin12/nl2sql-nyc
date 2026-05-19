@@ -9,6 +9,11 @@ import type { FullJudgeResult } from "@/lib/judge";
 import type { DashboardMoment } from "@/lib/p8k8-moments";
 import type { QueryCategory } from "@/lib/query-category";
 import {
+  DIFFICULTY_LABELS,
+  difficultyFromComplexityScore,
+  type QueryDifficulty,
+} from "@/lib/query-difficulty";
+import {
   DATASET_LABELS,
   detectDatasets,
   type QueryDataset,
@@ -27,6 +32,7 @@ type MomentsResponse = {
 type CategoryFilter = "all" | QueryCategory;
 type VerdictFilter = "all" | FullJudgeResult["verdict"];
 type DatasetFilter = "all" | QueryDataset;
+type DifficultyFilter = "all" | QueryDifficulty;
 
 const CATEGORY_OPTIONS: QueryCategory[] = [
   "spatial",
@@ -53,6 +59,8 @@ const DATASET_OPTIONS: QueryDataset[] = [
   "multi",
   "other",
 ];
+
+const DIFFICULTY_OPTIONS: QueryDifficulty[] = ["easy", "medium", "hard"];
 
 /** One eval per question for summary stats (newest judgedAt wins). */
 function dedupeEvalsByQuestion(evals: FullJudgeResult[]): FullJudgeResult[] {
@@ -121,6 +129,8 @@ export function DashboardClient() {
   const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>("all");
   const [verdictFilter, setVerdictFilter] = useState<VerdictFilter>("all");
   const [datasetFilter, setDatasetFilter] = useState<DatasetFilter>("all");
+  const [difficultyFilter, setDifficultyFilter] =
+    useState<DifficultyFilter>("all");
   const [evals, setEvals] = useState<FullJudgeResult[]>([]);
   const [evalByMomentId, setEvalByMomentId] = useState<
     Map<string, FullJudgeResult>
@@ -176,11 +186,18 @@ export function DashboardClient() {
     categoryFilter !== "all" ||
     verdictFilter !== "all" ||
     datasetFilter !== "all" ||
+    difficultyFilter !== "all" ||
     search.trim().length > 0;
 
   useEffect(() => {
     setPageOffset(0);
-  }, [categoryFilter, verdictFilter, datasetFilter, search]);
+  }, [
+    categoryFilter,
+    verdictFilter,
+    datasetFilter,
+    difficultyFilter,
+    search,
+  ]);
 
   const filteredMoments = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -195,9 +212,13 @@ export function DashboardClient() {
       }
       if (
         datasetFilter !== "all" &&
-        detectDatasets(ev?.sql ?? "") !== datasetFilter
+        detectDatasets(ev?.sql ?? m.sql) !== datasetFilter
       ) {
         return false;
+      }
+      if (difficultyFilter !== "all") {
+        const d = difficultyFromComplexityScore(m.sqlComplexity.score);
+        if (d !== difficultyFilter) return false;
       }
       return true;
     });
@@ -207,6 +228,7 @@ export function DashboardClient() {
     categoryFilter,
     verdictFilter,
     datasetFilter,
+    difficultyFilter,
     search,
   ]);
 
@@ -260,6 +282,10 @@ export function DashboardClient() {
   const categoryPillOptions: CategoryFilter[] = ["all", ...CATEGORY_OPTIONS];
   const verdictPillOptions: VerdictFilter[] = ["all", ...VERDICT_OPTIONS];
   const datasetPillOptions: DatasetFilter[] = ["all", ...DATASET_OPTIONS];
+  const difficultyPillOptions: DifficultyFilter[] = [
+    "all",
+    ...DIFFICULTY_OPTIONS,
+  ];
 
   return (
     <main className="max-w-[min(100%,90rem)] mx-auto p-6 space-y-6">
@@ -313,6 +339,13 @@ export function DashboardClient() {
           options={datasetPillOptions}
           optionLabel={(v) => (v === "all" ? "All" : DATASET_LABELS[v])}
           onChange={setDatasetFilter}
+        />
+        <FilterPills
+          label="Difficulty"
+          value={difficultyFilter}
+          options={difficultyPillOptions}
+          optionLabel={(v) => (v === "all" ? "All" : DIFFICULTY_LABELS[v])}
+          onChange={setDifficultyFilter}
         />
       </div>
 

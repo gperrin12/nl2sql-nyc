@@ -9,7 +9,11 @@ import {
   detectDatasets,
   type QueryDataset,
 } from "@/lib/query-dataset";
-import { sqlComplexity } from "@/lib/sql-metrics";
+import {
+  DIFFICULTY_LABELS,
+  difficultyFromSql,
+  type QueryDifficulty,
+} from "@/lib/query-difficulty";
 
 type BreakdownRow = {
   key: string;
@@ -32,22 +36,6 @@ const CATEGORY_LABELS: Record<QueryCategory, string> = {
   lookup: "Lookup",
   other: "Other",
 };
-
-type QueryDifficulty = "easy" | "medium" | "hard";
-
-const DIFFICULTY_LABELS: Record<QueryDifficulty, string> = {
-  easy: "Easy",
-  medium: "Medium",
-  hard: "Hard",
-};
-
-function difficultyFromSql(sql: string): QueryDifficulty | null {
-  if (!sql?.trim()) return null;
-  const { score } = sqlComplexity(sql);
-  if (score < 6) return "easy";
-  if (score < 14) return "medium";
-  return "hard";
-}
 
 function evalDisplayScore(e: FullJudgeResult): number {
   if (typeof e.overall === "number" && Number.isFinite(e.overall)) {
