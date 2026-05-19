@@ -7,10 +7,7 @@ import { MomentsTable } from "@/components/MomentsTable";
 import { buildEvalByMomentId } from "@/lib/eval-match";
 import type { FullJudgeResult } from "@/lib/judge";
 import type { DashboardMoment } from "@/lib/p8k8-moments";
-import {
-  classifyQuestion,
-  type QueryCategory,
-} from "@/lib/query-category";
+import type { QueryCategory } from "@/lib/query-category";
 import {
   DATASET_LABELS,
   detectDatasets,
@@ -18,7 +15,7 @@ import {
 } from "@/lib/query-dataset";
 import { formatLatencyMs } from "@/lib/sql-metrics";
 
-const PAGE_SIZE = 50;
+const PAGE_SIZE = 20;
 
 type MomentsResponse = {
   moments: DashboardMoment[];
@@ -55,6 +52,18 @@ const DATASET_OPTIONS: QueryDataset[] = [
   "other",
 ];
 
+function dedupeEvals(map: Map<string, FullJudgeResult>): FullJudgeResult[] {
+  const seen = new Set<string>();
+  const out: FullJudgeResult[] = [];
+  for (const e of map.values()) {
+    const key = `${e.judgedAt}\0${e.question}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(e);
+  }
+  return out;
+}
+
 function FilterPills<T extends string>({
   label,
   value,
@@ -70,7 +79,7 @@ function FilterPills<T extends string>({
 }) {
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <span className="text-xs uppercase tracking-wide text-[var(--muted)] shrink-0">
+      <span className="text-xs uppercase tracking-wide text-[var(--muted)] shrink-0 w-16">
         {label}
       </span>
       {options.map((opt) => {
@@ -80,10 +89,10 @@ function FilterPills<T extends string>({
             key={opt}
             type="button"
             onClick={() => onChange(opt)}
-            className={`px-2.5 py-1 rounded-full text-xs border transition-colors ${
+            className={`px-2.5 py-1 rounded-full text-xs transition-colors ${
               active
-                ? "border-[var(--accent)] bg-[var(--accent)]/15 text-[var(--accent)]"
-                : "border-[var(--border)] text-[var(--muted)] hover:text-[var(--text)] hover:border-[var(--accent-dim)]"
+                ? "bg-[var(--accent)] text-[var(--bg)]"
+                : "border border-[var(--border)] text-[var(--muted)] hover:text-[var(--text)]"
             }`}
           >
             {optionLabel(opt)}
@@ -96,7 +105,6 @@ function FilterPills<T extends string>({
 
 export function DashboardClient() {
   const [moments, setMoments] = useState<DashboardMoment[]>([]);
-  const [evals, setEvals] = useState<FullJudgeResult[]>([]);
   const [total, setTotal] = useState(0);
   const [offset, setOffset] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -139,7 +147,6 @@ export function DashboardClient() {
         if (Array.isArray(raw)) loadedEvals = raw as FullJudgeResult[];
       }
       setMoments(data.moments);
-      setEvals(loadedEvals);
       setTotal(data.total);
       setOffset(nextOffset);
       setEvalByMomentId(buildEvalByMomentId(data.moments, loadedEvals));
@@ -154,23 +161,33 @@ export function DashboardClient() {
     void load(0);
   }, [load]);
 
-  const filteredMoments = useMemo(() => {
-    return moments.filter((m) => {
-      const evalResult = evalByMomentId.get(m.id);
-      const category =
-        evalResult?.category ?? classifyQuestion(m.question);
-      const dataset = detectDatasets(evalResult?.sql ?? m.sql ?? "");
+  const allEvals = useMemo(
+    () => dedupeEvals(evalByMomentId),
+    [evalByMomentId]
+  );
 
-      if (categoryFilter !== "all" && category !== categoryFilter) {
+  const tableMoments = useMemo(() => {
+    const filtered = moments.filter((m) => {
+      const ev = evalByMomentId.get(m.id);
+      if (categoryFilter !== "all" && ev?.category !== categoryFilter) {
         return false;
       }
-      if (verdictFilter !== "all") {
-        if (!evalResult || evalResult.verdict !== verdictFilter) return false;
+      if (verdictFilter !== "all" && ev?.verdict !== verdictFilter) {
+        return false;
       }
-      if (datasetFilter !== "all" && dataset !== datasetFilter) {
+      if (
+        datasetFilter !== "all" &&
+        detectDatasets(ev?.sql ?? "") !== datasetFilter
+      ) {
         return false;
       }
       return true;
+    });
+
+    return [...filtered].sort((a, b) => {
+      const sa = evalByMomentId.get(a.id)?.overall ?? -1;
+      const sb = evalByMomentId.get(b.id)?.overall ?? -1;
+      return sa - sb;
     });
   }, [
     moments,
@@ -223,7 +240,7 @@ export function DashboardClient() {
           Query Dashboard
         </h1>
         <p className="text-sm text-[var(--muted)]">
-          Recent nl2sql-nyc queries via p8k8
+          Aggregated eval summary · drill down into individual queries below
         </p>
       </header>
 
@@ -240,9 +257,12 @@ export function DashboardClient() {
         />
       </div>
 
-      <EvalSummary evals={evals} />
+      <EvalSummary evals={allEvals} />
 
-      <div className="rounded-lg border border-[var(--border)] bg-[var(--panel)] px-4 py-3 space-y-3">
+      <div className="rounded-lg border border-[var(--border)] bg-[var(--panel)] px-4 py-3 space-y-2.5">
+        <p className="text-xs uppercase tracking-wide text-[var(--muted)]">
+          Filter drill-down
+        </p>
         <FilterPills
           label="Category"
           value={categoryFilter}
@@ -267,7 +287,7 @@ export function DashboardClient() {
       </div>
 
       <MomentsTable
-        moments={filteredMoments}
+        moments={tableMoments}
         evalByMomentId={evalByMomentId}
         loading={loading}
         error={error}
