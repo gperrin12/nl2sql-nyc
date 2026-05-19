@@ -52,16 +52,22 @@ const DATASET_OPTIONS: QueryDataset[] = [
   "other",
 ];
 
-function dedupeEvals(map: Map<string, FullJudgeResult>): FullJudgeResult[] {
-  const seen = new Set<string>();
-  const out: FullJudgeResult[] = [];
-  for (const e of map.values()) {
-    const key = `${e.judgedAt}\0${e.question}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    out.push(e);
+/** One eval per question for summary stats (newest judgedAt wins). */
+function dedupeEvalsByQuestion(evals: FullJudgeResult[]): FullJudgeResult[] {
+  const byQuestion = new Map<string, FullJudgeResult>();
+  const sorted = [...evals].sort(
+    (a, b) => new Date(b.judgedAt).getTime() - new Date(a.judgedAt).getTime()
+  );
+  for (const e of sorted) {
+    const q = e.question.trim();
+    const prev = byQuestion.get(q);
+    if (!prev) {
+      byQuestion.set(q, e);
+      continue;
+    }
+    if (e.resultEval && !prev.resultEval) byQuestion.set(q, e);
   }
-  return out;
+  return Array.from(byQuestion.values());
 }
 
 function FilterPills<T extends string>({
@@ -113,6 +119,7 @@ export function DashboardClient() {
   const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>("all");
   const [verdictFilter, setVerdictFilter] = useState<VerdictFilter>("all");
   const [datasetFilter, setDatasetFilter] = useState<DatasetFilter>("all");
+  const [evals, setEvals] = useState<FullJudgeResult[]>([]);
   const [evalByMomentId, setEvalByMomentId] = useState<
     Map<string, FullJudgeResult>
   >(new Map());
@@ -147,6 +154,7 @@ export function DashboardClient() {
         if (Array.isArray(raw)) loadedEvals = raw as FullJudgeResult[];
       }
       setMoments(data.moments);
+      setEvals(loadedEvals);
       setTotal(data.total);
       setOffset(nextOffset);
       setEvalByMomentId(buildEvalByMomentId(data.moments, loadedEvals));
@@ -161,10 +169,7 @@ export function DashboardClient() {
     void load(0);
   }, [load]);
 
-  const allEvals = useMemo(
-    () => dedupeEvals(evalByMomentId),
-    [evalByMomentId]
-  );
+  const allEvals = useMemo(() => dedupeEvalsByQuestion(evals), [evals]);
 
   const tableMoments = useMemo(() => {
     const filtered = moments.filter((m) => {

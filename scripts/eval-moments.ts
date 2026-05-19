@@ -7,8 +7,12 @@
  * Full eval (replay through running app + Athena result judge):
  * APP_URL=http://localhost:3000 APP_PASSWORD=... npm run eval:full
  *
+ * Re-run every known question through the app and replace evals (dashboard refresh):
+ * npm run eval:refresh
+ * (requires npm run dev + EVALS_S3_URI in .env)
+ *
  * Optional:
- * EVAL_LIMIT=50       (default 100)
+ * EVAL_LIMIT=50       (default 100, p8k8 session fetch cap)
  * EVAL_DELAY_MS=600   (default 600, SQL-only judge delay)
  * REPLAY_DELAY_MS=2000 (default 2000, delay between full replays)
  *
@@ -35,6 +39,8 @@ import {
 import { resolveP8k8ChatId } from "../lib/p8k8";
 
 const FULL_EVAL = process.argv.includes("--full");
+const FORCE_REPLAY = process.argv.includes("--force");
+const REPLACE_EVALS = process.argv.includes("--replace");
 const P8K8_URL = process.env.P8K8_URL?.replace(/\/$/, "");
 const P8K8_AUTH_TOKEN = process.env.P8K8_AUTH_TOKEN;
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
@@ -79,6 +85,24 @@ function hasFullEval(
   const key = evalMatchKey(question, sql);
   const entry = existing.find((e) => evalMatchKey(e.question, e.sql) === key);
   return Boolean(entry?.resultEval);
+}
+
+/** Union of questions from prior evals and p8k8 pairs (stable order: evals first, then p8k8). */
+function collectQuestionCatalog(
+  existing: FullJudgeResult[],
+  pairs: { question: string }[]
+): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  const add = (q: string) => {
+    const t = q.trim();
+    if (!t || seen.has(t)) return;
+    seen.add(t);
+    out.push(t);
+  };
+  for (const e of existing) add(e.question);
+  for (const p of pairs) add(p.question);
+  return out;
 }
 
 function printSummary(newResults: FullJudgeResult[], all: FullJudgeResult[]): void {
@@ -180,6 +204,14 @@ async function main(): Promise<void> {
     console.warn(
       "Full eval hits the running app (npm run dev). Athena/AWS env must be valid on that server — not only in this shell."
     );
+    if (REPLACE_EVALS) {
+      console.warn(
+        "Replace mode: evals file will contain only this run's full evals (one row per question)."
+      );
+    }
+    if (FORCE_REPLAY) {
+      console.warn("Force mode: re-judging even when a matching full eval exists.");
+    }
   }
 
   const sessionId = resolveP8k8ChatId();
@@ -205,18 +237,26 @@ async function main(): Promise<void> {
   const newResults: FullJudgeResult[] = [];
 
   if (FULL_EVAL) {
-    const seenQuestions = new Set<string>();
-    const toRun = pairs.filter((p) => {
-      const q = p.question.trim();
-      if (seenQuestions.has(q)) return false;
-      seenQuestions.add(q);
-      return true;
-    });
+    const questions = REPLACE_EVALS
+      ? collectQuestionCatalog(existing, pairs)
+      : (() => {
+          const seen = new Set<string>();
+          return pairs.filter((p) => {
+            const q = p.question.trim();
+            if (seen.has(q)) return false;
+            seen.add(q);
+            return true;
+          }).map((p) => p.question.trim());
+        })();
 
-    for (let i = 0; i < toRun.length; i++) {
-      const { question } = toRun[i];
+    console.log(
+      `Full eval: ${questions.length} unique question(s)${REPLACE_EVALS ? " (from evals + p8k8)" : " (from p8k8)"}`
+    );
+
+    for (let i = 0; i < questions.length; i++) {
+      const question = questions[i];
       console.log(
-        `Full eval [${i + 1}/${toRun.length}]: "${question.slice(0, 60)}${question.length > 60 ? "..." : ""}"`
+        `Full eval [${i + 1}/${questions.length}]: "${question.slice(0, 60)}${question.length > 60 ? "..." : ""}"`
       );
 
       console.log("  → replaying through app...");
@@ -234,9 +274,13 @@ async function main(): Promise<void> {
         );
       }
 
-      if (hasFullEval(existing, question, replay.sql)) {
+      if (
+        !FORCE_REPLAY &&
+        !REPLACE_EVALS &&
+        hasFullEval(existing, question, replay.sql)
+      ) {
         console.log("  → already judged with resultEval, skipping");
-        if (i < toRun.length - 1) await sleep(REPLAY_DELAY_MS);
+        if (i < questions.length - 1) await sleep(REPLAY_DELAY_MS);
         continue;
       }
 
@@ -244,7 +288,7 @@ async function main(): Promise<void> {
       const result = await judgeFullResult(question, replay.sql, replay);
       newResults.push(result);
 
-      if (i < toRun.length - 1) await sleep(REPLAY_DELAY_MS);
+      if (i < questions.length - 1) await sleep(REPLAY_DELAY_MS);
     }
   } else {
     const judgedKeys = new Set(
@@ -265,7 +309,9 @@ async function main(): Promise<void> {
     }
   }
 
-  const merged = mergeByPairKey(existing, newResults);
+  const merged = REPLACE_EVALS
+    ? newResults
+    : mergeByPairKey(existing, newResults);
   merged.sort(
     (a, b) =>
       new Date(b.judgedAt).getTime() - new Date(a.judgedAt).getTime()
