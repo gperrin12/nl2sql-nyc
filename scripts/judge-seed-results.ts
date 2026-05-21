@@ -23,7 +23,7 @@ import {
   saveEvals,
 } from "../lib/evals-store";
 import type { ReplayResult } from "../lib/replay";
-import { inferVizType } from "../lib/viz-infer";
+import { inferUiViz } from "../lib/infer-ui-viz";
 
 type SeedResultStatus =
   | "succeeded"
@@ -137,6 +137,7 @@ function seedToReplay(row: SeedResult): ReplayResult | null {
 
   const columns = row.columns ?? null;
   const rowCount = row.rowCount ?? null;
+  const ui = columns?.length ? inferUiViz(columns, []) : null;
 
   return {
     question: row.question,
@@ -148,7 +149,8 @@ function seedToReplay(row: SeedResult): ReplayResult | null {
     sampleRows: [],
     scannedBytes: row.scannedBytes ?? null,
     runtimeMs: row.runtimeMs ?? null,
-    vizType: columns?.length ? inferVizType(columns) : null,
+    vizType: ui?.primary ?? null,
+    uiVizDescription: ui?.description ?? null,
     emptyResult: row.status === "empty",
   };
 }

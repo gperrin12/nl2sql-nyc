@@ -4,6 +4,9 @@
  * Usage:
  * ANTHROPIC_API_KEY=... P8K8_URL=... P8K8_AUTH_TOKEN=... npx tsx scripts/eval-moments.ts
  *
+ * Full eval replays through the app and judges SQL + Athena rows + UI viz
+ * (inferUiViz — same map/chart/table logic as ResultsPanel).
+ *
  * Full eval (replay through running app + Athena result judge):
  * APP_URL=http://localhost:3000 APP_PASSWORD=... npm run eval:full
  *

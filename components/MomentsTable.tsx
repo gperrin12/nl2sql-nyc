@@ -585,8 +585,9 @@ function MomentRow({
                   Result: {evalResult.resultEval.athenaStatus}
                   {evalResult.resultEval.rowCount != null &&
                     ` · ${evalResult.resultEval.rowCount} rows`}
-                  {evalResult.resultEval.vizType &&
-                    ` · ${evalResult.resultEval.vizType}`}
+                  {(evalResult.resultEval.uiVizDescription ??
+                    evalResult.resultEval.vizType) &&
+                    ` · ${evalResult.resultEval.uiVizDescription ?? evalResult.resultEval.vizType}`}
                 </p>
                 <div className="flex flex-wrap gap-4 text-xs">
                   <span>

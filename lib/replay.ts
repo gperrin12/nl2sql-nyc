@@ -1,4 +1,5 @@
-import { inferVizType, type VizType } from "@/lib/viz-infer";
+import { inferUiViz } from "@/lib/infer-ui-viz";
+import type { VizType } from "@/lib/viz-infer";
 
 export type ReplayResult = {
   question: string;
@@ -11,6 +12,8 @@ export type ReplayResult = {
   scannedBytes: number | null;
   runtimeMs: number | null;
   vizType: VizType | null;
+  /** What ResultsPanel would show (map/chart/table), for the result judge. */
+  uiVizDescription: string | null;
   emptyResult: boolean;
 };
 
@@ -121,8 +124,18 @@ function errorReplay(
     scannedBytes: null,
     runtimeMs: null,
     vizType: null,
+    uiVizDescription: null,
     emptyResult: false,
   };
+}
+
+function vizFromRows(
+  columns: string[],
+  rows: Record<string, string | null>[]
+): { vizType: VizType | null; uiVizDescription: string | null } {
+  const ui = inferUiViz(columns, rows);
+  if (!ui) return { vizType: null, uiVizDescription: null };
+  return { vizType: ui.primary, uiVizDescription: ui.description };
 }
 
 /** Replay a question through the running app and capture Athena result data. */
@@ -209,6 +222,7 @@ export async function replayQuestion(question: string): Promise<ReplayResult> {
       const rows = poll.rows ?? [];
       const sampleRows = rows.slice(0, 5);
       const rowCount = rows.length;
+      const { vizType, uiVizDescription } = vizFromRows(columns, rows);
       return {
         question,
         sql,
@@ -218,7 +232,8 @@ export async function replayQuestion(question: string): Promise<ReplayResult> {
         sampleRows,
         scannedBytes: poll.scannedBytes ?? null,
         runtimeMs: poll.runtimeMs ?? null,
-        vizType: columns.length > 0 ? inferVizType(columns) : null,
+        vizType,
+        uiVizDescription,
         emptyResult: rowCount === 0,
       };
     }
@@ -235,6 +250,7 @@ export async function replayQuestion(question: string): Promise<ReplayResult> {
         scannedBytes: poll.scannedBytes ?? null,
         runtimeMs: poll.runtimeMs ?? null,
         vizType: null,
+        uiVizDescription: null,
         emptyResult: false,
       };
     }
@@ -251,6 +267,7 @@ export async function replayQuestion(question: string): Promise<ReplayResult> {
     scannedBytes: null,
     runtimeMs: null,
     vizType: null,
+    uiVizDescription: null,
     emptyResult: false,
   };
 }

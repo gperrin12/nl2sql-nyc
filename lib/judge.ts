@@ -40,6 +40,8 @@ export type ResultEval = {
   rowCount: number | null;
   emptyResult: boolean;
   vizType: VizType | null;
+  /** What ResultsPanel renders (map/chart/table), from inferUiViz. */
+  uiVizDescription?: string | null;
   athenaStatus: string;
   resultQuality: number;
   vizFit: number;
@@ -210,7 +212,7 @@ function buildResultUserMessage(
   const sampleStr = replay.sampleRows?.length
     ? JSON.stringify(replay.sampleRows, null, 2)
     : "(none)";
-  const vizStr = replay.vizType ?? "unknown";
+  const vizStr = replay.uiVizDescription ?? replay.vizType ?? "unknown";
   const emptyStr = replay.emptyResult ? "yes" : "no";
   const errorLine =
     replay.athenaStatus === "FAILED" ||
@@ -227,7 +229,8 @@ ATHENA EXECUTION RESULT:
 - Columns: ${columnsStr}
 - Sample rows (first 5):
 ${sampleStr}
-- Inferred visualization: ${vizStr}
+- App visualization (same logic as the web Results panel): ${vizStr}
+- Primary viz type: ${replay.vizType ?? "unknown"}
 - Empty result: ${emptyStr}${errorLine}
 
 Now evaluate two additional dimensions:
@@ -238,10 +241,11 @@ Now evaluate two additional dimensions:
    - Correct shape and meaningful values = 8-10
    - Partially correct (wrong columns, unexpected nulls) = 4-7
 
-6. Visualization fit (0-10): Is ${vizStr} the right choice for this question?
-   - Spatial question + map result = 10
-   - Time-series question + chart = 10
-   - Wrong viz type chosen = 3-5
+6. Visualization fit (0-10): Does the app's presentation above match this question?
+   - Spatial / H3 / heatmap / "where" / map questions + map (including H3 hex choropleth) = 9-10
+   - The app always shows a results table too; do not penalize an accompanying table when a map or chart is present
+   - Time-series question + chart = 9-10
+   - Only table when a map or chart was clearly needed = 3-5
    - Can't tell from data = 5
 
 Respond with JSON only:
@@ -320,6 +324,7 @@ export async function judgeFullResult(
       rowCount: replay.rowCount,
       emptyResult: replay.emptyResult,
       vizType: replay.vizType,
+      uiVizDescription: replay.uiVizDescription,
       athenaStatus: replay.athenaStatus,
       resultQuality: parsed.resultQuality,
       vizFit: parsed.vizFit,
