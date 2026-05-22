@@ -15,6 +15,7 @@ export type AgentStreamPayload =
   | {
       type: "done";
       model: string;
+      backend: string;
       usage: { inputTokens: number; outputTokens: number };
     }
   | { type: "error"; message: string; detail?: string };

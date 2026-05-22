@@ -106,6 +106,7 @@ export async function POST(req: NextRequest) {
         await push({
           type: "done",
           model: generation.model,
+          backend,
           usage: {
             inputTokens: generation.inputTokens,
             outputTokens: generation.outputTokens,

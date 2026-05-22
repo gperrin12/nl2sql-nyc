@@ -65,6 +65,7 @@ export async function POST(req: NextRequest) {
     executionId,
     sql: guarded.sql,
     model: generation.model,
+    backend: "repair",
     usage: {
       inputTokens: generation.inputTokens,
       outputTokens: generation.outputTokens,

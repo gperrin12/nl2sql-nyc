@@ -96,6 +96,7 @@ export async function POST(req: NextRequest) {
     executionId,
     sql: guarded.sql,
     model: generation.model,
+    backend,
     summary: generation.summary,
     usage: {
       inputTokens: generation.inputTokens,
