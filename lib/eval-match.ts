@@ -75,15 +75,36 @@ export function findEvalForMoment(
   return byQ[0];
 }
 
+/** Evals tied to dashboard rows (exact question+SQL match only). */
+export function evalsForMoments(
+  moments: { id: string; question: string; sql: string }[],
+  evalByMomentId: Map<string, FullJudgeResult>
+): FullJudgeResult[] {
+  const seen = new Set<string>();
+  const out: FullJudgeResult[] = [];
+  for (const m of moments) {
+    const e = evalByMomentId.get(m.id);
+    if (!e || !evalMatchesMoment(e, m)) continue;
+    const key = evalMatchKey(m.question, m.sql);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(e);
+  }
+  return out;
+}
+
 /** Build moment id → eval for dashboard rows. */
 export function buildEvalByMomentId(
   moments: { id: string; question: string; sql: string }[],
-  evals: FullJudgeResult[]
+  evals: FullJudgeResult[],
+  options?: { exactMatchOnly?: boolean }
 ): Map<string, FullJudgeResult> {
   const index = buildEvalIndex(evals);
   const map = new Map<string, FullJudgeResult>();
   for (const m of moments) {
-    const e = findEvalForMoment(m, index);
+    const e = options?.exactMatchOnly
+      ? index.byExactKey.get(evalMatchKey(m.question, m.sql))
+      : findEvalForMoment(m, index);
     if (e) map.set(m.id, e);
   }
   return map;

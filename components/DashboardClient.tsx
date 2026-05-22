@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { AppNav } from "@/components/AppNav";
 import { EvalSummary } from "@/components/EvalSummary";
 import { MomentsTable } from "@/components/MomentsTable";
-import { buildEvalByMomentId } from "@/lib/eval-match";
+import { buildEvalByMomentId, evalsForMoments } from "@/lib/eval-match";
 import type { FullJudgeResult } from "@/lib/judge";
 import type { DashboardMoment } from "@/lib/p8k8-moments";
 import type { QueryCategory } from "@/lib/query-category";
@@ -65,24 +65,6 @@ const DATASET_OPTIONS: QueryDataset[] = [
 ];
 
 const DIFFICULTY_OPTIONS: QueryDifficulty[] = ["easy", "medium", "hard"];
-
-/** One eval per question for summary stats (newest judgedAt wins). */
-function dedupeEvalsByQuestion(evals: FullJudgeResult[]): FullJudgeResult[] {
-  const byQuestion = new Map<string, FullJudgeResult>();
-  const sorted = [...evals].sort(
-    (a, b) => new Date(b.judgedAt).getTime() - new Date(a.judgedAt).getTime()
-  );
-  for (const e of sorted) {
-    const q = e.question.trim();
-    const prev = byQuestion.get(q);
-    if (!prev) {
-      byQuestion.set(q, e);
-      continue;
-    }
-    if (e.resultEval && !prev.resultEval) byQuestion.set(q, e);
-  }
-  return Array.from(byQuestion.values());
-}
 
 function FilterPills<T extends string>({
   label,
@@ -188,7 +170,12 @@ export function DashboardClient() {
           ? data.filteredAppVersion
           : data.currentAppVersion ?? null
       );
-      setEvalByMomentId(buildEvalByMomentId(data.moments, loadedEvals));
+      const exactEvalMatch = data.source === "postgres";
+      setEvalByMomentId(
+        buildEvalByMomentId(data.moments, loadedEvals, {
+          exactMatchOnly: exactEvalMatch,
+        })
+      );
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load dashboard");
     } finally {
@@ -200,7 +187,13 @@ export function DashboardClient() {
     void load();
   }, [load]);
 
-  const allEvals = useMemo(() => dedupeEvalsByQuestion(evals), [evals]);
+  const evalByMomentIdStable = evalByMomentId;
+
+  /** Summary charts: only judges for queries on this page (current deploy), exact SQL match. */
+  const summaryEvals = useMemo(
+    () => evalsForMoments(moments, evalByMomentIdStable),
+    [moments, evalByMomentIdStable]
+  );
 
   const filtersActive =
     categoryFilter !== "all" ||
@@ -358,7 +351,10 @@ export function DashboardClient() {
         />
       </div>
 
-      <EvalSummary evals={allEvals} />
+      <EvalSummary
+        evals={summaryEvals}
+        momentCount={moments.length}
+      />
 
       <div className="rounded-lg border border-[var(--border)] bg-[var(--panel)] px-4 py-3 space-y-2.5">
         <p className="text-xs uppercase tracking-wide text-[var(--muted)]">
