@@ -2,14 +2,19 @@ import { Pool } from "pg";
 
 const globalForPg = globalThis as unknown as { pgPool?: Pool };
 
-function poolSslOption(connectionString: string): boolean | { rejectUnauthorized: boolean } {
+function poolSslOption(
+  connectionString: string
+): boolean | { rejectUnauthorized: boolean } | undefined {
+  if (/sslmode=disable/i.test(connectionString)) {
+    return false;
+  }
   if (process.env.DATABASE_SSL === "true") {
     return { rejectUnauthorized: false };
   }
   if (/sslmode=require/i.test(connectionString)) {
     return { rejectUnauthorized: false };
   }
-  return false;
+  return undefined;
 }
 
 /** Serverless-safe singleton; skipped when DATABASE_URL is unset. */
@@ -30,7 +35,7 @@ export function getPgPool(): Pool | null {
       max: 3,
       idleTimeoutMillis: 10_000,
       connectionTimeoutMillis: 10_000,
-      ...(ssl ? { ssl } : {}),
+      ...(ssl !== undefined ? { ssl } : {}),
     });
   }
   return globalForPg.pgPool;
