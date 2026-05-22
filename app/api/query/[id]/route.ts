@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getStatus, getResults } from "@/lib/athena";
 import { isAuthenticated } from "@/lib/auth";
+import { recordQueryRunFinalize } from "@/lib/record-query-run";
+
+const TERMINAL = new Set(["SUCCEEDED", "FAILED", "CANCELLED"]);
 
 export async function GET(
   _req: NextRequest,
@@ -25,8 +28,12 @@ export async function GET(
   if (status.state === "SUCCEEDED") {
     try {
       const results = await getResults(id);
-      // Spread results first so its scannedBytes/executionTimeMs are
-      // overridden by the more authoritative status numbers if present.
+      void recordQueryRunFinalize(id, {
+        athenaState: status.state,
+        scannedBytes: status.scannedBytes,
+        runtimeMs: status.runtimeMs,
+        rowCount: results.rows?.length ?? null,
+      });
       return NextResponse.json({
         ...results,
         state: status.state,
@@ -39,6 +46,15 @@ export async function GET(
         { status: 502 }
       );
     }
+  }
+
+  if (TERMINAL.has(status.state)) {
+    void recordQueryRunFinalize(id, {
+      athenaState: status.state,
+      errorReason: status.reason,
+      scannedBytes: status.scannedBytes,
+      runtimeMs: status.runtimeMs,
+    });
   }
 
   return NextResponse.json({

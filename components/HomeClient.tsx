@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { QueryBox } from "@/components/QueryBox";
 import { SqlDisplay } from "@/components/SqlDisplay";
@@ -15,6 +15,7 @@ type StartResponse = {
   executionId: string;
   sql: string;
   model: string;
+  backend?: string;
   summary?: string;
 };
 
@@ -59,6 +60,8 @@ export function HomeClient() {
   const [agentAnswerSummary, setAgentAnswerSummary] = useState<string | null>(
     null
   );
+  const [queryBackend, setQueryBackend] = useState<string | null>(null);
+  const loggedExecutionIdRef = useRef<string | null>(null);
 
   const startMutation = useMutation<StartResponse, Error, string>({
     mutationFn: async (question) => {
@@ -78,6 +81,7 @@ export function HomeClient() {
       setGeneratedSql(data.sql);
       setGeneratedModel(data.model);
       setExecutionId(data.executionId);
+      setQueryBackend(data.backend ?? null);
       setAgentAnswerSummary(data.summary?.trim() ?? null);
     },
   });
@@ -115,6 +119,7 @@ export function HomeClient() {
       setGeneratedSql(data.sql);
       setGeneratedModel(data.model);
       setExecutionId(data.executionId);
+      setQueryBackend(data.backend ?? "repair");
       setAgentAnswerSummary(null);
     },
   });
@@ -133,6 +138,7 @@ export function HomeClient() {
         break;
       case "done":
         setGeneratedModel(p.model);
+        setQueryBackend(p.backend);
         break;
       case "error":
         setStreamError(
@@ -168,12 +174,74 @@ export function HomeClient() {
     },
   });
 
+  useEffect(() => {
+    if (!executionId || !lastQuestion?.trim() || !generatedSql?.trim()) return;
+    const status = statusQuery.data;
+    if (!status) return;
+    if (!["SUCCEEDED", "FAILED", "CANCELLED"].includes(status.state)) return;
+    if (loggedExecutionIdRef.current === executionId) return;
+
+    void (async () => {
+      try {
+        const res = await fetch("/api/query/log", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          credentials: "same-origin",
+          body: JSON.stringify({
+            question: lastQuestion,
+            sql: generatedSql,
+            model: generatedModel ?? undefined,
+            backend: queryBackend ?? undefined,
+            executionId,
+            athenaState: status.state,
+            errorReason: status.reason,
+            scannedBytes: status.scannedBytes,
+            runtimeMs: status.runtimeMs,
+            rowCount: status.rows?.length,
+            trace: agentSteps.length > 0 ? agentSteps : undefined,
+          }),
+        });
+        const data = (await res.json().catch(() => ({}))) as {
+          ok?: boolean;
+          skipped?: boolean;
+          reason?: string;
+          id?: string;
+          error?: string;
+          detail?: string;
+        };
+        if (!res.ok) {
+          console.warn("[query/log]", data.error ?? res.status, data.detail);
+          return;
+        }
+        if (data.skipped) {
+          console.warn(
+            "[query/log] skipped — set DATABASE_URL on the server (Vercel env), then redeploy"
+          );
+          return;
+        }
+        loggedExecutionIdRef.current = executionId;
+      } catch (e) {
+        console.warn("[query/log] failed:", e);
+      }
+    })();
+  }, [
+    executionId,
+    lastQuestion,
+    generatedSql,
+    generatedModel,
+    queryBackend,
+    statusQuery.data,
+    agentSteps,
+  ]);
+
   const handleSubmit = (question: string) => {
     repairMutation.reset();
     startMutation.reset();
     setLastQuestion(question);
     setRepairAttemptsUsed(0);
     setRepairPromptDismissed(false);
+    loggedExecutionIdRef.current = null;
+    setQueryBackend(null);
     setExecutionId(null);
     setGeneratedSql(null);
     setGeneratedModel(null);
