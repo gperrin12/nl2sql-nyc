@@ -54,8 +54,12 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    if (parsed.executionId) {
-      await recordQueryRunFinalize(parsed.executionId, {
+    const trace = parsed.trace as
+      | import("@/lib/sql-agent/types").AgentStreamPayload[]
+      | undefined;
+
+    if (parsed.executionId?.trim()) {
+      await recordQueryRunFinalize(parsed.executionId.trim(), {
         athenaState: parsed.athenaState,
         question: parsed.question,
         sql: parsed.sql,
@@ -65,7 +69,12 @@ export async function POST(req: NextRequest) {
         scannedBytes: parsed.scannedBytes,
         runtimeMs: parsed.runtimeMs,
         rowCount: parsed.rowCount,
-        trace: parsed.trace as import("@/lib/sql-agent/types").AgentStreamPayload[] | undefined,
+        trace,
+      });
+      return NextResponse.json({
+        ok: true,
+        appVersion: getAppVersion(),
+        note: "updated_by_execution_id",
       });
     }
 
@@ -74,21 +83,28 @@ export async function POST(req: NextRequest) {
       sql: parsed.sql,
       model: parsed.model,
       backend: parsed.backend,
-      executionId: parsed.executionId,
       athenaState: parsed.athenaState,
       errorReason: parsed.errorReason,
       scannedBytes: parsed.scannedBytes,
       runtimeMs: parsed.runtimeMs,
       rowCount: parsed.rowCount,
-      trace: parsed.trace as import("@/lib/sql-agent/types").AgentStreamPayload[] | undefined,
+      trace,
     });
 
     return NextResponse.json({ ok: true, id, appVersion: getAppVersion() });
   } catch (e) {
     const detail = e instanceof Error ? e.message : String(e);
-    console.error("[query/log] insert failed:", detail);
+    const code = e && typeof e === "object" && "code" in e ? String((e as { code: string }).code) : undefined;
+    console.error("[query/log] failed:", code, detail);
     return NextResponse.json(
-      { error: "Failed to log query run", detail },
+      {
+        error: "Failed to log query run",
+        detail,
+        hint:
+          code === "42703"
+            ? "Missing column — run scripts/sql/add-app-version.sql on the database"
+            : undefined,
+      },
       { status: 502 }
     );
   }

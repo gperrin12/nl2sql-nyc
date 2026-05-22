@@ -2,6 +2,17 @@ import type { AgentStreamPayload } from "@/lib/sql-agent/types";
 import { getAppVersion } from "@/lib/app-version";
 import { getPgPool, isDatabaseConfigured } from "@/lib/db";
 
+function pgErrorCode(e: unknown): string | undefined {
+  if (e && typeof e === "object" && "code" in e) {
+    return String((e as { code: string }).code);
+  }
+  return undefined;
+}
+
+function isUniqueViolation(e: unknown): boolean {
+  return pgErrorCode(e) === "23505";
+}
+
 export type QueryRunInsert = {
   question: string;
   sql: string;
@@ -77,37 +88,10 @@ export async function insertQueryRunStart(
 ): Promise<string | null> {
   if (!isDatabaseConfigured()) return null;
 
-  const pool = getPgPool();
-  if (!pool) return null;
-
-  const traceJson =
-    input.trace && input.trace.length > 0 ? JSON.stringify(input.trace) : null;
-  const appVersion = (input.appVersion ?? getAppVersion()).slice(0, 128);
-
   try {
-    const result = await pool.query<{ id: string }>(
-      `INSERT INTO nl2sql.query_runs (
-        question, sql, model, backend, execution_id, athena_state,
-        error_reason, scanned_bytes, runtime_ms, row_count, trace_json, app_version
-      ) VALUES ($1, $2, $3, $4, $5, 'RUNNING', NULL, NULL, NULL, NULL, $6::jsonb, $7)
-      ON CONFLICT (execution_id) DO NOTHING
-      RETURNING id`,
-      [
-        input.question.trim(),
-        input.sql.trim(),
-        input.model ?? null,
-        input.backend ?? null,
-        input.executionId,
-        traceJson,
-        appVersion,
-      ]
-    );
-    return result.rows[0]?.id ?? null;
+    return await insertQueryRun({ ...input, athenaState: "RUNNING" });
   } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
-    if (msg.includes("query_runs_execution_id_key") || msg.includes("unique")) {
-      return insertQueryRun({ ...input, athenaState: "RUNNING" });
-    }
+    if (isUniqueViolation(e)) return null;
     throw e;
   }
 }
@@ -155,57 +139,42 @@ export async function finalizeQueryRun(
   return (result.rowCount ?? 0) > 0;
 }
 
-/** Full row when no prior RUNNING insert (e.g. client-only log). */
-export async function upsertQueryRun(input: QueryRunInsert): Promise<string | null> {
-  if (!input.executionId?.trim()) {
-    return insertQueryRun(input);
-  }
-
+export async function getQueryRunIdByExecutionId(
+  executionId: string
+): Promise<string | null> {
   if (!isDatabaseConfigured()) return null;
-
   const pool = getPgPool();
   if (!pool) return null;
 
-  const traceJson =
-    input.trace && input.trace.length > 0 ? JSON.stringify(input.trace) : null;
-  const appVersion = (input.appVersion ?? getAppVersion()).slice(0, 128);
+  const result = await pool.query<{ id: string }>(
+    `SELECT id::text FROM nl2sql.query_runs WHERE execution_id = $1 LIMIT 1`,
+    [executionId]
+  );
+  return result.rows[0]?.id ?? null;
+}
+
+/** Update existing row by execution_id, or insert if missing. No ON CONFLICT required. */
+export async function upsertQueryRun(input: QueryRunInsert): Promise<string | null> {
+  const execId = input.executionId?.trim();
+  if (execId) {
+    const updated = await finalizeQueryRun(execId, {
+      athenaState: input.athenaState,
+      errorReason: input.errorReason,
+      scannedBytes: input.scannedBytes,
+      runtimeMs: input.runtimeMs,
+      rowCount: input.rowCount,
+      trace: input.trace,
+    });
+    if (updated) {
+      return (await getQueryRunIdByExecutionId(execId)) ?? null;
+    }
+  }
 
   try {
-    const result = await pool.query<{ id: string }>(
-      `INSERT INTO nl2sql.query_runs (
-        question, sql, model, backend, execution_id, athena_state,
-        error_reason, scanned_bytes, runtime_ms, row_count, trace_json, app_version
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb, $12)
-      ON CONFLICT (execution_id) DO UPDATE SET
-        athena_state = EXCLUDED.athena_state,
-        error_reason = EXCLUDED.error_reason,
-        scanned_bytes = EXCLUDED.scanned_bytes,
-        runtime_ms = EXCLUDED.runtime_ms,
-        row_count = COALESCE(EXCLUDED.row_count, nl2sql.query_runs.row_count),
-        trace_json = COALESCE(EXCLUDED.trace_json, nl2sql.query_runs.trace_json),
-        model = COALESCE(EXCLUDED.model, nl2sql.query_runs.model),
-        backend = COALESCE(EXCLUDED.backend, nl2sql.query_runs.backend)
-      RETURNING id`,
-      [
-        input.question.trim(),
-        input.sql.trim(),
-        input.model ?? null,
-        input.backend ?? null,
-        input.executionId.trim(),
-        input.athenaState,
-        input.errorReason ?? null,
-        input.scannedBytes ?? null,
-        input.runtimeMs ?? null,
-        input.rowCount ?? null,
-        traceJson,
-        appVersion,
-      ]
-    );
-    return result.rows[0]?.id ?? null;
+    return await insertQueryRun(input);
   } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
-    if (msg.includes("query_runs_execution_id_key") || msg.includes("unique")) {
-      await finalizeQueryRun(input.executionId!, {
+    if (execId && isUniqueViolation(e)) {
+      await finalizeQueryRun(execId, {
         athenaState: input.athenaState,
         errorReason: input.errorReason,
         scannedBytes: input.scannedBytes,
@@ -213,7 +182,7 @@ export async function upsertQueryRun(input: QueryRunInsert): Promise<string | nu
         rowCount: input.rowCount,
         trace: input.trace,
       });
-      return null;
+      return getQueryRunIdByExecutionId(execId);
     }
     throw e;
   }
