@@ -1,51 +1,50 @@
 /**
- * Pull p8k8 query pairs, classify + judge with Claude, write data/evals.json.
+ * Judge query pairs from nl2sql.query_runs (Postgres) or p8k8 session timeline; write data/evals.json.
  *
- * Usage:
- * ANTHROPIC_API_KEY=... P8K8_URL=... P8K8_AUTH_TOKEN=... npx tsx scripts/eval-moments.ts
+ * Usage (reads .env / .env.local for DATABASE_URL):
+ *   npm run eval
+ *   npm run eval:full
  *
- * Full eval replays through the app and judges SQL + Athena rows + UI viz
- * (inferUiViz — same map/chart/table logic as ResultsPanel).
+ * Source (default auto = Postgres when DATABASE_URL is set, else p8k8):
+ *   EVAL_SOURCE=postgres|p8k8|auto
+ *   npm run eval -- --source=p8k8
  *
- * Full eval (replay through running app + Athena result judge):
- * APP_URL=http://localhost:3000 APP_PASSWORD=... npm run eval:full
- *
- * Re-run every known question through the app and replace evals (dashboard refresh):
- * npm run eval:refresh
- * (requires npm run dev + EVALS_S3_URI in .env)
+ * Full eval replays through the app (APP_URL) and judges SQL + Athena + UI viz.
+ * SQL-only mode judges question+sql already stored in the database.
  *
  * Optional:
- * EVAL_LIMIT=50       (default 100, p8k8 session fetch cap)
- * EVAL_DELAY_MS=600   (default 600, SQL-only judge delay)
- * REPLAY_DELAY_MS=2000 (default 2000, delay between full replays)
- *
- * Production (Vercel): set EVALS_S3_URI=s3://bucket/path/evals.json (same on
- * Vercel env + local when running eval). Uses AWS_REGION / AWS_* credentials.
+ *   EVAL_LIMIT=200      max rows to load from DB / p8k8
+ *   EVAL_APP_VERSION=   filter by app_version (default: current deploy; use "all" for every deploy)
+ *   EVAL_DELAY_MS=600
+ *   REPLAY_DELAY_MS=2000
  */
 
+import { loadEnvFile } from "../lib/load-env-file";
+loadEnvFile();
+
 import { evalMatchKey } from "../lib/eval-match";
+import {
+  resolveDashboardDataSource,
+  p8k8Configured,
+  type DashboardDataSource,
+} from "../lib/dashboard-source";
+import { fetchP8k8MomentBases } from "../lib/load-p8k8-moments";
 import {
   judgeFullResult,
   judgeQueryPair,
   type FullJudgeResult,
 } from "../lib/judge";
 import { replayQuestion } from "../lib/replay";
-import {
-  evalsStorageDescription,
-  loadEvals,
-  saveEvals,
-} from "../lib/evals-store";
-import {
-  pairSessionMessages,
-  unwrapTimelinePayload,
-} from "../lib/p8k8-moments";
-import { resolveP8k8ChatId } from "../lib/p8k8";
+import { evalsStorageDescription, loadEvals, saveEvals } from "../lib/evals-store";
+import { loadQueryRunPairs, type QueryRunPair } from "../lib/query-runs-dashboard";
+import { isDatabaseConfigured } from "../lib/db";
+import { resolveQueryRunsAppVersion } from "../lib/app-version";
 
 const FULL_EVAL = process.argv.includes("--full");
 const FORCE_REPLAY = process.argv.includes("--force");
 const REPLACE_EVALS = process.argv.includes("--replace");
-const P8K8_URL = process.env.P8K8_URL?.replace(/\/$/, "");
-const P8K8_AUTH_TOKEN = process.env.P8K8_AUTH_TOKEN;
+const SOURCE_ARG = process.argv.find((a) => a.startsWith("--source="));
+const CLI_SOURCE = SOURCE_ARG?.split("=")[1]?.trim().toLowerCase();
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
 const APP_URL = process.env.APP_URL?.replace(/\/$/, "");
 const EVAL_LIMIT = Number.parseInt(process.env.EVAL_LIMIT ?? "100", 10) || 100;
@@ -68,6 +67,47 @@ function sleep(ms: number): Promise<void> {
 
 function hasSqlStatement(sql: string): boolean {
   return /\b(SELECT|WITH)\b/i.test(sql);
+}
+
+type EvalPair = { question: string; sql: string };
+
+function resolveEvalSource(): DashboardDataSource {
+  if (CLI_SOURCE === "postgres" || CLI_SOURCE === "db") return "postgres";
+  if (CLI_SOURCE === "p8k8") return "p8k8";
+  if (process.env.EVAL_SOURCE?.trim().toLowerCase() === "postgres") return "postgres";
+  if (process.env.EVAL_SOURCE?.trim().toLowerCase() === "p8k8") return "p8k8";
+  return resolveDashboardDataSource();
+}
+
+async function loadEvalPairs(source: DashboardDataSource): Promise<EvalPair[]> {
+  const limit = EVAL_LIMIT;
+
+  if (source === "postgres") {
+    if (!isDatabaseConfigured()) {
+      console.error("Error: DATABASE_URL is required for postgres eval source");
+      process.exit(1);
+    }
+    const appVersion = resolveQueryRunsAppVersion(process.env.EVAL_APP_VERSION);
+    const rows: QueryRunPair[] = await loadQueryRunPairs({ limit, appVersion });
+    console.log(
+      `Loaded ${rows.length} query run(s) from nl2sql.query_runs${
+        appVersion ? ` (app_version=${appVersion})` : " (all deploys)"
+      }`
+    );
+    return rows.map((r) => ({ question: r.question, sql: r.sql }));
+  }
+
+  if (!p8k8Configured()) {
+    console.error("Error: P8K8_URL and P8K8_AUTH_TOKEN required for p8k8 eval source");
+    process.exit(1);
+  }
+
+  const bases = await fetchP8k8MomentBases(limit);
+  const pairs = bases
+    .filter((p) => hasSqlStatement(p.sql))
+    .map((p) => ({ question: p.question, sql: p.sql }));
+  console.log(`Loaded ${pairs.length} pair(s) from p8k8 session timeline`);
+  return pairs;
 }
 
 function mergeByPairKey(
@@ -189,9 +229,10 @@ function printFullSummary(newResults: FullJudgeResult[]): void {
 }
 
 async function main(): Promise<void> {
-  requireEnv("P8K8_URL", P8K8_URL);
-  requireEnv("P8K8_AUTH_TOKEN", P8K8_AUTH_TOKEN);
   requireEnv("ANTHROPIC_API_KEY", ANTHROPIC_API_KEY);
+
+  const source = resolveEvalSource();
+  console.log(`Eval source: ${source}`);
 
   if (FULL_EVAL) {
     if (!APP_URL && !process.env.APP_URL) {
@@ -217,24 +258,14 @@ async function main(): Promise<void> {
     }
   }
 
-  const sessionId = resolveP8k8ChatId();
-  const url = `${P8K8_URL}/moments/session/${encodeURIComponent(sessionId)}?limit=${EVAL_LIMIT}`;
-
-  const res = await fetch(url, {
-    headers: { Authorization: `Bearer ${P8K8_AUTH_TOKEN}` },
-  });
-
-  if (!res.ok) {
-    const body = await res.text().catch(() => "");
-    console.error(`p8k8 fetch failed: HTTP ${res.status}\n${body}`);
-    process.exit(1);
-  }
-
-  const data = (await res.json()) as unknown;
-  const events = unwrapTimelinePayload(data);
-  const pairs = pairSessionMessages(events).filter((p) =>
+  const pairs = (await loadEvalPairs(source)).filter((p) =>
     hasSqlStatement(p.sql)
   );
+
+  if (pairs.length === 0) {
+    console.error("No question/SQL pairs to judge. Run some queries in the app first.");
+    process.exit(1);
+  }
 
   const existing = await loadEvals();
   const newResults: FullJudgeResult[] = [];
@@ -253,7 +284,7 @@ async function main(): Promise<void> {
         })();
 
     console.log(
-      `Full eval: ${questions.length} unique question(s)${REPLACE_EVALS ? " (from evals + p8k8)" : " (from p8k8)"}`
+      `Full eval: ${questions.length} unique question(s)${REPLACE_EVALS ? ` (from evals + ${source})` : ` (from ${source})`}`
     );
 
     for (let i = 0; i < questions.length; i++) {

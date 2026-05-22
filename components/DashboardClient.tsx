@@ -27,6 +27,10 @@ const MOMENTS_FETCH_LIMIT = 200;
 type MomentsResponse = {
   moments: DashboardMoment[];
   total: number;
+  source?: "postgres" | "p8k8";
+  currentAppVersion?: string;
+  /** null when API returns all deploys (appVersion=all). */
+  filteredAppVersion?: string | null;
 };
 
 type CategoryFilter = "all" | QueryCategory;
@@ -122,6 +126,15 @@ function FilterPills<T extends string>({
 export function DashboardClient() {
   const [moments, setMoments] = useState<DashboardMoment[]>([]);
   const [total, setTotal] = useState(0);
+  const [dataSource, setDataSource] = useState<"postgres" | "p8k8" | null>(
+    null
+  );
+  const [currentAppVersion, setCurrentAppVersion] = useState<string | null>(
+    null
+  );
+  const [filteredAppVersion, setFilteredAppVersion] = useState<string | null>(
+    null
+  );
   const [pageOffset, setPageOffset] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -168,6 +181,13 @@ export function DashboardClient() {
       setMoments(data.moments);
       setEvals(loadedEvals);
       setTotal(data.total);
+      setDataSource(data.source ?? null);
+      setCurrentAppVersion(data.currentAppVersion ?? null);
+      setFilteredAppVersion(
+        data.filteredAppVersion !== undefined
+          ? data.filteredAppVersion
+          : data.currentAppVersion ?? null
+      );
       setEvalByMomentId(buildEvalByMomentId(data.moments, loadedEvals));
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load dashboard");
@@ -297,6 +317,31 @@ export function DashboardClient() {
         </h1>
         <p className="text-sm text-[var(--muted)]">
           Aggregated eval summary · drill down into individual queries below
+          {dataSource && (
+            <>
+              {" "}
+              · Source:{" "}
+              <span className="font-mono text-[var(--foreground)]">
+                {dataSource === "postgres"
+                  ? "nl2sql.query_runs"
+                  : "p8k8"}
+              </span>
+              {dataSource === "postgres" && (
+                <>
+                  {" "}
+                  ·{" "}
+                  {filteredAppVersion === null ? (
+                    "all deploys"
+                  ) : (
+                    <>
+                      this deploy{" "}
+                      <span className="font-mono">{filteredAppVersion}</span>
+                    </>
+                  )}
+                </>
+              )}
+            </>
+          )}
         </p>
       </header>
 

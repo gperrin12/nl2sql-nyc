@@ -16,6 +16,16 @@ export type DashboardMoment = {
   latencyMs: number | null;
   questionMetrics: QuestionMetrics;
   sqlComplexity: SqlComplexity;
+  /** Present when loaded from nl2sql.query_runs */
+  source?: "postgres" | "p8k8";
+  athenaState?: string | null;
+  executionId?: string | null;
+  appVersion?: string | null;
+  backend?: string | null;
+  rowCount?: number | null;
+  scannedBytes?: number | null;
+  /** Raw runtime_ms from DB when source is postgres */
+  runtimeMsFromDb?: number | null;
 };
 
 type P8k8TimelineEvent = {
@@ -157,6 +167,7 @@ export function pairSessionMessages(
         model: meta.model,
         tokenCount: meta.tokenCount,
         agentName: meta.agentName,
+        source: "p8k8",
       });
       pendingUser = null;
     }

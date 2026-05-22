@@ -71,3 +71,18 @@ export function getAppVersion(): string {
 
   return cached;
 }
+
+/**
+ * app_version filter for dashboard / eval against nl2sql.query_runs.
+ * - omitted / empty → current deploy ({@link getAppVersion})
+ * - "all" → no filter (every deploy)
+ * - otherwise → exact match on stored app_version
+ */
+export function resolveQueryRunsAppVersion(
+  explicit?: string | null
+): string | undefined {
+  const raw = explicit?.trim();
+  if (!raw) return getAppVersion();
+  if (raw.toLowerCase() === "all") return undefined;
+  return raw.slice(0, 128);
+}
