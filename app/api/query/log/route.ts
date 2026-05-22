@@ -2,8 +2,27 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { isAuthenticated } from "@/lib/auth";
 import { getAppVersion } from "@/lib/app-version";
-import { insertQueryRun } from "@/lib/query-runs-store";
-import { isDatabaseConfigured } from "@/lib/db";
+import { recordQueryRunFinalize } from "@/lib/record-query-run";
+import { upsertQueryRun } from "@/lib/query-runs-store";
+import { isDatabaseConfigured, probeDatabase } from "@/lib/db";
+
+/** Verify Vercel → Postgres before debugging missing rows. */
+export async function GET() {
+  if (!(await isAuthenticated())) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const configured = isDatabaseConfigured();
+  const probe = configured ? await probeDatabase() : { ok: false as const, detail: "DATABASE_URL is not set" };
+
+  return NextResponse.json({
+    configured,
+    connected: probe.ok,
+    detail: probe.ok ? undefined : probe.detail,
+    appVersion: getAppVersion(),
+  });
+}
+
 const BodySchema = z.object({
   question: z.string().min(1).max(2000),
   sql: z.string().min(1).max(32000),
@@ -35,7 +54,22 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const id = await insertQueryRun({
+    if (parsed.executionId) {
+      await recordQueryRunFinalize(parsed.executionId, {
+        athenaState: parsed.athenaState,
+        question: parsed.question,
+        sql: parsed.sql,
+        model: parsed.model,
+        backend: parsed.backend,
+        errorReason: parsed.errorReason,
+        scannedBytes: parsed.scannedBytes,
+        runtimeMs: parsed.runtimeMs,
+        rowCount: parsed.rowCount,
+        trace: parsed.trace as import("@/lib/sql-agent/types").AgentStreamPayload[] | undefined,
+      });
+    }
+
+    const id = await upsertQueryRun({
       question: parsed.question,
       sql: parsed.sql,
       model: parsed.model,

@@ -181,28 +181,49 @@ export function HomeClient() {
     if (!["SUCCEEDED", "FAILED", "CANCELLED"].includes(status.state)) return;
     if (loggedExecutionIdRef.current === executionId) return;
 
-    loggedExecutionIdRef.current = executionId;
-
-    void fetch("/api/query/log", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      credentials: "same-origin",
-      body: JSON.stringify({
-        question: lastQuestion,
-        sql: generatedSql,
-        model: generatedModel ?? undefined,
-        backend: queryBackend ?? undefined,
-        executionId,
-        athenaState: status.state,
-        errorReason: status.reason,
-        scannedBytes: status.scannedBytes,
-        runtimeMs: status.runtimeMs,
-        rowCount: status.rows?.length,
-        trace: agentSteps.length > 0 ? agentSteps : undefined,
-      }),
-    }).catch((e) => {
-      console.warn("[query/log] failed:", e);
-    });
+    void (async () => {
+      try {
+        const res = await fetch("/api/query/log", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          credentials: "same-origin",
+          body: JSON.stringify({
+            question: lastQuestion,
+            sql: generatedSql,
+            model: generatedModel ?? undefined,
+            backend: queryBackend ?? undefined,
+            executionId,
+            athenaState: status.state,
+            errorReason: status.reason,
+            scannedBytes: status.scannedBytes,
+            runtimeMs: status.runtimeMs,
+            rowCount: status.rows?.length,
+            trace: agentSteps.length > 0 ? agentSteps : undefined,
+          }),
+        });
+        const data = (await res.json().catch(() => ({}))) as {
+          ok?: boolean;
+          skipped?: boolean;
+          reason?: string;
+          id?: string;
+          error?: string;
+          detail?: string;
+        };
+        if (!res.ok) {
+          console.warn("[query/log]", data.error ?? res.status, data.detail);
+          return;
+        }
+        if (data.skipped) {
+          console.warn(
+            "[query/log] skipped — set DATABASE_URL on the server (Vercel env), then redeploy"
+          );
+          return;
+        }
+        loggedExecutionIdRef.current = executionId;
+      } catch (e) {
+        console.warn("[query/log] failed:", e);
+      }
+    })();
   }, [
     executionId,
     lastQuestion,

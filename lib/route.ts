@@ -8,6 +8,7 @@ import { ensureGuardedSql } from "@/lib/ensure-guarded-sql";
 import { startQuery } from "@/lib/athena";
 import { isAuthenticated } from "@/lib/auth";
 import { recordGenerationMetrics } from "@/lib/record-generation-metrics";
+import { recordQueryRunStart } from "@/lib/record-query-run";
 
 const BodySchema = z.object({
   question: z.string().min(1).max(2000),
@@ -91,6 +92,14 @@ export async function POST(req: NextRequest) {
       { status: 502 }
     );
   }
+
+  void recordQueryRunStart({
+    question: parsed.question,
+    sql: guarded.sql,
+    model: generation.model,
+    backend,
+    executionId,
+  });
 
   return NextResponse.json({
     executionId,

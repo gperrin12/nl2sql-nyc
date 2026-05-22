@@ -9,6 +9,7 @@ import { ensureGuardedSql } from "@/lib/ensure-guarded-sql";
 import { startQuery } from "@/lib/athena";
 import { isAuthenticated } from "@/lib/auth";
 import { recordGenerationMetrics } from "@/lib/record-generation-metrics";
+import { recordQueryRunStart } from "@/lib/record-query-run";
 
 export const dynamic = "force-dynamic";
 
@@ -103,6 +104,13 @@ export async function POST(req: NextRequest) {
         }
 
         await push({ type: "athena_started", executionId });
+        void recordQueryRunStart({
+          question: parsed.question,
+          sql: guarded.sql,
+          model: generation.model,
+          backend,
+          executionId,
+        });
         await push({
           type: "done",
           model: generation.model,
