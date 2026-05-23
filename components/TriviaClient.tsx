@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { AppNav } from "@/components/AppNav";
 import { SqlDisplay } from "@/components/SqlDisplay";
 import { TriviaGameOver } from "@/components/trivia/TriviaGameOver";
@@ -10,6 +10,11 @@ import { useTriviaHiScores } from "@/lib/hooks/useTriviaHiScores";
 import { useTriviaQuestion } from "@/lib/hooks/useTriviaQuestion";
 import { useTriviaScore } from "@/lib/hooks/useTriviaScore";
 import { TRIVIA_SESSION_LENGTH } from "@/lib/trivia-hiscores";
+import {
+  constraintsFromSession,
+  createTriviaSessionState,
+  recordTriviaQuestionShown,
+} from "@/lib/trivia-session";
 
 const LABELS = ["A", "B", "C", "D"] as const;
 
@@ -21,6 +26,24 @@ export function TriviaClient() {
   const [sessionCorrect, setSessionCorrect] = useState(0);
   const [sessionAnswered, setSessionAnswered] = useState(0);
   const [newEntryId, setNewEntryId] = useState<string | null>(null);
+  const [sessionKey, setSessionKey] = useState(0);
+  const sessionRef = useRef(createTriviaSessionState());
+
+  const getSessionConstraints = useCallback(
+    () => constraintsFromSession(sessionRef.current),
+    []
+  );
+
+  const onQuestionLoaded = useCallback(
+    (meta: { question: string; categoryId?: string }) => {
+      sessionRef.current = recordTriviaQuestionShown(
+        sessionRef.current,
+        meta.question,
+        meta.categoryId
+      );
+    },
+    []
+  );
 
   const {
     bestStreak,
@@ -47,7 +70,11 @@ export function TriviaClient() {
     prefetchReady,
     advance,
     retry,
-  } = useTriviaQuestion();
+  } = useTriviaQuestion({
+    sessionKey,
+    getSessionConstraints,
+    onQuestionLoaded,
+  });
 
   const loadQuestion = useCallback(() => {
     setSelectedIndex(null);
@@ -85,12 +112,13 @@ export function TriviaClient() {
   };
 
   const handlePlayAgain = () => {
+    sessionRef.current = createTriviaSessionState();
+    setSessionKey((k) => k + 1);
     setPhase("playing");
     setSessionCorrect(0);
     setSessionAnswered(0);
     setNewEntryId(null);
     setSelectedIndex(null);
-    void advance();
   };
 
   const viewLeaderboard = () => {
@@ -126,9 +154,19 @@ export function TriviaClient() {
             </span>
           </p>
           {phase === "playing" && (
-            <p className="text-xs text-[var(--muted)] font-mono uppercase">
-              Q {questionNumber} / {TRIVIA_SESSION_LENGTH}
-            </p>
+            <>
+              <p className="text-xs text-[var(--muted)] font-mono uppercase">
+                Q {questionNumber} / {TRIVIA_SESSION_LENGTH}
+              </p>
+              {data?.categoryLabel && (
+                <p
+                  className="text-[10px] text-[var(--muted)] normal-case max-w-[14rem] ml-auto line-clamp-2"
+                  title={data.categoryLabel}
+                >
+                  {data.categoryLabel}
+                </p>
+              )}
+            </>
           )}
           {currentStreak > 0 && phase === "playing" && (
             <p className="text-xs text-[var(--muted)]">

@@ -1,20 +1,13 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
 import { renderTriviaSchemaForPrompt } from "@/lib/schemas";
+import {
+  pickCategoryForRequest,
+  type TriviaSessionConstraints,
+} from "@/lib/trivia-categories";
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 const DEFAULT_TRIVIA_MODEL = "claude-3-5-haiku-20241022";
-
-export const TRIVIA_CATEGORIES = [
-  "borough comparison for 311 complaints",
-  "top 311 complaint types in a specific borough",
-  "collision counts or injuries by borough",
-  "contributing factors or vehicle types in collisions",
-  "yellow taxi trip counts or zones (year 2025)",
-  "taxi fare or tip patterns (year 2025)",
-  "taxi pickup/dropoff zones via taxi_zones",
-  "census tract demographics vs complaints (ACS 2023 vintage)",
-] as const;
 
 const TriviaQuestionSchema = z.object({
   question: z.string().min(12).max(500),
@@ -60,10 +53,6 @@ DESIGN:
 SCHEMA:
 ${renderTriviaSchemaForPrompt()}`;
 
-function pickCategory(): (typeof TRIVIA_CATEGORIES)[number] {
-  return TRIVIA_CATEGORIES[Math.floor(Math.random() * TRIVIA_CATEGORIES.length)];
-}
-
 function parseTriviaJson(text: string): TriviaQuestionPayload {
   const trimmed = text.trim();
   const fenced = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/i);
@@ -72,18 +61,53 @@ function parseTriviaJson(text: string): TriviaQuestionPayload {
   return TriviaQuestionSchema.parse(parsed);
 }
 
+function buildUserPrompt(
+  categoryLabel: string,
+  categoryId: string,
+  constraints?: TriviaSessionConstraints
+): string {
+  let content = `Category focus (required): ${categoryLabel}\nCategory id: ${categoryId}\n\nGenerate one new trivia question JSON for this category only.`;
+
+  if (constraints?.usedFamilies?.length) {
+    content += `\n\nThis 10-question session already used these topic families: ${constraints.usedFamilies.join(", ")}. Stay within your assigned category but use a fresh angle (different metric, borough, year, or ranking).`;
+  }
+
+  if (constraints?.excludeQuestions?.length) {
+    content +=
+      "\n\nDo NOT repeat or closely paraphrase any of these earlier questions in this session:";
+    for (const q of constraints.excludeQuestions) {
+      content += `\n- ${q.slice(0, 220)}`;
+    }
+  }
+
+  return content;
+}
+
 export async function generateTriviaQuestion(options?: {
   category?: string;
+  categoryId?: string;
+  session?: TriviaSessionConstraints;
   feedback?: string;
   previousSql?: string;
-}): Promise<TriviaQuestionPayload & { model: string }> {
+}): Promise<
+  TriviaQuestionPayload & { model: string; categoryId: string; categoryLabel: string }
+> {
   const model =
     process.env.TRIVIA_CLAUDE_MODEL ??
     process.env.CLAUDE_MODEL ??
     DEFAULT_TRIVIA_MODEL;
-  const category = options?.category ?? pickCategory();
 
-  let userContent = `Category focus: ${category}\n\nGenerate one new trivia question JSON.`;
+  const sessionConstraints: TriviaSessionConstraints = {
+    categoryId: options?.categoryId ?? options?.session?.categoryId,
+    excludeQuestions: options?.session?.excludeQuestions,
+    usedFamilies: options?.session?.usedFamilies,
+  };
+
+  const picked = pickCategoryForRequest(sessionConstraints);
+  const categoryLabel = options?.category ?? picked.label;
+  const categoryId = options?.categoryId ?? picked.id;
+
+  let userContent = buildUserPrompt(categoryLabel, categoryId, sessionConstraints);
   if (options?.feedback) {
     userContent +=
       `\n\nPrevious SQL failed or was rejected:\n${options.previousSql ?? "(none)"}\n\nFeedback:\n${options.feedback}\n\nGenerate a different question with corrected SQL.`;
@@ -103,7 +127,7 @@ export async function generateTriviaQuestion(options?: {
 
   try {
     const payload = parseTriviaJson(textBlock.text);
-    return { ...payload, model };
+    return { ...payload, model, categoryId, categoryLabel };
   } catch (e) {
     const detail = e instanceof Error ? e.message : String(e);
     throw new Error(`Invalid trivia JSON from model: ${detail}`);

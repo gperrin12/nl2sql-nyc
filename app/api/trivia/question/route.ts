@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { startQuery } from "@/lib/athena";
 import { waitForAthenaResults } from "@/lib/athena-wait";
 import { isAuthenticated } from "@/lib/auth";
@@ -15,9 +16,23 @@ export const maxDuration = 120;
 
 const MAX_ATTEMPTS = 3;
 
-export async function POST(_req: NextRequest) {
+const BodySchema = z.object({
+  categoryId: z.string().optional(),
+  excludeQuestions: z.array(z.string()).optional(),
+  usedFamilies: z.array(z.string()).optional(),
+});
+
+export async function POST(req: NextRequest) {
   if (!(await isAuthenticated())) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  let sessionBody: z.infer<typeof BodySchema> = {};
+  try {
+    const raw = await req.json();
+    sessionBody = BodySchema.parse(raw);
+  } catch {
+    sessionBody = {};
   }
 
   let lastSql: string | undefined;
@@ -27,6 +42,11 @@ export async function POST(_req: NextRequest) {
     let generated;
     try {
       generated = await generateTriviaQuestion({
+        session: {
+          categoryId: sessionBody.categoryId,
+          excludeQuestions: sessionBody.excludeQuestions,
+          usedFamilies: sessionBody.usedFamilies,
+        },
         feedback: lastFeedback,
         previousSql: lastSql,
       });
@@ -102,6 +122,8 @@ export async function POST(_req: NextRequest) {
       sql: guard.sql,
       explanation,
       model: generated.model,
+      categoryId: generated.categoryId,
+      categoryLabel: generated.categoryLabel,
       proof,
       results: {
         columns: results.columns,

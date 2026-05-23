@@ -1,0 +1,215 @@
+/**
+ * Trivia category catalog + session diversity (one plan per 10-question run).
+ */
+
+export type TriviaCategoryDef = {
+  id: string;
+  /** Topic family — at most one question per family in a 10-question session when possible. */
+  family: string;
+  /** Passed to the model as the category focus line. */
+  label: string;
+};
+
+export const TRIVIA_CATEGORY_DEFS: TriviaCategoryDef[] = [
+  // 311
+  {
+    id: "311-borough-volume",
+    family: "311",
+    label: "311 complaint volume compared across NYC boroughs (year 2024 or 2025)",
+  },
+  {
+    id: "311-complaint-type",
+    family: "311",
+    label: "most common 311 complaint types in one borough (noise, heat, rodent, etc.)",
+  },
+  {
+    id: "311-noise",
+    family: "311",
+    label: "noise-related 311 complaints by borough or neighborhood theme",
+  },
+  {
+    id: "311-status",
+    family: "311",
+    label: "311 open vs closed complaint rates or resolution patterns by borough",
+  },
+  {
+    id: "311-resolution-speed",
+    family: "311_resolution",
+    label: "which borough closes 311 complaints fastest or slowest (closed_date vs created_date)",
+  },
+  // Collisions
+  {
+    id: "collision-borough",
+    family: "collisions",
+    label: "motor vehicle collision counts or injuries ranked by borough",
+  },
+  {
+    id: "collision-factor",
+    family: "collisions",
+    label: "top contributing factors or driver actions in NYPD collision data",
+  },
+  {
+    id: "collision-pedestrian",
+    family: "collisions",
+    label: "pedestrian injuries or fatalities compared across boroughs",
+  },
+  {
+    id: "collision-vehicle",
+    family: "collisions",
+    label: "collisions by vehicle type (sedan, SUV, bike, etc.) — surprising rankings",
+  },
+  // Taxi — trips & zones
+  {
+    id: "taxi-zone-rank",
+    family: "taxi_trips",
+    label: "yellow taxi trip counts by pickup zone or zone name (year 2025)",
+  },
+  {
+    id: "taxi-borough-pickups",
+    family: "taxi_trips",
+    label: "taxi pickups or dropoffs by taxi_zones.borough (Manhattan vs outer boroughs)",
+  },
+  {
+    id: "taxi-airport",
+    family: "taxi_trips",
+    label: "airport-related taxi trips (JFK/LGA/EWR zones) vs city zones",
+  },
+  {
+    id: "taxi-hourly",
+    family: "taxi_trips",
+    label: "busiest hour-of-day or day-of-week for yellow taxi pickups (2025)",
+  },
+  // Taxi — money
+  {
+    id: "taxi-fare-tip",
+    family: "taxi_fares",
+    label: "average fare, tip amount, or tip percentage patterns (year 2025)",
+  },
+  {
+    id: "taxi-payment",
+    family: "taxi_fares",
+    label: "payment type or trip distance extremes (longest trips, highest fares)",
+  },
+  // Census / demographics
+  {
+    id: "census-income",
+    family: "census",
+    label: "median household income or poverty rate across census tracts (ACS 2023 vintage)",
+  },
+  {
+    id: "census-population",
+    family: "census",
+    label: "population or age distribution surprises by borough via census tracts",
+  },
+  {
+    id: "census-vs-311",
+    family: "census",
+    label: "census tract demographics vs 311 complaint rates (per-capita style)",
+  },
+  // Cross-dataset angles
+  {
+    id: "compare-boroughs",
+    family: "comparison",
+    label: "cross-dataset borough comparison (e.g. collisions vs 311 vs taxi in one borough)",
+  },
+  {
+    id: "weekend-weekday",
+    family: "time_patterns",
+    label: "weekday vs weekend patterns in taxi tips or trip volume (2025, day_of_week)",
+  },
+  {
+    id: "collision-monthly",
+    family: "collision_timing",
+    label: "collisions by month or season in 2024 — which month peaks",
+  },
+  {
+    id: "taxi-distance",
+    family: "taxi_distance",
+    label: "longest average trip distance or duration by pickup zone (2025)",
+  },
+];
+
+const BY_ID = new Map(TRIVIA_CATEGORY_DEFS.map((d) => [d.id, d]));
+
+export function getTriviaCategoryById(id: string): TriviaCategoryDef | undefined {
+  return BY_ID.get(id);
+}
+
+export function shuffle<T>(arr: T[]): T[] {
+  const out = [...arr];
+  for (let i = out.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [out[i], out[j]] = [out[j], out[i]];
+  }
+  return out;
+}
+
+/**
+ * Build a 10-question category plan: prefer one category per family, then fill
+ * without repeating the same category id.
+ */
+export function buildSessionCategoryPlan(
+  length: number,
+  defs: TriviaCategoryDef[] = TRIVIA_CATEGORY_DEFS
+): string[] {
+  if (length <= 0) return [];
+
+  const byFamily = new Map<string, TriviaCategoryDef[]>();
+  for (const d of defs) {
+    const list = byFamily.get(d.family) ?? [];
+    list.push(d);
+    byFamily.set(d.family, list);
+  }
+
+  const plan: string[] = [];
+  const usedIds = new Set<string>();
+
+  const families = shuffle([...byFamily.keys()]);
+  for (const family of families) {
+    if (plan.length >= length) break;
+    const pool = shuffle(byFamily.get(family) ?? []).filter((d) => !usedIds.has(d.id));
+    if (pool.length === 0) continue;
+    plan.push(pool[0].id);
+    usedIds.add(pool[0].id);
+  }
+
+  while (plan.length < length) {
+    const remaining = defs.filter((d) => !usedIds.has(d.id));
+    if (remaining.length === 0) break;
+
+    const lastId = plan[plan.length - 1];
+    const lastFamily = lastId ? BY_ID.get(lastId)?.family : undefined;
+    const prefer = remaining.filter((d) => d.family !== lastFamily);
+    const pool = shuffle(prefer.length > 0 ? prefer : remaining);
+    plan.push(pool[0].id);
+    usedIds.add(pool[0].id);
+  }
+
+  return plan;
+}
+
+export type TriviaSessionConstraints = {
+  /** Planned category for this slot (from buildSessionCategoryPlan). */
+  categoryId?: string;
+  /** Prior question texts in this session — model must not repeat. */
+  excludeQuestions?: string[];
+  /** Families already used this session (hint for model). */
+  usedFamilies?: string[];
+};
+
+export function pickCategoryForRequest(
+  constraints?: TriviaSessionConstraints
+): TriviaCategoryDef {
+  if (constraints?.categoryId) {
+    const found = getTriviaCategoryById(constraints.categoryId);
+    if (found) return found;
+  }
+
+  const usedFamilies = new Set(constraints?.usedFamilies ?? []);
+  const unusedFamily = TRIVIA_CATEGORY_DEFS.filter((d) => !usedFamilies.has(d.family));
+  const pool = unusedFamily.length > 0 ? unusedFamily : TRIVIA_CATEGORY_DEFS;
+  return pool[Math.floor(Math.random() * pool.length)];
+}
+
+/** Legacy string list for any code that still expects labels only. */
+export const TRIVIA_CATEGORY_LABELS = TRIVIA_CATEGORY_DEFS.map((d) => d.label);
