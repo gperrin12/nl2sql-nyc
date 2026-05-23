@@ -188,7 +188,66 @@ export async function upsertQueryRun(input: QueryRunInsert): Promise<string | nu
   }
 }
 
-/** Recent runs for dashboard / debugging. */
+const QUERY_RUN_SELECT = `
+  id::text,
+  created_at::text,
+  question,
+  sql,
+  model,
+  backend,
+  execution_id,
+  athena_state,
+  error_reason,
+  scanned_bytes::text,
+  runtime_ms,
+  row_count,
+  judge_overall::text,
+  app_version`;
+
+/**
+ * One row per question: the run with the latest created_at (optionally within one deploy).
+ */
+export async function listLatestQueryRunsPerQuestion(
+  limit = 50,
+  options?: { appVersion?: string }
+): Promise<QueryRunRow[]> {
+  if (!isDatabaseConfigured()) return [];
+
+  const pool = getPgPool();
+  if (!pool) return [];
+
+  const safeLimit = Math.min(Math.max(1, limit), 200);
+  const versionFilter = options?.appVersion?.trim();
+
+  const result = versionFilter
+    ? await pool.query<QueryRunRow>(
+        `WITH latest AS (
+          SELECT DISTINCT ON (trim(question)) ${QUERY_RUN_SELECT}
+          FROM nl2sql.query_runs
+          WHERE app_version = $1
+          ORDER BY trim(question), created_at DESC
+        )
+        SELECT * FROM latest
+        ORDER BY created_at DESC
+        LIMIT $2`,
+        [versionFilter, safeLimit]
+      )
+    : await pool.query<QueryRunRow>(
+        `WITH latest AS (
+          SELECT DISTINCT ON (trim(question)) ${QUERY_RUN_SELECT}
+          FROM nl2sql.query_runs
+          ORDER BY trim(question), created_at DESC
+        )
+        SELECT * FROM latest
+        ORDER BY created_at DESC
+        LIMIT $1`,
+        [safeLimit]
+      );
+
+  return result.rows;
+}
+
+/** Recent runs for dashboard / debugging (no per-question dedupe). */
 export async function listQueryRuns(
   limit = 50,
   options?: { appVersion?: string }
@@ -203,21 +262,7 @@ export async function listQueryRuns(
 
   const result = versionFilter
     ? await pool.query<QueryRunRow>(
-        `SELECT
-          id::text,
-          created_at::text,
-          question,
-          sql,
-          model,
-          backend,
-          execution_id,
-          athena_state,
-          error_reason,
-          scanned_bytes::text,
-          runtime_ms,
-          row_count,
-          judge_overall::text,
-          app_version
+        `SELECT ${QUERY_RUN_SELECT}
         FROM nl2sql.query_runs
         WHERE app_version = $1
         ORDER BY created_at DESC
@@ -225,21 +270,7 @@ export async function listQueryRuns(
         [versionFilter, safeLimit]
       )
     : await pool.query<QueryRunRow>(
-        `SELECT
-          id::text,
-          created_at::text,
-          question,
-          sql,
-          model,
-          backend,
-          execution_id,
-          athena_state,
-          error_reason,
-          scanned_bytes::text,
-          runtime_ms,
-          row_count,
-          judge_overall::text,
-          app_version
+        `SELECT ${QUERY_RUN_SELECT}
         FROM nl2sql.query_runs
         ORDER BY created_at DESC
         LIMIT $1`,

@@ -1,5 +1,6 @@
 import type { DashboardMomentBase } from "@/lib/p8k8-moments";
 import {
+  listLatestQueryRunsPerQuestion,
   listQueryRuns,
   type QueryRunRow,
 } from "@/lib/query-runs-store";
@@ -68,11 +69,18 @@ export async function loadQueryRunMoments(options?: {
   limit?: number;
   appVersion?: string;
   includeRunning?: boolean;
+  /** Default true for dashboard: newest run per question across deploys. */
+  latestPerQuestion?: boolean;
 }): Promise<DashboardMomentBase[]> {
   const limit = options?.limit ?? 200;
-  const rows = await listQueryRuns(limit, {
-    appVersion: options?.appVersion,
-  });
+  const latestPerQuestion = options?.latestPerQuestion !== false;
+  const rows = latestPerQuestion
+    ? await listLatestQueryRunsPerQuestion(limit, {
+        appVersion: options?.appVersion,
+      })
+    : await listQueryRuns(limit, {
+        appVersion: options?.appVersion,
+      });
 
   return rows
     .filter((r) => {

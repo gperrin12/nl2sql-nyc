@@ -73,7 +73,7 @@ export function getAppVersion(): string {
 }
 
 /**
- * app_version filter for dashboard / eval against nl2sql.query_runs.
+ * app_version filter for eval script against nl2sql.query_runs.
  * - omitted / empty → current deploy ({@link getAppVersion})
  * - "all" → no filter (every deploy)
  * - otherwise → exact match on stored app_version
@@ -84,5 +84,20 @@ export function resolveQueryRunsAppVersion(
   const raw = explicit?.trim();
   if (!raw) return getAppVersion();
   if (raw.toLowerCase() === "all") return undefined;
+  return raw.slice(0, 128);
+}
+
+/**
+ * Optional deploy filter for dashboard (rows are still deduped to latest per question).
+ * - omitted / "all" → any deploy
+ * - "current" → {@link getAppVersion} only
+ * - otherwise → exact app_version
+ */
+export function resolveDashboardAppVersionFilter(
+  explicit?: string | null
+): string | undefined {
+  const raw = explicit?.trim();
+  if (!raw || raw.toLowerCase() === "all") return undefined;
+  if (raw.toLowerCase() === "current") return getAppVersion();
   return raw.slice(0, 128);
 }

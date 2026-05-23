@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAppVersion, resolveQueryRunsAppVersion } from "@/lib/app-version";
+import {
+  getAppVersion,
+  resolveDashboardAppVersionFilter,
+} from "@/lib/app-version";
+import { listLatestQueryRunsPerQuestion } from "@/lib/query-runs-store";
 import { isAuthenticated } from "@/lib/auth";
 import { isDatabaseConfigured } from "@/lib/db";
-import { listQueryRuns } from "@/lib/query-runs-store";
 
 export const dynamic = "force-dynamic";
 
@@ -20,19 +23,21 @@ export async function GET(req: NextRequest) {
 
   const limitParam = req.nextUrl.searchParams.get("limit");
   const limit = limitParam ? Number(limitParam) : 50;
-  const versionFilter = resolveQueryRunsAppVersion(
+  const deployFilter = resolveDashboardAppVersionFilter(
     req.nextUrl.searchParams.get("appVersion")
   );
 
   try {
-    const runs = await listQueryRuns(Number.isFinite(limit) ? limit : 50, {
-      appVersion: versionFilter,
-    });
+    const runs = await listLatestQueryRunsPerQuestion(
+      Number.isFinite(limit) ? limit : 50,
+      { appVersion: deployFilter }
+    );
     return NextResponse.json({
       runs,
       configured: true,
       currentAppVersion: getAppVersion(),
-      filteredAppVersion: versionFilter ?? null,
+      deployFilter: deployFilter ?? null,
+      dedupeByQuestion: true,
     });
   } catch (e) {
     const detail = e instanceof Error ? e.message : String(e);

@@ -57,7 +57,7 @@ cp .env.example .env.local
 npm run dev
 ```
 
-Open http://localhost:3000. When logged in, **`/dashboard`** lists query runs from **`nl2sql.query_runs`** for **this deploy only** (same `app_version` as `getAppVersion()` / Vercel git SHA). Requires **`DATABASE_URL`**. API override: `?appVersion=all` for every deploy. Set **`DASHBOARD_SOURCE=p8k8`** for the legacy p8k8 timeline.
+Open http://localhost:3000. When logged in, **`/dashboard`** lists **one row per question** — the **most recent** run in **`nl2sql.query_runs`** (any deploy). Each row shows that run’s `app_version` in the agent column. Requires **`DATABASE_URL`**. API: `?appVersion=8ad5499` limits to a deploy; `?appVersion=current` is this instance’s SHA. Set **`DASHBOARD_SOURCE=p8k8`** for the legacy p8k8 timeline.
 
 **Eval script** (`npm run eval`) uses the same Postgres source and defaults to the current deploy; **`EVAL_APP_VERSION=all`** includes all rows. Legacy: `npm run eval:p8k8`.
 

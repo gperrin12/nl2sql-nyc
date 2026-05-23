@@ -29,8 +29,8 @@ type MomentsResponse = {
   total: number;
   source?: "postgres" | "p8k8";
   currentAppVersion?: string;
-  /** null when API returns all deploys (appVersion=all). */
-  filteredAppVersion?: string | null;
+  deployFilter?: string | null;
+  dedupeByQuestion?: boolean;
 };
 
 type CategoryFilter = "all" | QueryCategory;
@@ -114,9 +114,8 @@ export function DashboardClient() {
   const [currentAppVersion, setCurrentAppVersion] = useState<string | null>(
     null
   );
-  const [filteredAppVersion, setFilteredAppVersion] = useState<string | null>(
-    null
-  );
+  const [deployFilter, setDeployFilter] = useState<string | null>(null);
+  const [dedupeByQuestion, setDedupeByQuestion] = useState(true);
   const [pageOffset, setPageOffset] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -165,11 +164,8 @@ export function DashboardClient() {
       setTotal(data.total);
       setDataSource(data.source ?? null);
       setCurrentAppVersion(data.currentAppVersion ?? null);
-      setFilteredAppVersion(
-        data.filteredAppVersion !== undefined
-          ? data.filteredAppVersion
-          : data.currentAppVersion ?? null
-      );
+      setDeployFilter(data.deployFilter ?? null);
+      setDedupeByQuestion(data.dedupeByQuestion !== false);
       const exactEvalMatch = data.source === "postgres";
       setEvalByMomentId(
         buildEvalByMomentId(data.moments, loadedEvals, {
@@ -319,18 +315,17 @@ export function DashboardClient() {
                   ? "nl2sql.query_runs"
                   : "p8k8"}
               </span>
-              {dataSource === "postgres" && (
+              {dataSource === "postgres" && dedupeByQuestion && (
                 <>
                   {" "}
-                  ·{" "}
-                  {filteredAppVersion === null ? (
-                    "all deploys"
-                  ) : (
+                  · latest run per question
+                  {deployFilter ? (
                     <>
-                      this deploy{" "}
-                      <span className="font-mono">{filteredAppVersion}</span>
+                      {" "}
+                      (deploy{" "}
+                      <span className="font-mono">{deployFilter}</span>)
                     </>
-                  )}
+                  ) : null}
                 </>
               )}
             </>

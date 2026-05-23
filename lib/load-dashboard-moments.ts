@@ -4,7 +4,10 @@ import type { DashboardMoment } from "@/lib/p8k8-moments";
 import { paginateMoments } from "@/lib/p8k8-moments";
 import { loadP8k8DashboardMoments } from "@/lib/load-p8k8-moments";
 import { loadQueryRunMoments } from "@/lib/query-runs-dashboard";
-import { getAppVersion, resolveQueryRunsAppVersion } from "@/lib/app-version";
+import {
+  getAppVersion,
+  resolveDashboardAppVersionFilter,
+} from "@/lib/app-version";
 import { isDatabaseConfigured } from "@/lib/db";
 import { loadLatencyByKey } from "@/lib/query-metrics-store";
 
@@ -14,8 +17,9 @@ export type DashboardMomentsResponse = {
   source: "postgres" | "p8k8";
   /** Build label for this running app instance. */
   currentAppVersion?: string;
-  /** app_version used in the DB query; null = all deploys. */
-  filteredAppVersion?: string | null;
+  /** When set, only consider runs from this deploy (still one row per question). */
+  deployFilter?: string | null;
+  dedupeByQuestion: boolean;
 };
 
 export async function loadDashboardMoments(options: {
@@ -33,11 +37,12 @@ export async function loadDashboardMoments(options: {
       );
     }
 
-    const versionFilter = resolveQueryRunsAppVersion(options.appVersion);
+    const deployFilter = resolveDashboardAppVersionFilter(options.appVersion);
 
     const bases = await loadQueryRunMoments({
       limit: options.fetchLimit,
-      appVersion: versionFilter,
+      appVersion: deployFilter,
+      latestPerQuestion: true,
     });
     const latencyByKey = await loadLatencyByKey();
     const enriched = enrichDashboardMoments(bases, latencyByKey);
@@ -52,7 +57,8 @@ export async function loadDashboardMoments(options: {
       total,
       source: "postgres",
       currentAppVersion: getAppVersion(),
-      filteredAppVersion: versionFilter ?? null,
+      deployFilter: deployFilter ?? null,
+      dedupeByQuestion: true,
     };
   }
 
@@ -63,5 +69,5 @@ export async function loadDashboardMoments(options: {
   }
 
   const { moments, total } = await loadP8k8DashboardMoments(options);
-  return { moments, total, source: "p8k8" };
+  return { moments, total, source: "p8k8", dedupeByQuestion: false };
 }
