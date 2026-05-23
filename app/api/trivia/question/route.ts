@@ -6,6 +6,8 @@ import { isAuthenticated } from "@/lib/auth";
 import { checkSql } from "@/lib/guardrails";
 import { generateTriviaQuestion } from "@/lib/trivia";
 import {
+  findRankingMetricTie,
+  formatRankingTieFeedback,
   proofWithShuffledIndex,
   resolveTriviaProofFromResults,
   shuffleTriviaOptions,
@@ -81,6 +83,13 @@ export async function POST(req: NextRequest) {
       lastSql = guard.sql;
       lastFeedback =
         "Query returned zero rows — pick a different question, year partition, or filters so the proof query returns data.";
+      continue;
+    }
+
+    const tie = findRankingMetricTie(results.columns, results.rows);
+    if (tie) {
+      lastSql = guard.sql;
+      lastFeedback = formatRankingTieFeedback(tie, generated.options);
       continue;
     }
 

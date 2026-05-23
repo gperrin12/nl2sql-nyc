@@ -47,6 +47,7 @@ SQL RULES (critical):
 
 DESIGN:
 - correctIndex MUST be the option that matches the row with the HIGHEST numeric metric in your SQL result (not merely any row that appears). After ORDER BY metric DESC, the first row's answer_label must equal options[correctIndex].
+- Ranking questions MUST have exactly ONE winner in the proof result: no two rows with the same top metric and different answer_label values. Use LIMIT 1 after ORDER BY, or a tie-break column (e.g. borough ASC). ACS median income is often top-coded at 250001 — avoid questions where Manhattan and Brooklyn (or others) tie at that cap; pick another metric, tract-level filter, or comparison where one option uniquely wins.
 - Distractors should be real NYC boroughs, zones, or plausible numbers — not joke answers.
 - Questions should feel like bar trivia: comparative, top-N, surprising rankings.
 

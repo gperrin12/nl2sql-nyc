@@ -61,11 +61,15 @@ type RankingWinner = {
   metricValue: string;
 };
 
-/** Row with the highest numeric metric (ground-truth winner for ranking questions). */
-function findRankingWinner(
+type RankingColumns = {
+  metricColumn: string;
+  labelColumn: string;
+};
+
+function resolveRankingColumns(
   columns: string[],
   rows: Record<string, string | null>[]
-): RankingWinner | null {
+): RankingColumns | null {
   if (rows.length === 0 || columns.length === 0) return null;
 
   const metricScores = columns.map((col) => {
@@ -86,6 +90,61 @@ function findRankingWinner(
     ) ??
     columns.find((c) => c !== metricColumn) ??
     columns[0];
+
+  return { metricColumn, labelColumn };
+}
+
+/** Multiple distinct labels share the top metric — trivia must not pick one arbitrarily. */
+export function findRankingMetricTie(
+  columns: string[],
+  rows: Record<string, string | null>[]
+): { metricColumn: string; metricValue: string; tiedLabels: string[] } | null {
+  const cols = resolveRankingColumns(columns, rows);
+  if (!cols) return null;
+
+  const { metricColumn, labelColumn } = cols;
+  let bestVal = -Infinity;
+  for (let i = 0; i < rows.length; i++) {
+    const n = parseNumeric(rows[i][metricColumn]);
+    if (n !== null && n > bestVal) bestVal = n;
+  }
+  if (!Number.isFinite(bestVal)) return null;
+
+  const tiedLabels: string[] = [];
+  for (let i = 0; i < rows.length; i++) {
+    const n = parseNumeric(rows[i][metricColumn]);
+    if (n === null || n !== bestVal) continue;
+    const label = rows[i][labelColumn]?.trim();
+    if (!label) continue;
+    if (!tiedLabels.some((t) => normalize(t) === normalize(label))) {
+      tiedLabels.push(label);
+    }
+  }
+
+  if (tiedLabels.length <= 1) return null;
+
+  const metricValue = rows.find(
+    (r) => normalize(r[labelColumn] ?? "") === normalize(tiedLabels[0])
+  )?.[metricColumn];
+
+  return {
+    metricColumn,
+    metricValue: metricValue ?? String(bestVal),
+    tiedLabels,
+  };
+}
+
+/** Row with the highest numeric metric (ground-truth winner for ranking questions). */
+function findRankingWinner(
+  columns: string[],
+  rows: Record<string, string | null>[]
+): RankingWinner | null {
+  if (findRankingMetricTie(columns, rows)) return null;
+
+  const cols = resolveRankingColumns(columns, rows);
+  if (!cols) return null;
+
+  const { metricColumn, labelColumn } = cols;
 
   let bestRow = 0;
   let bestVal = -Infinity;
@@ -222,6 +281,23 @@ export function triviaProofIsValid(
   resolution: TriviaProofResolution | null
 ): boolean {
   return resolution != null;
+}
+
+/** Human-readable retry hint when proof resolution fails due to a tie. */
+export function formatRankingTieFeedback(
+  tie: { metricColumn: string; metricValue: string; tiedLabels: string[] },
+  options: string[]
+): string {
+  const inOptions = tie.tiedLabels.filter(
+    (l) => optionIndexForValue(options, l) !== null
+  );
+  const labelList =
+    inOptions.length >= 2 ? inOptions.join(" and ") : tie.tiedLabels.join(" and ");
+  return (
+    `Tie for highest ${tie.metricColumn} (${tie.metricValue}): ${labelList}. ` +
+    "Trivia must have exactly one winner — use ORDER BY metric DESC, borough ASC LIMIT 1, " +
+    "or pick a metric/year where ACS top-coded values (e.g. 250001) do not tie multiple boroughs."
+  );
 }
 
 /** Shuffle MC options so the correct answer is not always slot A. */
