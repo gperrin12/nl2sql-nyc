@@ -1,11 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { startQuery } from "@/lib/athena";
 import { waitForAthenaResults } from "@/lib/athena-wait";
 import { isAuthenticated } from "@/lib/auth";
 import { checkSql } from "@/lib/guardrails";
 import { generateTriviaQuestion } from "@/lib/trivia";
 import {
+  formatTriviaSenseFeedback,
+  validateTriviaQuestionSense,
+} from "@/lib/trivia-sense";
+import { validateTlcProofDistances } from "@/lib/tlc-trip-filters";
+import {
+  findRankingMetricTie,
+  formatOptionsMismatchFeedback,
+  formatRankingTieFeedback,
+  optionsThemeMismatch,
+  proofRowLabelsFromResults,
   proofWithShuffledIndex,
+  realignOptionsFromAthenaResults,
+  resolveTriviaExplanation,
   resolveTriviaProofFromResults,
   shuffleTriviaOptions,
 } from "@/lib/trivia-proof";
@@ -13,11 +26,25 @@ import {
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
 
-const MAX_ATTEMPTS = 3;
+const MAX_ATTEMPTS = 5;
 
-export async function POST(_req: NextRequest) {
+const BodySchema = z.object({
+  categoryId: z.string().optional(),
+  excludeQuestions: z.array(z.string()).optional(),
+  usedFamilies: z.array(z.string()).optional(),
+});
+
+export async function POST(req: NextRequest) {
   if (!(await isAuthenticated())) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  let sessionBody: z.infer<typeof BodySchema> = {};
+  try {
+    const raw = await req.json();
+    sessionBody = BodySchema.parse(raw);
+  } catch {
+    sessionBody = {};
   }
 
   let lastSql: string | undefined;
@@ -27,6 +54,11 @@ export async function POST(_req: NextRequest) {
     let generated;
     try {
       generated = await generateTriviaQuestion({
+        session: {
+          categoryId: sessionBody.categoryId,
+          excludeQuestions: sessionBody.excludeQuestions,
+          usedFamilies: sessionBody.usedFamilies,
+        },
         feedback: lastFeedback,
         previousSql: lastSql,
       });
@@ -38,6 +70,16 @@ export async function POST(_req: NextRequest) {
         },
         { status: 502 }
       );
+    }
+
+    const sense = validateTriviaQuestionSense(
+      generated.question,
+      generated.sql
+    );
+    if (!sense.ok) {
+      lastSql = generated.sql;
+      lastFeedback = formatTriviaSenseFeedback(sense.reason);
+      continue;
     }
 
     const guard = checkSql(generated.sql);
@@ -64,36 +106,73 @@ export async function POST(_req: NextRequest) {
       continue;
     }
 
-    const resolved = resolveTriviaProofFromResults(
+    const tlcDist = validateTlcProofDistances(
+      results.columns,
+      results.rows
+    );
+    if (!tlcDist.ok) {
+      lastSql = guard.sql;
+      lastFeedback = tlcDist.reason;
+      continue;
+    }
+
+    const tie = findRankingMetricTie(results.columns, results.rows);
+    if (tie) {
+      lastSql = guard.sql;
+      lastFeedback = formatRankingTieFeedback(tie, generated.options);
+      continue;
+    }
+
+    let resolved = resolveTriviaProofFromResults(
       generated.options,
       generated.correctIndex,
       results
     );
+
+    let optionsForShuffle = generated.options;
+    let optionsRealignedFromAthena = false;
+
     if (resolved == null) {
-      const top = findRankingWinnerForFeedback(results);
+      const rowLabels = proofRowLabelsFromResults(results);
+      const realigned = realignOptionsFromAthenaResults(
+        results,
+        generated.correctIndex
+      );
+
+      if (
+        realigned &&
+        !optionsThemeMismatch(
+          generated.options,
+          generated.question,
+          rowLabels
+        )
+      ) {
+        resolved = realigned;
+        optionsForShuffle = realigned.options;
+        optionsRealignedFromAthena = true;
+      }
+    }
+
+    if (resolved == null) {
       lastSql = guard.sql;
-      lastFeedback =
-        "Athena winner must match one of the four options. " +
-        `Top row by metric: ${top ?? JSON.stringify(results.rows[0])}. ` +
-        `Options: ${JSON.stringify(generated.options)}. ` +
-        "Set correctIndex to the option that equals the highest-metric row's label (answer_label).";
+      lastFeedback = formatOptionsMismatchFeedback(results, generated.options);
       continue;
     }
 
     const { correctIndex: dataCorrectIndex, proof: resolvedProof } = resolved;
+
     const { options, correctIndex } = shuffleTriviaOptions(
-      generated.options,
+      optionsForShuffle,
       dataCorrectIndex
     );
     const proof = proofWithShuffledIndex(resolvedProof, correctIndex, options);
 
-    const explanation = proof.correctedFromModel
-      ? `The data ranks ${proof.winnerLabel} first` +
-        (proof.winnerMetric
-          ? ` (${proof.winnerMetric.column} = ${proof.winnerMetric.value})`
-          : "") +
-        `.`
-      : generated.explanation;
+    const explanation = resolveTriviaExplanation(
+      generated.explanation,
+      proof,
+      options,
+      optionsRealignedFromAthena
+    );
 
     return NextResponse.json({
       question: generated.question,
@@ -102,6 +181,8 @@ export async function POST(_req: NextRequest) {
       sql: guard.sql,
       explanation,
       model: generated.model,
+      categoryId: generated.categoryId,
+      categoryLabel: generated.categoryLabel,
       proof,
       results: {
         columns: results.columns,

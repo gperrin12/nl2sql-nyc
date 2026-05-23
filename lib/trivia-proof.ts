@@ -61,11 +61,15 @@ type RankingWinner = {
   metricValue: string;
 };
 
-/** Row with the highest numeric metric (ground-truth winner for ranking questions). */
-function findRankingWinner(
+type RankingColumns = {
+  metricColumn: string;
+  labelColumn: string;
+};
+
+function resolveRankingColumns(
   columns: string[],
   rows: Record<string, string | null>[]
-): RankingWinner | null {
+): RankingColumns | null {
   if (rows.length === 0 || columns.length === 0) return null;
 
   const metricScores = columns.map((col) => {
@@ -86,6 +90,61 @@ function findRankingWinner(
     ) ??
     columns.find((c) => c !== metricColumn) ??
     columns[0];
+
+  return { metricColumn, labelColumn };
+}
+
+/** Multiple distinct labels share the top metric — trivia must not pick one arbitrarily. */
+export function findRankingMetricTie(
+  columns: string[],
+  rows: Record<string, string | null>[]
+): { metricColumn: string; metricValue: string; tiedLabels: string[] } | null {
+  const cols = resolveRankingColumns(columns, rows);
+  if (!cols) return null;
+
+  const { metricColumn, labelColumn } = cols;
+  let bestVal = -Infinity;
+  for (let i = 0; i < rows.length; i++) {
+    const n = parseNumeric(rows[i][metricColumn]);
+    if (n !== null && n > bestVal) bestVal = n;
+  }
+  if (!Number.isFinite(bestVal)) return null;
+
+  const tiedLabels: string[] = [];
+  for (let i = 0; i < rows.length; i++) {
+    const n = parseNumeric(rows[i][metricColumn]);
+    if (n === null || n !== bestVal) continue;
+    const label = rows[i][labelColumn]?.trim();
+    if (!label) continue;
+    if (!tiedLabels.some((t) => normalize(t) === normalize(label))) {
+      tiedLabels.push(label);
+    }
+  }
+
+  if (tiedLabels.length <= 1) return null;
+
+  const metricValue = rows.find(
+    (r) => normalize(r[labelColumn] ?? "") === normalize(tiedLabels[0])
+  )?.[metricColumn];
+
+  return {
+    metricColumn,
+    metricValue: metricValue ?? String(bestVal),
+    tiedLabels,
+  };
+}
+
+/** Row with the highest numeric metric (ground-truth winner for ranking questions). */
+function findRankingWinner(
+  columns: string[],
+  rows: Record<string, string | null>[]
+): RankingWinner | null {
+  if (findRankingMetricTie(columns, rows)) return null;
+
+  const cols = resolveRankingColumns(columns, rows);
+  if (!cols) return null;
+
+  const { metricColumn, labelColumn } = cols;
 
   let bestRow = 0;
   let bestVal = -Infinity;
@@ -224,6 +283,115 @@ export function triviaProofIsValid(
   return resolution != null;
 }
 
+/** Human-readable retry hint when proof resolution fails due to a tie. */
+/** True when MC options / question theme clearly disagrees with SQL row labels (e.g. airports vs neighborhoods). */
+export function optionsThemeMismatch(
+  options: string[],
+  question: string,
+  rowLabels: string[]
+): boolean {
+  const blob = `${options.join(" ")} ${question}`.toLowerCase();
+  const labels = rowLabels.join(" ").toLowerCase();
+
+  const airportish =
+    /\b(airport|laguardia|lga|jfk|ewr|newark)\b/i.test(blob) &&
+    !/\b(airport|laguardia|lga|jfk|ewr|newark)\b/i.test(labels);
+
+  const boroughish =
+    /\b(borough|brooklyn|manhattan|bronx|queens|staten)\b/i.test(blob) &&
+    /fordham|concourse|morris park|ntaname|neighborhood/i.test(labels) &&
+    !/\b(brooklyn|manhattan|bronx|queens|staten island)\b/i.test(labels);
+
+  return airportish || boroughish;
+}
+
+export function formatOptionsMismatchFeedback(
+  results: Pick<AthenaResults, "columns" | "rows">,
+  options: string[]
+): string {
+  const winner = findRankingWinner(results.columns, results.rows);
+  const cols = resolveRankingColumns(results.columns, results.rows);
+  const labelCol = cols?.labelColumn ?? "answer_label";
+  const rowLabels = results.rows
+    .slice(0, 4)
+    .map((r) => r[labelCol]?.trim())
+    .filter((l): l is string => Boolean(l));
+
+  const top = results.rows
+    .slice(0, 4)
+    .map((r) => {
+      const label = r[labelCol] ?? "?";
+      const metric = cols?.metricColumn;
+      return metric ? `${label} (${metric}=${r[metric]})` : label;
+    })
+    .join("; ");
+
+  return (
+    "The four options MUST be the exact answer_label values from your SQL (LIMIT 4 rows), " +
+    "and correctIndex must be the highest-metric row. " +
+    `Athena top rows: ${top || "(none)"}. ` +
+    `Your options: ${JSON.stringify(options)}. ` +
+    (rowLabels.length >= 4
+      ? `Rebuild options as: ${JSON.stringify(rowLabels)} (in any order) and align the question.`
+      : "Rewrite SQL so it returns four labeled rows matching your four options.")
+  );
+}
+
+/**
+ * When the model's options don't match Athena, rebuild options from the proof table
+ * if rows are consistent (skipped when theme mismatch would make the question nonsense).
+ */
+/** First four answer_label (or label) values from the proof table, in row order. */
+export function proofRowLabelsFromResults(
+  results: Pick<AthenaResults, "columns" | "rows">
+): string[] {
+  const cols = resolveRankingColumns(results.columns, results.rows);
+  if (!cols) return [];
+  const { labelColumn } = cols;
+  const labels: string[] = [];
+  for (const row of results.rows) {
+    if (labels.length >= 4) break;
+    const label = row[labelColumn]?.trim();
+    if (!label) continue;
+    if (labels.some((l) => normalize(l) === normalize(label))) continue;
+    labels.push(label);
+  }
+  return labels;
+}
+
+export function realignOptionsFromAthenaResults(
+  results: Pick<AthenaResults, "columns" | "rows">,
+  modelCorrectIndex: number
+): (TriviaProofResolution & { options: string[] }) | null {
+  const labels = proofRowLabelsFromResults(results);
+  if (labels.length < 4) return null;
+
+  const winner = findRankingWinner(results.columns, results.rows);
+  if (!winner) return null;
+
+  const idx = labels.findIndex((l) => cellMatchesOption(l, winner.labelValue));
+  if (idx < 0) return null;
+
+  const resolution = buildResolution(labels, idx, modelCorrectIndex, winner);
+  return { ...resolution, options: labels };
+}
+
+export function formatRankingTieFeedback(
+  tie: { metricColumn: string; metricValue: string; tiedLabels: string[] },
+  options: string[]
+): string {
+  const inOptions = tie.tiedLabels.filter(
+    (l) => optionIndexForValue(options, l) !== null
+  );
+  const labelList =
+    inOptions.length >= 2 ? inOptions.join(" and ") : tie.tiedLabels.join(" and ");
+  return (
+    `Tie for highest ${tie.metricColumn} (${tie.metricValue}): ${labelList}. ` +
+    "Trivia must have exactly one winner — use ORDER BY metric DESC, borough ASC LIMIT 1, " +
+    "or pick a metric/year where ACS top-coded values (e.g. 250001) do not tie multiple boroughs."
+  );
+}
+
 /** Shuffle MC options so the correct answer is not always slot A. */
 export function shuffleTriviaOptions(
   options: string[],
@@ -237,6 +405,97 @@ export function shuffleTriviaOptions(
   const shuffledOptions = items.map((x) => x.text);
   const newCorrectIndex = items.findIndex((x) => x.originalIndex === correctIndex);
   return { options: shuffledOptions, correctIndex: newCorrectIndex };
+}
+
+const AIRPORT_TERMS_RE =
+  /\b(jfk|kennedy|laguardia|lga|ewr|newark|airport)\b/i;
+
+/** Plain-English explanation tied to Athena proof (not the model's draft). */
+export function buildTriviaExplanationFromProof(proof: TriviaProof): string {
+  const label = proof.winnerLabel || proof.correctOption;
+  const metric = proof.winnerMetric;
+  const metricLabel = metric ? humanizeMetricColumn(metric.column) : "the ranking metric";
+
+  if (metric?.value) {
+    return (
+      `The query ranks ${label} first on ${metricLabel} (${metric.value}), ` +
+      `so ${proof.correctOption} is the correct answer.`
+    );
+  }
+  return `The query ranks ${label} first, so ${proof.correctOption} is the correct answer.`;
+}
+
+function humanizeMetricColumn(column: string): string {
+  return column
+    .replace(/_/g, " ")
+    .replace(/\bavg\b/gi, "average")
+    .replace(/\bct\b/gi, "count")
+    .trim();
+}
+
+function distinctiveLabelParts(label: string): string[] {
+  const whole = normalize(label);
+  const parts = label
+    .split(/[/,–-]/)
+    .map((p) => normalize(p))
+    .filter((p) => p.length >= 4);
+  return parts.length > 0 ? parts : [whole];
+}
+
+/** Model explanation must name the verified winner, not a different entity (e.g. JFK vs a zone). */
+export function explanationAlignsWithProof(
+  explanation: string,
+  proof: TriviaProof,
+  options: string[]
+): boolean {
+  const correct = proof.correctOption;
+  const winner = proof.winnerLabel;
+  const ex = normalize(explanation);
+
+  const mustMatch = distinctiveLabelParts(correct);
+  const winnerParts = distinctiveLabelParts(winner);
+  const referencesCorrect = [...mustMatch, ...winnerParts].some((part) => {
+    if (part.length < 4) return ex.includes(part);
+    return ex.includes(part);
+  });
+  if (!referencesCorrect) return false;
+
+  const correctBlob = `${correct} ${winner}`.toLowerCase();
+  if (
+    AIRPORT_TERMS_RE.test(explanation) &&
+    !AIRPORT_TERMS_RE.test(correctBlob)
+  ) {
+    return false;
+  }
+
+  for (const opt of options) {
+    if (cellMatchesOption(opt, correct) || cellMatchesOption(opt, winner)) {
+      continue;
+    }
+    for (const part of distinctiveLabelParts(opt)) {
+      if (part.length < 5) continue;
+      if (ex.includes(part) && !mustMatch.some((m) => ex.includes(m))) {
+        return false;
+      }
+    }
+  }
+
+  return true;
+}
+
+export function resolveTriviaExplanation(
+  modelExplanation: string,
+  proof: TriviaProof,
+  options: string[],
+  optionsRealignedFromAthena: boolean
+): string {
+  if (proof.correctedFromModel || optionsRealignedFromAthena) {
+    return buildTriviaExplanationFromProof(proof);
+  }
+  if (explanationAlignsWithProof(modelExplanation, proof, options)) {
+    return modelExplanation;
+  }
+  return buildTriviaExplanationFromProof(proof);
 }
 
 export function proofWithShuffledIndex(

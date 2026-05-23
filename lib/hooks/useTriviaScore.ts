@@ -4,7 +4,6 @@ import { useCallback, useEffect, useState } from "react";
 import {
   loadTriviaScore,
   recordTriviaAnswer,
-  resetTriviaScore,
   TRIVIA_SCORE_STORAGE_KEY,
   triviaAccuracy,
   type TriviaScoreRecord,
@@ -27,10 +26,6 @@ export function useTriviaScore() {
     setScore((prev) => recordTriviaAnswer(prev, wasCorrect));
   }, []);
 
-  const reset = useCallback(() => {
-    setScore(resetTriviaScore());
-  }, []);
-
   const accuracy = triviaAccuracy(score);
 
   return {
@@ -40,6 +35,5 @@ export function useTriviaScore() {
     currentStreak: score.currentStreak,
     accuracy,
     recordAnswer,
-    reset,
   };
 }

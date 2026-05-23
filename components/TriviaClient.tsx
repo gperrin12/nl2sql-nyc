@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { AppNav } from "@/components/AppNav";
 import { SqlDisplay } from "@/components/SqlDisplay";
 import { TriviaGameOver } from "@/components/trivia/TriviaGameOver";
@@ -10,6 +10,11 @@ import { useTriviaHiScores } from "@/lib/hooks/useTriviaHiScores";
 import { useTriviaQuestion } from "@/lib/hooks/useTriviaQuestion";
 import { useTriviaScore } from "@/lib/hooks/useTriviaScore";
 import { TRIVIA_SESSION_LENGTH } from "@/lib/trivia-hiscores";
+import {
+  constraintsFromSession,
+  createTriviaSessionState,
+  recordTriviaQuestionShown,
+} from "@/lib/trivia-session";
 
 const LABELS = ["A", "B", "C", "D"] as const;
 
@@ -21,13 +26,26 @@ export function TriviaClient() {
   const [sessionCorrect, setSessionCorrect] = useState(0);
   const [sessionAnswered, setSessionAnswered] = useState(0);
   const [newEntryId, setNewEntryId] = useState<string | null>(null);
+  const [sessionKey, setSessionKey] = useState(0);
+  const sessionRef = useRef(createTriviaSessionState());
 
-  const {
-    bestStreak,
-    currentStreak,
-    recordAnswer,
-    reset: resetScore,
-  } = useTriviaScore();
+  const getSessionConstraints = useCallback(
+    () => constraintsFromSession(sessionRef.current),
+    []
+  );
+
+  const onQuestionLoaded = useCallback(
+    (meta: { question: string; categoryId?: string }) => {
+      sessionRef.current = recordTriviaQuestionShown(
+        sessionRef.current,
+        meta.question,
+        meta.categoryId
+      );
+    },
+    []
+  );
+
+  const { bestStreak, currentStreak, recordAnswer } = useTriviaScore();
 
   const {
     board,
@@ -47,7 +65,11 @@ export function TriviaClient() {
     prefetchReady,
     advance,
     retry,
-  } = useTriviaQuestion();
+  } = useTriviaQuestion({
+    sessionKey,
+    getSessionConstraints,
+    onQuestionLoaded,
+  });
 
   const loadQuestion = useCallback(() => {
     setSelectedIndex(null);
@@ -85,12 +107,13 @@ export function TriviaClient() {
   };
 
   const handlePlayAgain = () => {
+    sessionRef.current = createTriviaSessionState();
+    setSessionKey((k) => k + 1);
     setPhase("playing");
     setSessionCorrect(0);
     setSessionAnswered(0);
     setNewEntryId(null);
     setSelectedIndex(null);
-    void advance();
   };
 
   const viewLeaderboard = () => {
@@ -126,9 +149,19 @@ export function TriviaClient() {
             </span>
           </p>
           {phase === "playing" && (
-            <p className="text-xs text-[var(--muted)] font-mono uppercase">
-              Q {questionNumber} / {TRIVIA_SESSION_LENGTH}
-            </p>
+            <>
+              <p className="text-xs text-[var(--muted)] font-mono uppercase">
+                Q {questionNumber} / {TRIVIA_SESSION_LENGTH}
+              </p>
+              {data?.categoryLabel && (
+                <p
+                  className="text-[10px] text-[var(--muted)] normal-case max-w-[14rem] ml-auto line-clamp-2"
+                  title={data.categoryLabel}
+                >
+                  {data.categoryLabel}
+                </p>
+              )}
+            </>
           )}
           {currentStreak > 0 && phase === "playing" && (
             <p className="text-xs text-[var(--muted)]">
@@ -150,23 +183,6 @@ export function TriviaClient() {
                 className="text-xs text-[var(--muted)] hover:text-[var(--accent)] underline font-mono uppercase"
               >
                 High Scores
-              </button>
-            )}
-            {sessionAnswered > 0 && phase === "playing" && (
-              <button
-                type="button"
-                onClick={() => {
-                  if (
-                    window.confirm(
-                      "Reset lifetime trivia stats? Hi-scores are kept."
-                    )
-                  ) {
-                    resetScore();
-                  }
-                }}
-                className="text-xs text-[var(--muted)] hover:text-[var(--text)] underline"
-              >
-                Reset stats
               </button>
             )}
           </div>
@@ -297,7 +313,31 @@ export function TriviaClient() {
                 {data.explanation}
               </p>
 
-              <SqlDisplay sql={data.sql} defaultCollapsed={false} />
+              <div className="flex flex-wrap items-center gap-3">
+                {isLastQuestion ? (
+                  <button
+                    type="button"
+                    onClick={finishGame}
+                    className="px-6 py-2.5 rounded-md bg-[var(--accent)] text-black text-sm font-medium hover:bg-[var(--accent-dim)] font-mono uppercase tracking-wide"
+                  >
+                    Finish Game
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={loadQuestion}
+                    disabled={advancing}
+                    className="px-6 py-2.5 rounded-md bg-[var(--accent)] text-black text-sm font-medium hover:bg-[var(--accent-dim)] disabled:opacity-40"
+                  >
+                    {advancing ? "Loading…" : "Next Question"}
+                  </button>
+                )}
+                {prefetchReady && !advancing && !isLastQuestion && (
+                  <span className="text-xs text-[var(--accent)]">
+                    Next question ready
+                  </span>
+                )}
+              </div>
 
               <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/5 overflow-hidden">
                 {data.proof && (
@@ -337,31 +377,7 @@ export function TriviaClient() {
                 />
               </div>
 
-              <div className="flex flex-wrap items-center gap-3">
-                {isLastQuestion ? (
-                  <button
-                    type="button"
-                    onClick={finishGame}
-                    className="px-6 py-2.5 rounded-md bg-[var(--accent)] text-black text-sm font-medium hover:bg-[var(--accent-dim)] font-mono uppercase tracking-wide"
-                  >
-                    Finish Game
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={loadQuestion}
-                    disabled={advancing}
-                    className="px-6 py-2.5 rounded-md bg-[var(--accent)] text-black text-sm font-medium hover:bg-[var(--accent-dim)] disabled:opacity-40"
-                  >
-                    {advancing ? "Loading…" : "Next Question"}
-                  </button>
-                )}
-                {prefetchReady && !advancing && !isLastQuestion && (
-                  <span className="text-xs text-[var(--accent)]">
-                    Next question ready
-                  </span>
-                )}
-              </div>
+              <SqlDisplay sql={data.sql} defaultCollapsed />
             </div>
           )}
 
@@ -408,6 +424,24 @@ function TriviaSkeleton({ message }: { message?: string }) {
       </p>
     </div>
   );
+}
+
+/** Format numeric cells for display; labels and integers stay as-is (max 3 decimals). */
+function formatTriviaCellValue(value: string | null): string {
+  if (value == null || value === "") return "—";
+  const s = value.trim();
+  const normalized = s.replace(/,/g, "");
+  if (!/^-?\d+(\.\d+)?([eE][+-]?\d+)?$/.test(normalized)) return s;
+
+  const n = Number(normalized);
+  if (!Number.isFinite(n)) return s;
+  if (Number.isInteger(n)) return String(n);
+
+  const rounded = Math.round(n * 1000) / 1000;
+  return rounded.toLocaleString(undefined, {
+    maximumFractionDigits: 3,
+    minimumFractionDigits: 0,
+  });
 }
 
 function TriviaResultTable({
@@ -461,7 +495,7 @@ function TriviaResultTable({
                       : "tabular-nums"
                   }`}
                 >
-                  {row[col] ?? "—"}
+                  {formatTriviaCellValue(row[col])}
                 </td>
               ))}
             </tr>

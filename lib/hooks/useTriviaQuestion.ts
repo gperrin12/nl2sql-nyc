@@ -1,16 +1,28 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import type { TriviaSessionConstraints } from "@/lib/trivia-categories";
 import {
   fetchTriviaQuestion,
   type TriviaQuestionResponse,
 } from "@/lib/trivia-fetch";
 
+export type TriviaQuestionLoadedMeta = {
+  question: string;
+  categoryId?: string;
+};
+
 /**
  * Loads trivia questions with a one-ahead prefetch.
- * Prefetch only fills cache; advancing swaps `current` (clears stale UI first).
+ * Pass getSessionConstraints() so each slot uses the session category plan
+ * and avoids repeating similar questions.
  */
-export function useTriviaQuestion() {
+export function useTriviaQuestion(options?: {
+  getSessionConstraints?: () => TriviaSessionConstraints;
+  onQuestionLoaded?: (meta: TriviaQuestionLoadedMeta) => void;
+  /** Bump to reset cache and reload (new 10-question run). */
+  sessionKey?: number;
+}) {
   const [current, setCurrent] = useState<TriviaQuestionResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [advancing, setAdvancing] = useState(false);
@@ -21,12 +33,24 @@ export function useTriviaQuestion() {
   const prefetchPromiseRef = useRef<Promise<void> | null>(null);
   const advanceGenRef = useRef(0);
 
+  const getConstraintsRef = useRef(options?.getSessionConstraints);
+  const onLoadedRef = useRef(options?.onQuestionLoaded);
+  getConstraintsRef.current = options?.getSessionConstraints;
+  onLoadedRef.current = options?.onQuestionLoaded;
+
+  const notifyLoaded = useCallback((data: TriviaQuestionResponse) => {
+    onLoadedRef.current?.({
+      question: data.question,
+      categoryId: data.categoryId,
+    });
+  }, []);
+
   const startPrefetch = useCallback(() => {
     if (cacheRef.current || prefetchPromiseRef.current) return;
 
     setPrefetchReady(false);
 
-    const promise = fetchTriviaQuestion()
+    const promise = fetchTriviaQuestion(getConstraintsRef.current?.())
       .then((data) => {
         cacheRef.current = data;
         setPrefetchReady(true);
@@ -50,18 +74,25 @@ export function useTriviaQuestion() {
     return data;
   }, []);
 
+  const applyQuestion = useCallback(
+    (data: TriviaQuestionResponse) => {
+      setCurrent(data);
+      notifyLoaded(data);
+      startPrefetch();
+    },
+    [notifyLoaded, startPrefetch]
+  );
+
   const advance = useCallback(async () => {
     const gen = ++advanceGenRef.current;
     setError(null);
 
     const cached = consumeCached();
     if (cached) {
-      setCurrent(cached);
-      startPrefetch();
+      applyQuestion(cached);
       return;
     }
 
-    // Drop the previous question immediately so it is not shown while waiting.
     setCurrent(null);
     setAdvancing(true);
 
@@ -73,11 +104,12 @@ export function useTriviaQuestion() {
       if (gen !== advanceGenRef.current) return;
 
       const fromPrefetch = consumeCached();
-      const data = fromPrefetch ?? (await fetchTriviaQuestion());
+      const data =
+        fromPrefetch ??
+        (await fetchTriviaQuestion(getConstraintsRef.current?.()));
 
       if (gen !== advanceGenRef.current) return;
-      setCurrent(data);
-      startPrefetch();
+      applyQuestion(data);
     } catch (e) {
       if (gen !== advanceGenRef.current) return;
       setError(e instanceof Error ? e.message : "Failed to load question");
@@ -86,18 +118,26 @@ export function useTriviaQuestion() {
         setAdvancing(false);
       }
     }
-  }, [consumeCached, startPrefetch]);
+  }, [applyQuestion, consumeCached, startPrefetch]);
+
+  const sessionKey = options?.sessionKey ?? 0;
 
   useEffect(() => {
     let cancelled = false;
+    cacheRef.current = null;
+    prefetchPromiseRef.current = null;
+    setPrefetchReady(false);
+    setCurrent(null);
+    setLoading(true);
+    setError(null);
+    advanceGenRef.current += 1;
 
     void (async () => {
-      setLoading(true);
-      setError(null);
       try {
-        const data = await fetchTriviaQuestion();
+        const data = await fetchTriviaQuestion(getConstraintsRef.current?.());
         if (cancelled) return;
         setCurrent(data);
+        notifyLoaded(data);
         startPrefetch();
       } catch (e) {
         if (cancelled) return;
@@ -111,7 +151,7 @@ export function useTriviaQuestion() {
       cancelled = true;
       advanceGenRef.current += 1;
     };
-  }, [startPrefetch]);
+  }, [sessionKey, notifyLoaded, startPrefetch]);
 
   return {
     current,

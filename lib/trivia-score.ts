@@ -83,15 +83,6 @@ export function recordTriviaAnswer(
   return next;
 }
 
-export function resetTriviaScore(): TriviaScoreRecord {
-  const next: TriviaScoreRecord = {
-    ...DEFAULT_SCORE,
-    updatedAt: new Date().toISOString(),
-  };
-  saveTriviaScore(next);
-  return next;
-}
-
 export function triviaAccuracy(record: TriviaScoreRecord): number | null {
   if (record.answered === 0) return null;
   return record.correct / record.answered;

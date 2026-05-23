@@ -1,4 +1,5 @@
 import type { TriviaProof } from "@/lib/trivia-proof";
+import type { TriviaSessionConstraints } from "@/lib/trivia-categories";
 
 export type TriviaQuestionResponse = {
   question: string;
@@ -7,6 +8,8 @@ export type TriviaQuestionResponse = {
   sql: string;
   explanation: string;
   model: string;
+  categoryId?: string;
+  categoryLabel?: string;
   proof?: TriviaProof;
   results: {
     columns: string[];
@@ -16,9 +19,13 @@ export type TriviaQuestionResponse = {
   runtimeMs: number;
 };
 
-export async function fetchTriviaQuestion(): Promise<TriviaQuestionResponse> {
+export async function fetchTriviaQuestion(
+  session?: TriviaSessionConstraints
+): Promise<TriviaQuestionResponse> {
   const res = await fetch("/api/trivia/question", {
     method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(session ?? {}),
     cache: "no-store",
   });
   const data = (await res.json()) as TriviaQuestionResponse & {
