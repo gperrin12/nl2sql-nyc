@@ -45,12 +45,7 @@ export function TriviaClient() {
     []
   );
 
-  const {
-    bestStreak,
-    currentStreak,
-    recordAnswer,
-    reset: resetScore,
-  } = useTriviaScore();
+  const { bestStreak, currentStreak, recordAnswer } = useTriviaScore();
 
   const {
     board,
@@ -188,23 +183,6 @@ export function TriviaClient() {
                 className="text-xs text-[var(--muted)] hover:text-[var(--accent)] underline font-mono uppercase"
               >
                 High Scores
-              </button>
-            )}
-            {sessionAnswered > 0 && phase === "playing" && (
-              <button
-                type="button"
-                onClick={() => {
-                  if (
-                    window.confirm(
-                      "Reset lifetime trivia stats? Hi-scores are kept."
-                    )
-                  ) {
-                    resetScore();
-                  }
-                }}
-                className="text-xs text-[var(--muted)] hover:text-[var(--text)] underline"
-              >
-                Reset stats
               </button>
             )}
           </div>
