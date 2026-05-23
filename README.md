@@ -61,6 +61,8 @@ Open http://localhost:3000. When logged in, **`/dashboard`** lists query runs fr
 
 **Eval script** (`npm run eval`) uses the same Postgres source and defaults to the current deploy; **`EVAL_APP_VERSION=all`** includes all rows. Legacy: `npm run eval:p8k8`.
 
+**Run + eval** (`npm run run:eval`) reads `data/questions.json`, generates SQL with your local env (`USE_P8K8` / `CLAUDE_SQL_AGENT`), logs to Postgres, judges, and writes `evals.json`. Use `npm run run:eval:full` for Athena+viz judging. No browser required.
+
 ### Dashboard evals on Vercel
 
 Vercel has no persistent disk, so judge results from `npm run eval` must live in **S3** (same AWS creds as Athena):
