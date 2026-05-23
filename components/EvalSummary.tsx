@@ -206,14 +206,21 @@ function BreakdownTable({
 
 type EvalSummaryProps = {
   evals: FullJudgeResult[];
+  /** Queries on this deploy (for "judged X of Y" hint). */
+  momentCount?: number;
 };
 
-export function EvalSummary({ evals }: EvalSummaryProps) {
+export function EvalSummary({ evals, momentCount }: EvalSummaryProps) {
   if (evals.length === 0) {
+    const pending =
+      momentCount != null && momentCount > 0
+        ? ` (${momentCount} quer${momentCount === 1 ? "y" : "ies"} on this deploy — none judged yet for current SQL)`
+        : "";
     return (
       <p className="text-sm text-[var(--muted)]">
-        No judged queries yet — run{" "}
-        <code className="text-xs font-mono">npm run eval</code> to populate scores.
+        No judged queries for this deploy yet{pending} — run{" "}
+        <code className="text-xs font-mono">npm run eval</code> after logging queries,
+        then refresh.
       </p>
     );
   }
@@ -249,8 +256,19 @@ export function EvalSummary({ evals }: EvalSummaryProps) {
     (key) => DATASET_LABELS[key as QueryDataset] ?? key
   );
 
+  const judgedHint =
+    momentCount != null && momentCount > evals.length
+      ? ` · ${evals.length} judged of ${momentCount} on this deploy`
+      : "";
+
   return (
     <div className="space-y-5">
+      {judgedHint ? (
+        <p className="text-xs text-[var(--muted)]">
+          Eval summary{judgedHint} (exact SQL match; re-run{" "}
+          <code className="font-mono">npm run eval</code> after new queries)
+        </p>
+      ) : null}
       <div className="flex flex-wrap items-center gap-3">
         <StatPill label="Total evals" value={String(evals.length)} />
         <StatPill

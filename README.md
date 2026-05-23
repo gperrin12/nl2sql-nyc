@@ -57,7 +57,11 @@ cp .env.example .env.local
 npm run dev
 ```
 
-Open http://localhost:3000. When logged in, **`/dashboard`** shows recent p8k8 query pairs (requires `P8K8_URL`, `P8K8_AUTH_TOKEN`, and optionally `P8K8_CHAT_ID` for the session UUID).
+Open http://localhost:3000. When logged in, **`/dashboard`** lists **one row per question** — the **most recent** run in **`nl2sql.query_runs`** (any deploy). Each row shows that run’s `app_version` in the agent column. Requires **`DATABASE_URL`**. API: `?appVersion=8ad5499` limits to a deploy; `?appVersion=current` is this instance’s SHA. Set **`DASHBOARD_SOURCE=p8k8`** for the legacy p8k8 timeline.
+
+**Eval script** (`npm run eval`) uses the same Postgres source and defaults to the current deploy; **`EVAL_APP_VERSION=all`** includes all rows. Legacy: `npm run eval:p8k8`.
+
+**Run + eval** (`npm run run:eval`) reads `data/questions.json`, generates SQL with your local env (`USE_P8K8` / `CLAUDE_SQL_AGENT`), logs to Postgres, judges, and writes `evals.json`. Use `npm run run:eval:full` for Athena+viz judging. No browser required.
 
 ### Dashboard evals on Vercel
 

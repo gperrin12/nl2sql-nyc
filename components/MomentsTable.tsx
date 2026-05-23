@@ -17,7 +17,7 @@ import {
 } from "@/lib/judge-display";
 import { formatLatencyMs } from "@/lib/sql-metrics";
 
-const COLUMN_STORAGE_KEY = "nl2sql-dashboard-columns-v5";
+const COLUMN_STORAGE_KEY = "nl2sql-dashboard-columns-v6";
 
 export type MomentColumnId =
   | "timestamp"
@@ -28,6 +28,7 @@ export type MomentColumnId =
   | "sql"
   | "cplx"
   | "model"
+  | "athena"
   | "tokens"
   | "sqlJudge"
   | "judge"
@@ -94,6 +95,13 @@ const COLUMN_DEFS: ColumnDef[] = [
     label: "Model",
     defaultVisible: true,
     headerClass: "w-[8rem]",
+  },
+  {
+    id: "athena",
+    label: "Athena",
+    defaultVisible: true,
+    headerClass: "w-[6rem]",
+    cellClass: "font-mono text-xs whitespace-nowrap",
   },
   {
     id: "tokens",
@@ -275,7 +283,16 @@ function columnHeaderTitle(id: MomentColumnId): string | undefined {
   if (id === "cplx") return "Complexity score";
   if (id === "resultQuality") return "Result quality (0–10): does Athena data answer the question?";
   if (id === "vizFit") return "Viz fit (0–10): is map/chart/table right for this question?";
+  if (id === "athena") return "Athena execution state from nl2sql.query_runs";
   return undefined;
+}
+
+function athenaStateClass(state: string | null | undefined): string {
+  const s = (state ?? "").toUpperCase();
+  if (s === "SUCCEEDED") return "text-emerald-400";
+  if (s === "FAILED" || s === "CANCELLED") return "text-[var(--error)]";
+  if (s === "RUNNING") return "text-[var(--accent)]";
+  return "text-[var(--muted)]";
 }
 
 function complexityTooltip(m: DashboardMoment): string {
@@ -393,6 +410,17 @@ function MomentRow({
             title={m.model}
           >
             {m.model}
+          </span>
+        ) : (
+          "—"
+        );
+      case "athena":
+        return m.athenaState ? (
+          <span
+            className={athenaStateClass(m.athenaState)}
+            title={m.executionId ?? undefined}
+          >
+            {m.athenaState}
           </span>
         ) : (
           "—"

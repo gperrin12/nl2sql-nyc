@@ -16,19 +16,16 @@
  *   SEED_IDS         comma-separated question ids
  */
 
-import { readFileSync, writeFileSync, mkdirSync, existsSync } from "fs";
+import { writeFileSync, mkdirSync, existsSync, readFileSync } from "fs";
 import path from "path";
+import {
+  applyQuestionFilters,
+  loadQuestionsFromFile,
+  type QuestionBankEntry,
+} from "../lib/questions-bank";
 import { inferVizType } from "../lib/viz-infer";
 
-type Question = {
-  id: string;
-  question: string;
-  category: string;
-  difficulty: "easy" | "medium" | "hard";
-  tables: string[];
-  expectedViz: "chart" | "map" | "table";
-  notes?: string;
-};
+type Question = QuestionBankEntry;
 
 export type SeedResultStatus =
   | "succeeded"
@@ -56,7 +53,6 @@ export type SeedResult = {
   seededAt: string;
 };
 
-const QUESTIONS_PATH = path.join(process.cwd(), "data", "questions.json");
 const RESULTS_PATH = path.join(process.cwd(), "data", "seed-results.json");
 
 const APP_URL = (process.env.APP_URL ?? "http://localhost:3000").replace(
@@ -130,48 +126,6 @@ function authHeaders(cookie: string | null): HeadersInit {
   };
   if (cookie) headers.Cookie = `auth=${cookie}`;
   return headers;
-}
-
-/** questions.json uses // section headers — strip line comments before parse */
-function parseJsonWithLineComments(raw: string): unknown {
-  const stripped = raw
-    .split("\n")
-    .filter((line) => !/^\s*\/\//.test(line))
-    .join("\n");
-  return JSON.parse(stripped);
-}
-
-function loadQuestions(): Question[] {
-  const raw = readFileSync(QUESTIONS_PATH, "utf8");
-  const parsed = parseJsonWithLineComments(raw) as unknown;
-  if (!Array.isArray(parsed)) {
-    throw new Error("questions.json must be a JSON array");
-  }
-  return parsed as Question[];
-}
-
-function applyFilters(questions: Question[]): Question[] {
-  let list = questions;
-
-  const idsRaw = process.env.SEED_IDS?.trim();
-  if (idsRaw) {
-    const ids = new Set(
-      idsRaw.split(",").map((s) => s.trim()).filter(Boolean)
-    );
-    list = list.filter((q) => ids.has(q.id));
-  }
-
-  const category = process.env.SEED_CATEGORY?.trim();
-  if (category) {
-    list = list.filter((q) => q.category === category);
-  }
-
-  const difficulty = process.env.SEED_DIFFICULTY?.trim();
-  if (difficulty) {
-    list = list.filter((q) => q.difficulty === difficulty);
-  }
-
-  return list;
 }
 
 function loadExistingResults(): SeedResult[] {
@@ -443,8 +397,8 @@ function printSummary(results: SeedResult[]): void {
 
 async function main(): Promise<void> {
 
-  const allQuestions = loadQuestions();
-  const questions = applyFilters(allQuestions);
+  const allQuestions = loadQuestionsFromFile();
+  const questions = applyQuestionFilters(allQuestions);
 
   if (questions.length === 0) {
     console.error("No questions match the current filters.");

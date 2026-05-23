@@ -12,7 +12,9 @@ export function enrichDashboardMoments(
 ): DashboardMoment[] {
   return moments.map((m) => ({
     ...m,
-    latencyMs: lookupLatencyFromMap(latencyByKey, m.question, m.sql),
+    latencyMs:
+      m.runtimeMsFromDb ??
+      lookupLatencyFromMap(latencyByKey, m.question, m.sql),
     questionMetrics: questionMetrics(m.question),
     sqlComplexity: sqlComplexity(m.sql),
   }));

@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { AppNav } from "@/components/AppNav";
 import { EvalSummary } from "@/components/EvalSummary";
 import { MomentsTable } from "@/components/MomentsTable";
-import { buildEvalByMomentId } from "@/lib/eval-match";
+import { buildEvalByMomentId, evalsForMoments } from "@/lib/eval-match";
 import type { FullJudgeResult } from "@/lib/judge";
 import type { DashboardMoment } from "@/lib/p8k8-moments";
 import type { QueryCategory } from "@/lib/query-category";
@@ -27,6 +27,10 @@ const MOMENTS_FETCH_LIMIT = 200;
 type MomentsResponse = {
   moments: DashboardMoment[];
   total: number;
+  source?: "postgres" | "p8k8";
+  currentAppVersion?: string;
+  deployFilter?: string | null;
+  dedupeByQuestion?: boolean;
 };
 
 type CategoryFilter = "all" | QueryCategory;
@@ -61,24 +65,6 @@ const DATASET_OPTIONS: QueryDataset[] = [
 ];
 
 const DIFFICULTY_OPTIONS: QueryDifficulty[] = ["easy", "medium", "hard"];
-
-/** One eval per question for summary stats (newest judgedAt wins). */
-function dedupeEvalsByQuestion(evals: FullJudgeResult[]): FullJudgeResult[] {
-  const byQuestion = new Map<string, FullJudgeResult>();
-  const sorted = [...evals].sort(
-    (a, b) => new Date(b.judgedAt).getTime() - new Date(a.judgedAt).getTime()
-  );
-  for (const e of sorted) {
-    const q = e.question.trim();
-    const prev = byQuestion.get(q);
-    if (!prev) {
-      byQuestion.set(q, e);
-      continue;
-    }
-    if (e.resultEval && !prev.resultEval) byQuestion.set(q, e);
-  }
-  return Array.from(byQuestion.values());
-}
 
 function FilterPills<T extends string>({
   label,
@@ -122,6 +108,14 @@ function FilterPills<T extends string>({
 export function DashboardClient() {
   const [moments, setMoments] = useState<DashboardMoment[]>([]);
   const [total, setTotal] = useState(0);
+  const [dataSource, setDataSource] = useState<"postgres" | "p8k8" | null>(
+    null
+  );
+  const [currentAppVersion, setCurrentAppVersion] = useState<string | null>(
+    null
+  );
+  const [deployFilter, setDeployFilter] = useState<string | null>(null);
+  const [dedupeByQuestion, setDedupeByQuestion] = useState(true);
   const [pageOffset, setPageOffset] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -168,7 +162,16 @@ export function DashboardClient() {
       setMoments(data.moments);
       setEvals(loadedEvals);
       setTotal(data.total);
-      setEvalByMomentId(buildEvalByMomentId(data.moments, loadedEvals));
+      setDataSource(data.source ?? null);
+      setCurrentAppVersion(data.currentAppVersion ?? null);
+      setDeployFilter(data.deployFilter ?? null);
+      setDedupeByQuestion(data.dedupeByQuestion !== false);
+      const exactEvalMatch = data.source === "postgres";
+      setEvalByMomentId(
+        buildEvalByMomentId(data.moments, loadedEvals, {
+          exactMatchOnly: exactEvalMatch,
+        })
+      );
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load dashboard");
     } finally {
@@ -180,7 +183,13 @@ export function DashboardClient() {
     void load();
   }, [load]);
 
-  const allEvals = useMemo(() => dedupeEvalsByQuestion(evals), [evals]);
+  const evalByMomentIdStable = evalByMomentId;
+
+  /** Summary charts: only judges for queries on this page (current deploy), exact SQL match. */
+  const summaryEvals = useMemo(
+    () => evalsForMoments(moments, evalByMomentIdStable),
+    [moments, evalByMomentIdStable]
+  );
 
   const filtersActive =
     categoryFilter !== "all" ||
@@ -297,6 +306,30 @@ export function DashboardClient() {
         </h1>
         <p className="text-sm text-[var(--muted)]">
           Aggregated eval summary · drill down into individual queries below
+          {dataSource && (
+            <>
+              {" "}
+              · Source:{" "}
+              <span className="font-mono text-[var(--foreground)]">
+                {dataSource === "postgres"
+                  ? "nl2sql.query_runs"
+                  : "p8k8"}
+              </span>
+              {dataSource === "postgres" && dedupeByQuestion && (
+                <>
+                  {" "}
+                  · latest run per question
+                  {deployFilter ? (
+                    <>
+                      {" "}
+                      (deploy{" "}
+                      <span className="font-mono">{deployFilter}</span>)
+                    </>
+                  ) : null}
+                </>
+              )}
+            </>
+          )}
         </p>
       </header>
 
@@ -313,7 +346,10 @@ export function DashboardClient() {
         />
       </div>
 
-      <EvalSummary evals={allEvals} />
+      <EvalSummary
+        evals={summaryEvals}
+        momentCount={moments.length}
+      />
 
       <div className="rounded-lg border border-[var(--border)] bg-[var(--panel)] px-4 py-3 space-y-2.5">
         <p className="text-xs uppercase tracking-wide text-[var(--muted)]">
