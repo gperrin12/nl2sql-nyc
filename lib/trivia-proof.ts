@@ -407,6 +407,97 @@ export function shuffleTriviaOptions(
   return { options: shuffledOptions, correctIndex: newCorrectIndex };
 }
 
+const AIRPORT_TERMS_RE =
+  /\b(jfk|kennedy|laguardia|lga|ewr|newark|airport)\b/i;
+
+/** Plain-English explanation tied to Athena proof (not the model's draft). */
+export function buildTriviaExplanationFromProof(proof: TriviaProof): string {
+  const label = proof.winnerLabel || proof.correctOption;
+  const metric = proof.winnerMetric;
+  const metricLabel = metric ? humanizeMetricColumn(metric.column) : "the ranking metric";
+
+  if (metric?.value) {
+    return (
+      `The query ranks ${label} first on ${metricLabel} (${metric.value}), ` +
+      `so ${proof.correctOption} is the correct answer.`
+    );
+  }
+  return `The query ranks ${label} first, so ${proof.correctOption} is the correct answer.`;
+}
+
+function humanizeMetricColumn(column: string): string {
+  return column
+    .replace(/_/g, " ")
+    .replace(/\bavg\b/gi, "average")
+    .replace(/\bct\b/gi, "count")
+    .trim();
+}
+
+function distinctiveLabelParts(label: string): string[] {
+  const whole = normalize(label);
+  const parts = label
+    .split(/[/,–-]/)
+    .map((p) => normalize(p))
+    .filter((p) => p.length >= 4);
+  return parts.length > 0 ? parts : [whole];
+}
+
+/** Model explanation must name the verified winner, not a different entity (e.g. JFK vs a zone). */
+export function explanationAlignsWithProof(
+  explanation: string,
+  proof: TriviaProof,
+  options: string[]
+): boolean {
+  const correct = proof.correctOption;
+  const winner = proof.winnerLabel;
+  const ex = normalize(explanation);
+
+  const mustMatch = distinctiveLabelParts(correct);
+  const winnerParts = distinctiveLabelParts(winner);
+  const referencesCorrect = [...mustMatch, ...winnerParts].some((part) => {
+    if (part.length < 4) return ex.includes(part);
+    return ex.includes(part);
+  });
+  if (!referencesCorrect) return false;
+
+  const correctBlob = `${correct} ${winner}`.toLowerCase();
+  if (
+    AIRPORT_TERMS_RE.test(explanation) &&
+    !AIRPORT_TERMS_RE.test(correctBlob)
+  ) {
+    return false;
+  }
+
+  for (const opt of options) {
+    if (cellMatchesOption(opt, correct) || cellMatchesOption(opt, winner)) {
+      continue;
+    }
+    for (const part of distinctiveLabelParts(opt)) {
+      if (part.length < 5) continue;
+      if (ex.includes(part) && !mustMatch.some((m) => ex.includes(m))) {
+        return false;
+      }
+    }
+  }
+
+  return true;
+}
+
+export function resolveTriviaExplanation(
+  modelExplanation: string,
+  proof: TriviaProof,
+  options: string[],
+  optionsRealignedFromAthena: boolean
+): string {
+  if (proof.correctedFromModel || optionsRealignedFromAthena) {
+    return buildTriviaExplanationFromProof(proof);
+  }
+  if (explanationAlignsWithProof(modelExplanation, proof, options)) {
+    return modelExplanation;
+  }
+  return buildTriviaExplanationFromProof(proof);
+}
+
 export function proofWithShuffledIndex(
   proof: TriviaProof,
   correctIndex: number,

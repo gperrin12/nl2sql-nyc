@@ -30,7 +30,7 @@ OUTPUT — strict JSON only (no markdown, no code fences, no commentary). Keys:
 - options: exactly 4 strings
 - correctIndex: 0-3 index of the correct option
 - sql: one SELECT or WITH for AWS Athena (Trino dialect)
-- explanation: 1-2 sentences plain English tying the correct option to the data
+- explanation: 1-2 sentences that MUST name options[correctIndex] by name (same spelling) and describe why it wins — never explain a different option (e.g. do not write about JFK if the correct option is a neighborhood zone)
 - proofColumn: name of the VARCHAR label column in SQL (usually answer_label)
 
 OPTIONS ↔ SQL (mandatory workflow):

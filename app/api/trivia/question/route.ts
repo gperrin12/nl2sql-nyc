@@ -18,6 +18,7 @@ import {
   proofRowLabelsFromResults,
   proofWithShuffledIndex,
   realignOptionsFromAthenaResults,
+  resolveTriviaExplanation,
   resolveTriviaProofFromResults,
   shuffleTriviaOptions,
 } from "@/lib/trivia-proof";
@@ -129,6 +130,7 @@ export async function POST(req: NextRequest) {
     );
 
     let optionsForShuffle = generated.options;
+    let optionsRealignedFromAthena = false;
 
     if (resolved == null) {
       const rowLabels = proofRowLabelsFromResults(results);
@@ -147,6 +149,7 @@ export async function POST(req: NextRequest) {
       ) {
         resolved = realigned;
         optionsForShuffle = realigned.options;
+        optionsRealignedFromAthena = true;
       }
     }
 
@@ -164,13 +167,12 @@ export async function POST(req: NextRequest) {
     );
     const proof = proofWithShuffledIndex(resolvedProof, correctIndex, options);
 
-    const explanation = proof.correctedFromModel
-      ? `The data ranks ${proof.winnerLabel} first` +
-        (proof.winnerMetric
-          ? ` (${proof.winnerMetric.column} = ${proof.winnerMetric.value})`
-          : "") +
-        `.`
-      : generated.explanation;
+    const explanation = resolveTriviaExplanation(
+      generated.explanation,
+      proof,
+      options,
+      optionsRealignedFromAthena
+    );
 
     return NextResponse.json({
       question: generated.question,
