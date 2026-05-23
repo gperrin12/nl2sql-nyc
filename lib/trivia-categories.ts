@@ -135,6 +135,23 @@ export function getTriviaCategoryById(id: string): TriviaCategoryDef | undefined
   return BY_ID.get(id);
 }
 
+/** Extra model guidance for categories that often mismatch SQL vs options. */
+export function getCategoryGenerationHint(categoryId: string): string | undefined {
+  const hints: Record<string, string> = {
+    "taxi-airport":
+      "Filter to airport pickup zones only (JFK, LaGuardia, Newark/EWR) via taxi_zones.zone. " +
+      "answer_label must be those zone names from tz.zone — not random neighborhoods. " +
+      "Options = the four zone names returned by SQL.",
+    "taxi-zone-rank":
+      "Use taxi_zones.zone (or Zone) as answer_label. Options must be the four zone names in your LIMIT 4 result.",
+    "taxi-borough-pickups":
+      "If comparing boroughs, answer_label must be taxi_zones.borough values (Title Case: Manhattan, Brooklyn, …).",
+    "census-income":
+      "If ranking boroughs by median income, avoid ACS top-code 250001 ties — pick a metric or filter with a unique winner.",
+  };
+  return hints[categoryId];
+}
+
 export function shuffle<T>(arr: T[]): T[] {
   const out = [...arr];
   for (let i = out.length - 1; i > 0; i--) {

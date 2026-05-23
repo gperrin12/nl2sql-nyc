@@ -7,8 +7,12 @@ import { checkSql } from "@/lib/guardrails";
 import { generateTriviaQuestion } from "@/lib/trivia";
 import {
   findRankingMetricTie,
+  formatOptionsMismatchFeedback,
   formatRankingTieFeedback,
+  optionsThemeMismatch,
+  proofRowLabelsFromResults,
   proofWithShuffledIndex,
+  realignOptionsFromAthenaResults,
   resolveTriviaProofFromResults,
   shuffleTriviaOptions,
 } from "@/lib/trivia-proof";
@@ -16,7 +20,7 @@ import {
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
 
-const MAX_ATTEMPTS = 3;
+const MAX_ATTEMPTS = 5;
 
 const BodySchema = z.object({
   categoryId: z.string().optional(),
@@ -93,25 +97,44 @@ export async function POST(req: NextRequest) {
       continue;
     }
 
-    const resolved = resolveTriviaProofFromResults(
+    let resolved = resolveTriviaProofFromResults(
       generated.options,
       generated.correctIndex,
       results
     );
+
+    let optionsForShuffle = generated.options;
+
     if (resolved == null) {
-      const top = findRankingWinnerForFeedback(results);
+      const rowLabels = proofRowLabelsFromResults(results);
+      const realigned = realignOptionsFromAthenaResults(
+        results,
+        generated.correctIndex
+      );
+
+      if (
+        realigned &&
+        !optionsThemeMismatch(
+          generated.options,
+          generated.question,
+          rowLabels
+        )
+      ) {
+        resolved = realigned;
+        optionsForShuffle = realigned.options;
+      }
+    }
+
+    if (resolved == null) {
       lastSql = guard.sql;
-      lastFeedback =
-        "Athena winner must match one of the four options. " +
-        `Top row by metric: ${top ?? JSON.stringify(results.rows[0])}. ` +
-        `Options: ${JSON.stringify(generated.options)}. ` +
-        "Set correctIndex to the option that equals the highest-metric row's label (answer_label).";
+      lastFeedback = formatOptionsMismatchFeedback(results, generated.options);
       continue;
     }
 
     const { correctIndex: dataCorrectIndex, proof: resolvedProof } = resolved;
+
     const { options, correctIndex } = shuffleTriviaOptions(
-      generated.options,
+      optionsForShuffle,
       dataCorrectIndex
     );
     const proof = proofWithShuffledIndex(resolvedProof, correctIndex, options);

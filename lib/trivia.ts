@@ -2,6 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
 import { renderTriviaSchemaForPrompt } from "@/lib/schemas";
 import {
+  getCategoryGenerationHint,
   pickCategoryForRequest,
   type TriviaSessionConstraints,
 } from "@/lib/trivia-categories";
@@ -25,11 +26,17 @@ const TRIVIA_SYSTEM = `You write pub-trivia multiple-choice questions for NYC op
 
 OUTPUT — strict JSON only (no markdown, no code fences, no commentary). Keys:
 - question: specific surprising question (name boroughs, years, metrics — not vague)
-- options: exactly 4 strings; one is the answer the SQL result supports; three plausible distractors
+- options: exactly 4 strings
 - correctIndex: 0-3 index of the correct option
 - sql: one SELECT or WITH for AWS Athena (Trino dialect)
 - explanation: 1-2 sentences plain English tying the correct option to the data
-- proofColumn: optional name of the result column that holds the winning answer text (must equal options[correctIndex] in at least one row)
+- proofColumn: name of the VARCHAR label column in SQL (usually answer_label)
+
+OPTIONS ↔ SQL (mandatory workflow):
+1. Design SQL first: SELECT <label> AS answer_label, <metric> ... ORDER BY metric DESC LIMIT 4.
+2. The four options MUST be exactly the four answer_label values your SQL returns (same spelling/casing as Athena). Do not invent options (e.g. airport names) that are not rows in your result.
+3. correctIndex points to whichever option equals the TOP row's answer_label after ORDER BY metric DESC.
+4. The question text must ask about the same entities as answer_label (if SQL returns taxi zone names, options and question are about those zones).
 
 ALLOWED TABLES ONLY: nyc_311, nypd_collisions, gtp_tlc_data, taxi_zones, census_tracts, census_tract_demographics.
 
@@ -68,6 +75,8 @@ function buildUserPrompt(
   constraints?: TriviaSessionConstraints
 ): string {
   let content = `Category focus (required): ${categoryLabel}\nCategory id: ${categoryId}\n\nGenerate one new trivia question JSON for this category only.`;
+  const hint = getCategoryGenerationHint(categoryId);
+  if (hint) content += `\n\nCategory-specific rule:\n${hint}`;
 
   if (constraints?.usedFamilies?.length) {
     content += `\n\nThis 10-question session already used these topic families: ${constraints.usedFamilies.join(", ")}. Stay within your assigned category but use a fresh angle (different metric, borough, year, or ranking).`;

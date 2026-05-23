@@ -284,6 +284,98 @@ export function triviaProofIsValid(
 }
 
 /** Human-readable retry hint when proof resolution fails due to a tie. */
+/** True when MC options / question theme clearly disagrees with SQL row labels (e.g. airports vs neighborhoods). */
+export function optionsThemeMismatch(
+  options: string[],
+  question: string,
+  rowLabels: string[]
+): boolean {
+  const blob = `${options.join(" ")} ${question}`.toLowerCase();
+  const labels = rowLabels.join(" ").toLowerCase();
+
+  const airportish =
+    /\b(airport|laguardia|lga|jfk|ewr|newark)\b/i.test(blob) &&
+    !/\b(airport|laguardia|lga|jfk|ewr|newark)\b/i.test(labels);
+
+  const boroughish =
+    /\b(borough|brooklyn|manhattan|bronx|queens|staten)\b/i.test(blob) &&
+    /fordham|concourse|morris park|ntaname|neighborhood/i.test(labels) &&
+    !/\b(brooklyn|manhattan|bronx|queens|staten island)\b/i.test(labels);
+
+  return airportish || boroughish;
+}
+
+export function formatOptionsMismatchFeedback(
+  results: Pick<AthenaResults, "columns" | "rows">,
+  options: string[]
+): string {
+  const winner = findRankingWinner(results.columns, results.rows);
+  const cols = resolveRankingColumns(results.columns, results.rows);
+  const labelCol = cols?.labelColumn ?? "answer_label";
+  const rowLabels = results.rows
+    .slice(0, 4)
+    .map((r) => r[labelCol]?.trim())
+    .filter((l): l is string => Boolean(l));
+
+  const top = results.rows
+    .slice(0, 4)
+    .map((r) => {
+      const label = r[labelCol] ?? "?";
+      const metric = cols?.metricColumn;
+      return metric ? `${label} (${metric}=${r[metric]})` : label;
+    })
+    .join("; ");
+
+  return (
+    "The four options MUST be the exact answer_label values from your SQL (LIMIT 4 rows), " +
+    "and correctIndex must be the highest-metric row. " +
+    `Athena top rows: ${top || "(none)"}. ` +
+    `Your options: ${JSON.stringify(options)}. ` +
+    (rowLabels.length >= 4
+      ? `Rebuild options as: ${JSON.stringify(rowLabels)} (in any order) and align the question.`
+      : "Rewrite SQL so it returns four labeled rows matching your four options.")
+  );
+}
+
+/**
+ * When the model's options don't match Athena, rebuild options from the proof table
+ * if rows are consistent (skipped when theme mismatch would make the question nonsense).
+ */
+/** First four answer_label (or label) values from the proof table, in row order. */
+export function proofRowLabelsFromResults(
+  results: Pick<AthenaResults, "columns" | "rows">
+): string[] {
+  const cols = resolveRankingColumns(results.columns, results.rows);
+  if (!cols) return [];
+  const { labelColumn } = cols;
+  const labels: string[] = [];
+  for (const row of results.rows) {
+    if (labels.length >= 4) break;
+    const label = row[labelColumn]?.trim();
+    if (!label) continue;
+    if (labels.some((l) => normalize(l) === normalize(label))) continue;
+    labels.push(label);
+  }
+  return labels;
+}
+
+export function realignOptionsFromAthenaResults(
+  results: Pick<AthenaResults, "columns" | "rows">,
+  modelCorrectIndex: number
+): (TriviaProofResolution & { options: string[] }) | null {
+  const labels = proofRowLabelsFromResults(results);
+  if (labels.length < 4) return null;
+
+  const winner = findRankingWinner(results.columns, results.rows);
+  if (!winner) return null;
+
+  const idx = labels.findIndex((l) => cellMatchesOption(l, winner.labelValue));
+  if (idx < 0) return null;
+
+  const resolution = buildResolution(labels, idx, modelCorrectIndex, winner);
+  return { ...resolution, options: labels };
+}
+
 export function formatRankingTieFeedback(
   tie: { metricColumn: string; metricValue: string; tiedLabels: string[] },
   options: string[]
