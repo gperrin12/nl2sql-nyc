@@ -335,7 +335,31 @@ export function TriviaClient() {
                 {data.explanation}
               </p>
 
-              <SqlDisplay sql={data.sql} defaultCollapsed={false} />
+              <div className="flex flex-wrap items-center gap-3">
+                {isLastQuestion ? (
+                  <button
+                    type="button"
+                    onClick={finishGame}
+                    className="px-6 py-2.5 rounded-md bg-[var(--accent)] text-black text-sm font-medium hover:bg-[var(--accent-dim)] font-mono uppercase tracking-wide"
+                  >
+                    Finish Game
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={loadQuestion}
+                    disabled={advancing}
+                    className="px-6 py-2.5 rounded-md bg-[var(--accent)] text-black text-sm font-medium hover:bg-[var(--accent-dim)] disabled:opacity-40"
+                  >
+                    {advancing ? "Loading…" : "Next Question"}
+                  </button>
+                )}
+                {prefetchReady && !advancing && !isLastQuestion && (
+                  <span className="text-xs text-[var(--accent)]">
+                    Next question ready
+                  </span>
+                )}
+              </div>
 
               <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/5 overflow-hidden">
                 {data.proof && (
@@ -375,31 +399,7 @@ export function TriviaClient() {
                 />
               </div>
 
-              <div className="flex flex-wrap items-center gap-3">
-                {isLastQuestion ? (
-                  <button
-                    type="button"
-                    onClick={finishGame}
-                    className="px-6 py-2.5 rounded-md bg-[var(--accent)] text-black text-sm font-medium hover:bg-[var(--accent-dim)] font-mono uppercase tracking-wide"
-                  >
-                    Finish Game
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={loadQuestion}
-                    disabled={advancing}
-                    className="px-6 py-2.5 rounded-md bg-[var(--accent)] text-black text-sm font-medium hover:bg-[var(--accent-dim)] disabled:opacity-40"
-                  >
-                    {advancing ? "Loading…" : "Next Question"}
-                  </button>
-                )}
-                {prefetchReady && !advancing && !isLastQuestion && (
-                  <span className="text-xs text-[var(--accent)]">
-                    Next question ready
-                  </span>
-                )}
-              </div>
+              <SqlDisplay sql={data.sql} defaultCollapsed />
             </div>
           )}
 
@@ -446,6 +446,24 @@ function TriviaSkeleton({ message }: { message?: string }) {
       </p>
     </div>
   );
+}
+
+/** Format numeric cells for display; labels and integers stay as-is (max 3 decimals). */
+function formatTriviaCellValue(value: string | null): string {
+  if (value == null || value === "") return "—";
+  const s = value.trim();
+  const normalized = s.replace(/,/g, "");
+  if (!/^-?\d+(\.\d+)?([eE][+-]?\d+)?$/.test(normalized)) return s;
+
+  const n = Number(normalized);
+  if (!Number.isFinite(n)) return s;
+  if (Number.isInteger(n)) return String(n);
+
+  const rounded = Math.round(n * 1000) / 1000;
+  return rounded.toLocaleString(undefined, {
+    maximumFractionDigits: 3,
+    minimumFractionDigits: 0,
+  });
 }
 
 function TriviaResultTable({
@@ -499,7 +517,7 @@ function TriviaResultTable({
                       : "tabular-nums"
                   }`}
                 >
-                  {row[col] ?? "—"}
+                  {formatTriviaCellValue(row[col])}
                 </td>
               ))}
             </tr>
