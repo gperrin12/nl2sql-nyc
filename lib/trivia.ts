@@ -6,6 +6,7 @@ import {
   pickCategoryForRequest,
   type TriviaSessionConstraints,
 } from "@/lib/trivia-categories";
+import { TLC_TRIP_FILTER_PROMPT_RULE } from "@/lib/tlc-trip-filters";
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 const DEFAULT_TRIVIA_MODEL = "claude-3-5-haiku-20241022";
@@ -42,7 +43,7 @@ ALLOWED TABLES ONLY: nyc_311, nypd_collisions, gtp_tlc_data, taxi_zones, census_
 
 SQL RULES (critical):
 - Partitioned tables (gtp_tlc_data, nypd_collisions, nyc_311): always filter year (and month when practical). year/month are VARCHAR — use quoted literals (year = '2025').
-- Yellow/green taxi (gtp_tlc_data): use year = '2025' (2023/2024 partitions may be empty in this warehouse).
+- Yellow/green taxi (gtp_tlc_data): use year = '2025' (2023/2024 partitions may be empty in this warehouse). Required WHERE on trips: trip_distance > 0 AND <= 50 miles, pulocationid/dolocationid NOT NULL, fare_amount between 0 and 500.
 - nyc_311 / nypd_collisions: prefer year = '2024' or year = '2025' with reasonable scope.
 - LIMIT 4 rows only; trivia SQL must return a small proof table (fast scans).
 - REQUIRED proof shape: include a VARCHAR column (alias proofColumn) whose value in the winning row exactly equals options[correctIndex] — e.g. SELECT borough AS answer_label, COUNT(*) AS complaint_count ... GROUP BY borough ORDER BY 2 DESC LIMIT 4, where answer_label for the top row is the correct option text. For numeric-only answers, SELECT CAST(the_number AS VARCHAR) AS answer_label so the value appears in results.
@@ -50,6 +51,7 @@ SQL RULES (critical):
 - TRY_CAST for numeric math on VARCHAR columns; nyc_311.borough is UPPERCASE ('BROOKLYN'); taxi_zones.borough is Title Case ('Manhattan').
 - TLC joins: TRY_CAST(pulocationid AS BIGINT) = TRY_CAST(locationid AS BIGINT); never TRIM(locationid).
 - Never SUBSTRING on timestamp columns — use day_of_week() for weekday/weekend.
+- ${TLC_TRIP_FILTER_PROMPT_RULE}
 - No DDL/DML.
 
 REAL-WORLD SENSE (mandatory — trivial SQL is not enough):

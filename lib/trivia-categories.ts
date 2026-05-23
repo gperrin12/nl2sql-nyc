@@ -141,11 +141,20 @@ export function getCategoryGenerationHint(categoryId: string): string | undefine
     "taxi-airport":
       "Filter to airport pickup zones only (JFK, LaGuardia, Newark/EWR) via taxi_zones.zone. " +
       "answer_label must be those zone names from tz.zone — not random neighborhoods. " +
-      "Options = the four zone names returned by SQL.",
+      "Options = the four zone names returned by SQL. " +
+      "Also filter trip_distance <= 50 miles — averages should be tens of miles, not 300+.",
     "taxi-zone-rank":
-      "Use taxi_zones.zone (or Zone) as answer_label. Options must be the four zone names in your LIMIT 4 result.",
+      "Use taxi_zones.zone as answer_label. Filter trips: trip_distance 0–50 miles, valid zone IDs, fare 0–500 before AVG/COUNT.",
     "taxi-borough-pickups":
-      "If comparing boroughs, answer_label must be taxi_zones.borough values (Title Case: Manhattan, Brooklyn, …).",
+      "If comparing boroughs, answer_label must be taxi_zones.borough (Title Case). Filter trip_distance <= 50 miles on gtp_tlc_data.",
+    "taxi-distance":
+      "Average trip distance by zone — MUST filter trip_distance > 0 AND <= 50 miles before AVG; typical NYC zone averages are under 15 mi.",
+    "taxi-fare-tip":
+      "Filter trip_distance and fare_amount sanity (distance <= 50 mi, fare 0–500) before tip or fare aggregates.",
+    "taxi-hourly":
+      "Hour-of-day trip counts — filter trip_distance <= 50 miles even if not selecting distance.",
+    "weekend-weekday":
+      "Weekday/weekend splits — include trip_distance <= 50 miles filter on gtp_tlc_data.",
     "census-income":
       "If ranking boroughs by median income, avoid ACS top-code 250001 ties — pick a metric or filter with a unique winner.",
     "census-vs-311":

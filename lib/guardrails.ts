@@ -4,6 +4,11 @@
  * the first line of defense, not the only one.
  */
 
+import {
+  hasTlcTripDistanceFilter,
+  tlcTripFilterGuardrailReason,
+} from "@/lib/tlc-trip-filters";
+
 const FORBIDDEN_KEYWORDS = [
   "INSERT", "UPDATE", "DELETE", "DROP", "ALTER", "CREATE",
   "TRUNCATE", "GRANT", "REVOKE", "MERGE", "REPLACE",
@@ -61,6 +66,10 @@ export function checkSql(rawSql: string): GuardrailResult {
       reason:
         "SUBSTRING() on datetime columns is invalid — use day_of_week(FROM_ISO8601_TIMESTAMP(col)) or day_of_week(col) for weekday/weekend",
     };
+  }
+
+  if (!hasTlcTripDistanceFilter(stripped)) {
+    return { ok: false, reason: tlcTripFilterGuardrailReason() };
   }
 
   return { ok: true, sql: stripped };

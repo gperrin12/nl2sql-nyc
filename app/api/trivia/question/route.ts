@@ -9,6 +9,7 @@ import {
   formatTriviaSenseFeedback,
   validateTriviaQuestionSense,
 } from "@/lib/trivia-sense";
+import { validateTlcProofDistances } from "@/lib/tlc-trip-filters";
 import {
   findRankingMetricTie,
   formatOptionsMismatchFeedback,
@@ -101,6 +102,16 @@ export async function POST(req: NextRequest) {
       lastSql = guard.sql;
       lastFeedback =
         "Query returned zero rows — pick a different question, year partition, or filters so the proof query returns data.";
+      continue;
+    }
+
+    const tlcDist = validateTlcProofDistances(
+      results.columns,
+      results.rows
+    );
+    if (!tlcDist.ok) {
+      lastSql = guard.sql;
+      lastFeedback = tlcDist.reason;
       continue;
     }
 
