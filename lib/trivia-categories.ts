@@ -104,13 +104,13 @@ export const TRIVIA_CATEGORY_DEFS: TriviaCategoryDef[] = [
   {
     id: "census-vs-311",
     family: "census",
-    label: "census tract demographics vs 311 complaint rates (per-capita style)",
+    label: "311 complaints per capita by borough (census population denominator; say per capita clearly)",
   },
   // Cross-dataset angles
   {
     id: "compare-boroughs",
     family: "comparison",
-    label: "cross-dataset borough comparison (e.g. collisions vs 311 vs taxi in one borough)",
+    label: "one clear metric ranked by borough within a single dataset (not cross-dataset ratios)",
   },
   {
     id: "weekend-weekday",
@@ -148,6 +148,10 @@ export function getCategoryGenerationHint(categoryId: string): string | undefine
       "If comparing boroughs, answer_label must be taxi_zones.borough values (Title Case: Manhattan, Brooklyn, …).",
     "census-income":
       "If ranking boroughs by median income, avoid ACS top-code 250001 ties — pick a metric or filter with a unique winner.",
+    "census-vs-311":
+      "Only per-capita / per-1,000-residents 311 rates with census population — never 311 per collision or per taxi trip.",
+    "compare-boroughs":
+      "Compare boroughs on ONE metric from ONE table (e.g. total 311 count, total collisions) — no cross-dataset ratios.",
   };
   return hints[categoryId];
 }

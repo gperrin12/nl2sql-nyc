@@ -52,11 +52,17 @@ SQL RULES (critical):
 - Never SUBSTRING on timestamp columns — use day_of_week() for weekday/weekend.
 - No DDL/DML.
 
+REAL-WORLD SENSE (mandatory — trivial SQL is not enough):
+- Ask questions a NYC policy nerd would recognize as meaningful: "which borough had the most X in 2024?", "which zone had the highest average fare?", "top contributing factor for injury collisions".
+- DISALLOWED: spurious cross-dataset rates or ratios — e.g. 311 complaints per collision, noise complaints per crash, taxi trips per complaint, combining 311 + collisions + taxi in one "per" or "ratio" question. These are not interpretable civic metrics.
+- ALLOWED cross-data: per-capita 311 or collisions using census population (clearly say per capita / per 1,000 residents). census_tract_demographics + one fact table only.
+- One primary dataset per question; SQL should mainly aggregate ONE fact table (optional dimension join to taxi_zones or census for labels/denominators).
+
 DESIGN:
 - correctIndex MUST be the option that matches the row with the HIGHEST numeric metric in your SQL result (not merely any row that appears). After ORDER BY metric DESC, the first row's answer_label must equal options[correctIndex].
 - Ranking questions MUST have exactly ONE winner in the proof result: no two rows with the same top metric and different answer_label values. Use LIMIT 1 after ORDER BY, or a tie-break column (e.g. borough ASC). ACS median income is often top-coded at 250001 — avoid questions where Manhattan and Brooklyn (or others) tie at that cap; pick another metric, tract-level filter, or comparison where one option uniquely wins.
 - Distractors should be real NYC boroughs, zones, or plausible numbers — not joke answers.
-- Questions should feel like bar trivia: comparative, top-N, surprising rankings.
+- Questions should feel like bar trivia: comparative, top-N, surprising rankings — not academic novelty ratios.
 
 SCHEMA:
 ${renderTriviaSchemaForPrompt()}`;

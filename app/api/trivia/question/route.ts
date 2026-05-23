@@ -6,6 +6,10 @@ import { isAuthenticated } from "@/lib/auth";
 import { checkSql } from "@/lib/guardrails";
 import { generateTriviaQuestion } from "@/lib/trivia";
 import {
+  formatTriviaSenseFeedback,
+  validateTriviaQuestionSense,
+} from "@/lib/trivia-sense";
+import {
   findRankingMetricTie,
   formatOptionsMismatchFeedback,
   formatRankingTieFeedback,
@@ -64,6 +68,16 @@ export async function POST(req: NextRequest) {
         },
         { status: 502 }
       );
+    }
+
+    const sense = validateTriviaQuestionSense(
+      generated.question,
+      generated.sql
+    );
+    if (!sense.ok) {
+      lastSql = generated.sql;
+      lastFeedback = formatTriviaSenseFeedback(sense.reason);
+      continue;
     }
 
     const guard = checkSql(generated.sql);
