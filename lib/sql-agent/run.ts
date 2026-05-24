@@ -1,5 +1,8 @@
 import Anthropic from "@anthropic-ai/sdk";
-import type { SqlGenerationResult } from "@/lib/claude";
+import {
+  CLAUDE_DETERMINISTIC_SAMPLING,
+  type SqlGenerationResult,
+} from "@/lib/claude";
 import { listWarehouseTableNames, renderTablesForPrompt } from "@/lib/schemas";
 import type { AgentStreamPayload } from "./types";
 
@@ -147,6 +150,7 @@ export async function runSqlAgentWithEvents(
     const response = await client.messages.create({
       model,
       max_tokens: 4096,
+      ...CLAUDE_DETERMINISTIC_SAMPLING,
       system: AGENT_SYSTEM,
       tools: TOOLS,
       messages,

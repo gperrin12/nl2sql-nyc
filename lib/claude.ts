@@ -5,6 +5,9 @@ const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 const DEFAULT_MODEL = "claude-sonnet-4-5";
 
+/** Shared by NL→SQL, repair, tool agent, and eval judge for reproducible outputs. */
+export const CLAUDE_DETERMINISTIC_SAMPLING = { temperature: 0 } as const;
+
 const SYSTEM_PROMPT = `You translate natural-language questions into AWS Athena SQL (Trino dialect) for a NYC civic-data warehouse.
 
 OUTPUT FORMAT — strict:
@@ -54,6 +57,7 @@ export async function generateSql(question: string): Promise<SqlGenerationResult
   const response = await client.messages.create({
     model,
     max_tokens: 1024,
+    ...CLAUDE_DETERMINISTIC_SAMPLING,
     system: SYSTEM_PROMPT,
     messages: [{ role: "user", content: question }],
   });
@@ -90,6 +94,7 @@ export async function generateSqlWithRepair(
   const response = await client.messages.create({
     model,
     max_tokens: 2048,
+    ...CLAUDE_DETERMINISTIC_SAMPLING,
     system: SYSTEM_PROMPT,
     messages: [{ role: "user", content: userContent }],
   });
