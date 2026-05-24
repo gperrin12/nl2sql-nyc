@@ -1,4 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { CLAUDE_DETERMINISTIC_SAMPLING } from "@/lib/claude";
 import type { ReplayResult } from "@/lib/replay";
 import type { VizType } from "@/lib/viz-infer";
 import {
@@ -189,6 +190,7 @@ export async function judgeQueryPair(
   const response = await client.messages.create({
     model: JUDGE_MODEL,
     max_tokens: 1024,
+    ...CLAUDE_DETERMINISTIC_SAMPLING,
     system: JUDGE_SYSTEM,
     messages: [{ role: "user", content: buildUserMessage(question, sql) }],
   });
@@ -296,6 +298,7 @@ export async function judgeFullResult(
   const response = await client.messages.create({
     model: JUDGE_MODEL,
     max_tokens: 1024,
+    ...CLAUDE_DETERMINISTIC_SAMPLING,
     system: JUDGE_SYSTEM,
     messages: [
       { role: "user", content: buildResultUserMessage(question, sql, replay) },
