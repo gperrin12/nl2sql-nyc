@@ -1,0 +1,189 @@
+import { describe, it, expect } from "vitest";
+import { checkSql } from "@/lib/guardrails";
+
+// A minimal valid SELECT that satisfies all guardrails (no gtp_tlc_data, so TLC filter passes).
+const VALID_SQL = "SELECT borough, COUNT(*) FROM nyc_311 GROUP BY borough";
+
+// A valid TLC query with a proper trip_distance upper bound.
+const VALID_TLC_SQL =
+  "SELECT AVG(TRY_CAST(trip_distance AS DOUBLE)) FROM gtp_tlc_data t " +
+  "WHERE TRY_CAST(t.trip_distance AS DOUBLE) > 0 AND TRY_CAST(t.trip_distance AS DOUBLE) <= 50";
+
+describe("checkSql — empty / blank input", () => {
+  it("rejects empty string", () => {
+    expect(checkSql("")).toEqual({ ok: false, reason: "Empty SQL" });
+  });
+
+  it("rejects whitespace-only string", () => {
+    expect(checkSql("   \n\t  ")).toEqual({ ok: false, reason: "Empty SQL" });
+  });
+});
+
+describe("checkSql — multiple statements", () => {
+  it("rejects two statements separated by semicolon", () => {
+    const result = checkSql("SELECT 1; SELECT 2");
+    expect(result).toMatchObject({ ok: false, reason: "Multiple SQL statements not allowed" });
+  });
+
+  it("allows a single trailing semicolon", () => {
+    const result = checkSql(`${VALID_SQL};`);
+    expect(result.ok).toBe(true);
+  });
+
+  it("rejects trailing semicolon followed by a second statement", () => {
+    const result = checkSql(`${VALID_SQL}; DROP TABLE foo`);
+    expect(result).toMatchObject({ ok: false });
+  });
+});
+
+describe("checkSql — must start with SELECT or WITH", () => {
+  it("accepts SELECT", () => {
+    expect(checkSql(VALID_SQL).ok).toBe(true);
+  });
+
+  it("accepts WITH (CTE)", () => {
+    const cte =
+      "WITH counts AS (SELECT borough, COUNT(*) AS n FROM nyc_311 GROUP BY borough) SELECT * FROM counts";
+    expect(checkSql(cte).ok).toBe(true);
+  });
+
+  it("rejects statements that start with something else", () => {
+    expect(checkSql("EXPLAIN SELECT 1")).toMatchObject({ ok: false, reason: "Only SELECT / WITH queries are allowed" });
+  });
+
+  it("rejects statements starting with whitespace then forbidden verb", () => {
+    expect(checkSql("  INSERT INTO foo VALUES (1)")).toMatchObject({ ok: false });
+  });
+});
+
+describe("checkSql — forbidden DML/DDL keywords", () => {
+  // All queries start with SELECT so the SELECT/WITH check passes first,
+  // ensuring we specifically exercise the forbidden-keyword scanner.
+  const cases: [string, string][] = [
+    ["SELECT INSERT FROM foo", "INSERT"],
+    ["SELECT UPDATE FROM foo", "UPDATE"],
+    ["SELECT DELETE FROM foo", "DELETE"],
+    ["SELECT DROP FROM foo", "DROP"],
+    ["SELECT ALTER FROM foo", "ALTER"],
+    ["SELECT CREATE FROM foo", "CREATE"],
+    ["SELECT TRUNCATE FROM foo", "TRUNCATE"],
+    ["SELECT GRANT FROM foo", "GRANT"],
+    ["SELECT REVOKE FROM foo", "REVOKE"],
+    ["SELECT MERGE FROM foo", "MERGE"],
+    ["SELECT REPLACE FROM foo", "REPLACE"],
+  ];
+
+  for (const [sql, keyword] of cases) {
+    it(`rejects SQL containing ${keyword}`, () => {
+      const result = checkSql(sql);
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.reason).toContain(keyword);
+      }
+    });
+  }
+});
+
+describe("checkSql — word boundary prevents false positives on column names", () => {
+  it("does not flag 'created_date' as CREATE", () => {
+    const sql = "SELECT created_date, COUNT(*) FROM nyc_311 GROUP BY created_date";
+    expect(checkSql(sql).ok).toBe(true);
+  });
+
+  it("does not flag 'updated_at' as UPDATE", () => {
+    const sql = "SELECT updated_at FROM nyc_311";
+    expect(checkSql(sql).ok).toBe(true);
+  });
+
+  it("does not flag 'deleted_flag' as DELETE", () => {
+    const sql = "SELECT deleted_flag FROM nyc_311";
+    expect(checkSql(sql).ok).toBe(true);
+  });
+
+  it("does not flag 'replacement_cost' as REPLACE", () => {
+    const sql = "SELECT replacement_cost FROM nyc_311";
+    expect(checkSql(sql).ok).toBe(true);
+  });
+});
+
+describe("checkSql — TRIM() on zone ID columns", () => {
+  it("rejects TRIM(pulocationid)", () => {
+    const result = checkSql("SELECT TRIM(pulocationid) FROM gtp_tlc_data t WHERE TRY_CAST(t.trip_distance AS DOUBLE) <= 50");
+    expect(result).toMatchObject({ ok: false, reason: expect.stringContaining("TRIM()") });
+  });
+
+  it("rejects TRIM(dolocationid)", () => {
+    const result = checkSql("SELECT TRIM(dolocationid) FROM gtp_tlc_data t WHERE TRY_CAST(t.trip_distance AS DOUBLE) <= 50");
+    expect(result).toMatchObject({ ok: false, reason: expect.stringContaining("TRIM()") });
+  });
+
+  it("rejects TRIM(t.pulocationid) with alias qualifier", () => {
+    const result = checkSql("SELECT TRIM(t.pulocationid) FROM gtp_tlc_data t WHERE TRY_CAST(t.trip_distance AS DOUBLE) <= 50");
+    expect(result).toMatchObject({ ok: false, reason: expect.stringContaining("TRIM()") });
+  });
+
+  it("rejects TRIM(locationid)", () => {
+    const result = checkSql("SELECT TRIM(locationid) FROM gtp_tlc_data t WHERE TRY_CAST(t.trip_distance AS DOUBLE) <= 50");
+    expect(result).toMatchObject({ ok: false, reason: expect.stringContaining("TRIM()") });
+  });
+
+  it("allows TRIM() on unrelated columns", () => {
+    const sql = "SELECT TRIM(complaint_type) FROM nyc_311";
+    expect(checkSql(sql).ok).toBe(true);
+  });
+});
+
+describe("checkSql — SUBSTRING() on datetime columns", () => {
+  const datetimeCols = [
+    "tpep_pickup_datetime",
+    "tpep_dropoff_datetime",
+    "created_date",
+    "closed_date",
+    "crash_date",
+    "pickup_datetime",
+    "dropoff_datetime",
+  ];
+
+  for (const col of datetimeCols) {
+    it(`rejects SUBSTRING(${col}, ...)`, () => {
+      const result = checkSql(`SELECT SUBSTRING(${col}, 1, 4) FROM nyc_311`);
+      expect(result).toMatchObject({ ok: false, reason: expect.stringContaining("SUBSTRING()") });
+    });
+  }
+
+  it("allows SUBSTRING() on unrelated columns", () => {
+    const sql = "SELECT SUBSTRING(complaint_type, 1, 5) FROM nyc_311";
+    expect(checkSql(sql).ok).toBe(true);
+  });
+});
+
+describe("checkSql — TLC trip distance filter", () => {
+  it("passes a valid TLC query with TRY_CAST distance <= 50", () => {
+    expect(checkSql(VALID_TLC_SQL).ok).toBe(true);
+  });
+
+  it("rejects a TLC query with trip_distance but no upper bound", () => {
+    const sql =
+      "SELECT AVG(trip_distance) FROM gtp_tlc_data WHERE trip_distance > 0";
+    const result = checkSql(sql);
+    expect(result).toMatchObject({ ok: false, reason: expect.stringContaining("gtp_tlc_data") });
+  });
+
+  it("passes a TLC query that does not reference trip_distance", () => {
+    const sql =
+      "SELECT COUNT(*) FROM gtp_tlc_data WHERE pulocationid IS NOT NULL";
+    expect(checkSql(sql).ok).toBe(true);
+  });
+
+  it("passes a non-TLC query with no trip_distance", () => {
+    expect(checkSql(VALID_SQL).ok).toBe(true);
+  });
+
+  it("strips the trailing semicolon before returning ok sql", () => {
+    const result = checkSql(`${VALID_SQL};`);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.sql.endsWith(";")).toBe(false);
+    }
+  });
+});
