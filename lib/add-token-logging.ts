@@ -2,7 +2,7 @@
  * Token accumulation, Anthropic cost estimates, and nl2sql.query_runs persistence.
  * Wire into lib/sql-agent/run.ts and lib/claude.ts via createAccumulator / addUsage.
  *
- * CLI: npx tsx lib/add-token-logging.ts  (migration + cost report)
+ * CLI: npm run token:report  (or npx tsx scripts/token-report.ts)
  */
 
 import { getPgPool, isDatabaseConfigured } from "@/lib/db";
@@ -124,6 +124,66 @@ export function projectCost(
   };
 }
 
+export async function printLatestQueryRunTokens(): Promise<void> {
+  const pool = getPgPool();
+  if (!pool) {
+    console.log("DATABASE_URL not set — cannot load query runs.");
+    return;
+  }
+
+  const latest = await pool.query<{
+    id: string;
+    created_at: string;
+    question: string;
+    model: string | null;
+    backend: string | null;
+    tokens_used: TokenSummary | null;
+    cost_usd: number | null;
+    execution_id: string | null;
+  }>(`
+    SELECT
+      id::text,
+      created_at,
+      question,
+      model,
+      backend,
+      tokens_used,
+      cost_usd,
+      execution_id
+    FROM nl2sql.query_runs
+    ORDER BY created_at DESC
+    LIMIT 1
+  `);
+
+  const row = latest.rows[0];
+  if (!row) {
+    console.log("No rows in nl2sql.query_runs.");
+    return;
+  }
+
+  console.log("\n=== Most recent query run ===");
+  console.log(`id:         ${row.id}`);
+  console.log(`created_at: ${row.created_at}`);
+  console.log(`model:      ${row.model ?? "(null)"}`);
+  console.log(`backend:    ${row.backend ?? "(null)"}`);
+  console.log(`execution:  ${row.execution_id ?? "(null)"}`);
+  console.log(`question:   ${row.question.slice(0, 120)}${row.question.length > 120 ? "…" : ""}`);
+
+  if (row.tokens_used != null && row.cost_usd != null) {
+    const t =
+      typeof row.tokens_used === "string"
+        ? (JSON.parse(row.tokens_used) as TokenSummary)
+        : row.tokens_used;
+    console.log(`tokens:     input=${t.input} output=${t.output} total=${t.total}`);
+    console.log(`cost_usd:   $${Number(row.cost_usd).toFixed(6)}`);
+  } else {
+    console.log(
+      "tokens:     (not logged — run a new agent query after token integration, or backend was p8k8)"
+    );
+    console.log("cost_usd:   (null)");
+  }
+}
+
 export async function printCostReport(): Promise<void> {
   const pool = getPgPool();
   if (!pool) {
@@ -182,13 +242,12 @@ export async function printCostReport(): Promise<void> {
   console.log("");
 }
 
-async function runCli(): Promise<void> {
-  await runTokenColumnsMigration();
-  console.log("Migration complete: tokens_used, cost_usd on nl2sql.query_runs.");
+export async function runTokenReportCli(argv: string[] = process.argv): Promise<void> {
+  const migrate = argv.includes("--migrate");
+  if (migrate) {
+    await runTokenColumnsMigration();
+    console.log("Migration complete: tokens_used, cost_usd on nl2sql.query_runs.");
+  }
+  await printLatestQueryRunTokens();
   await printCostReport();
-}
-
-const isDirectRun = process.argv[1]?.includes("add-token-logging");
-if (isDirectRun) {
-  runCli().catch(console.error);
 }
