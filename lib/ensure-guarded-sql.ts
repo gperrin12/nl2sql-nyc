@@ -71,11 +71,25 @@ function mergeGenerations(
   prior: SqlGenerationResult,
   next: SqlGenerationResult
 ): SqlGenerationResult {
+  const mergedTokens =
+    prior.tokensUsed && next.tokensUsed
+      ? {
+          input: prior.tokensUsed.input + next.tokensUsed.input,
+          output: prior.tokensUsed.output + next.tokensUsed.output,
+          total: prior.tokensUsed.total + next.tokensUsed.total,
+        }
+      : (next.tokensUsed ?? prior.tokensUsed);
+
   return {
     ...next,
     summary: next.summary ?? prior.summary,
     latencyMs: (prior.latencyMs ?? 0) + (next.latencyMs ?? 0) || undefined,
     inputTokens: prior.inputTokens + next.inputTokens,
     outputTokens: prior.outputTokens + next.outputTokens,
+    tokensUsed: mergedTokens,
+    costUsd:
+      prior.costUsd != null || next.costUsd != null
+        ? (prior.costUsd ?? 0) + (next.costUsd ?? 0)
+        : undefined,
   };
 }
