@@ -6,6 +6,7 @@
  */
 
 import { getPgPool, isDatabaseConfigured } from "@/lib/db";
+import { getQueryRunIdByExecutionId } from "@/lib/query-runs-store";
 
 export type TokenAccumulator = {
   input_tokens: number;
@@ -97,6 +98,16 @@ export async function writeTokensToQueryRun(
      WHERE id = $3`,
     [JSON.stringify(tokenSummary), costUsd, queryRunId]
   );
+}
+
+export async function writeTokensToQueryRunByExecutionId(
+  executionId: string,
+  tokenSummary: TokenSummary,
+  costUsd: number
+): Promise<void> {
+  const id = await getQueryRunIdByExecutionId(executionId);
+  if (!id) return;
+  await writeTokensToQueryRun(id, tokenSummary, costUsd);
 }
 
 export function projectCost(

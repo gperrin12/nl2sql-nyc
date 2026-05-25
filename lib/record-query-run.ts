@@ -1,9 +1,37 @@
+import { writeTokensToQueryRunByExecutionId } from "@/lib/add-token-logging";
+import type { SqlGenerationResult } from "@/lib/claude";
 import {
   finalizeQueryRun,
   insertQueryRunStart,
   upsertQueryRun,
   type QueryRunInsert,
 } from "@/lib/query-runs-store";
+
+/** Persist agent/Claude token totals on the query_runs row (server-side; does not throw). */
+export async function recordQueryRunTokens(
+  executionId: string,
+  generation: Pick<SqlGenerationResult, "tokensUsed" | "costUsd">
+): Promise<void> {
+  if (
+    generation.tokensUsed == null ||
+    generation.costUsd == null ||
+    !Number.isFinite(generation.costUsd)
+  ) {
+    return;
+  }
+  try {
+    await writeTokensToQueryRunByExecutionId(
+      executionId,
+      generation.tokensUsed,
+      generation.costUsd
+    );
+  } catch (e) {
+    console.warn(
+      "[query-runs] token update failed:",
+      e instanceof Error ? e.message : e
+    );
+  }
+}
 
 /** After Athena execution starts (server-side; does not throw). */
 export async function recordQueryRunStart(

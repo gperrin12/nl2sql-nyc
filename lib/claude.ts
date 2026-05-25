@@ -1,4 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
+import type { TokenSummary } from "@/lib/add-token-logging";
 import { renderSchemaForPrompt } from "./schemas";
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
@@ -49,6 +50,8 @@ export type SqlGenerationResult = {
   summary?: string;
   /** Wall-clock ms for NL→SQL (p8k8 / agent); not from p8k8 moment timestamps. */
   latencyMs?: number;
+  tokensUsed?: TokenSummary;
+  costUsd?: number;
 };
 
 export async function generateSql(question: string): Promise<SqlGenerationResult> {

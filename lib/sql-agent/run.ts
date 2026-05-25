@@ -1,5 +1,12 @@
 import Anthropic from "@anthropic-ai/sdk";
 import {
+  addUsage,
+  buildTokenSummary,
+  computeCostUsd,
+  createAccumulator,
+  writeTokensToQueryRun,
+} from "@/lib/add-token-logging";
+import {
   CLAUDE_DETERMINISTIC_SAMPLING,
   type SqlGenerationResult,
 } from "@/lib/claude";
@@ -134,13 +141,18 @@ function runTool(name: string, input: unknown): string {
   return `Unknown tool: ${name}`;
 }
 
+export type RunSqlAgentOptions = {
+  /** When set, tokens/cost are written to nl2sql.query_runs on successful SQL generation. */
+  queryRunId?: string;
+};
+
 export async function runSqlAgentWithEvents(
   question: string,
-  onEvent: (e: AgentStreamPayload) => void | Promise<void>
+  onEvent: (e: AgentStreamPayload) => void | Promise<void>,
+  options?: RunSqlAgentOptions
 ): Promise<SqlGenerationResult> {
   const model = process.env.CLAUDE_MODEL ?? DEFAULT_MODEL;
-  let inputTokens = 0;
-  let outputTokens = 0;
+  const tokenAcc = createAccumulator();
 
   const messages: Anthropic.MessageParam[] = [{ role: "user", content: question }];
 
@@ -156,8 +168,7 @@ export async function runSqlAgentWithEvents(
       messages,
     });
 
-    inputTokens += response.usage.input_tokens;
-    outputTokens += response.usage.output_tokens;
+    addUsage(tokenAcc, response.usage);
 
     const reasoningText = response.content
       .filter((b): b is Anthropic.TextBlock => b.type === "text")
@@ -181,7 +192,26 @@ export async function runSqlAgentWithEvents(
         });
       }
 
-      return { sql, model, inputTokens, outputTokens, summary };
+      const tokensUsed = buildTokenSummary(tokenAcc);
+      const costUsd = computeCostUsd(
+        tokenAcc.input_tokens,
+        tokenAcc.output_tokens,
+        model
+      );
+
+      if (options?.queryRunId) {
+        void writeTokensToQueryRun(options.queryRunId, tokensUsed, costUsd);
+      }
+
+      return {
+        sql,
+        model,
+        inputTokens: tokenAcc.input_tokens,
+        outputTokens: tokenAcc.output_tokens,
+        tokensUsed,
+        costUsd,
+        summary,
+      };
     }
 
     if (response.stop_reason !== "tool_use") {
