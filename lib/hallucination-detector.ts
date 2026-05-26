@@ -71,6 +71,7 @@ const SQL_KEYWORDS = new Set([
   
   function isSchemaIdentifierCandidate(token: string): boolean {
     if (!token || token.length === 0) return false;
+    if (!/^[a-z_]\w*$/.test(token)) return false;
     if (/^\d/.test(token)) return false;
     if (/^\d+\.?\d*$/.test(token)) return false;
     if (SQL_KEYWORDS.has(token)) return false;
