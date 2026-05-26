@@ -67,7 +67,7 @@ export async function ensureGuardedSql(
   };
 }
 
-function mergeGenerations(
+export function mergeGenerations(
   prior: SqlGenerationResult,
   next: SqlGenerationResult
 ): SqlGenerationResult {

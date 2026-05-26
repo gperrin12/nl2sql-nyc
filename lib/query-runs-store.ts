@@ -241,7 +241,9 @@ export async function finalizeQueryRun(
       row_count = COALESCE($6, row_count),
       trace_json = COALESCE($7::jsonb, trace_json),
       hallucination_type = CASE
-        WHEN $2 = 'SUCCEEDED' THEN NULL
+        WHEN $2 = 'SUCCEEDED'
+          AND hallucination_type IS DISTINCT FROM 'schema_hallucination'
+        THEN NULL
         ELSE hallucination_type
       END
     WHERE execution_id = $1`,

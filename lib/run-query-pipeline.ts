@@ -3,7 +3,9 @@ import {
   ensureGuardedSql,
   type GuardRepairHook,
 } from "@/lib/ensure-guarded-sql";
+import { ensureSchemaValidSql } from "@/lib/ensure-schema-sql";
 import { startQuery } from "@/lib/athena";
+import { persistSchemaHallucination } from "@/lib/hallucination-schema";
 import { recordGenerationMetrics } from "@/lib/record-generation-metrics";
 import {
   recordQueryRunTokens,
@@ -146,6 +148,31 @@ export async function runQueryPipeline(
   if (guarded.repairCount > 0) {
     await onGuardSuccess?.(guarded.repairCount);
   }
+
+  const schemaChecked = await ensureSchemaValidSql(question, generation, {
+    guardOptions,
+  });
+  if (schemaChecked.guardFailure) {
+    const outcome = outcomeForGuardrailBlocked(schemaChecked.guardFailure.reason);
+    await applyOutcome(queryRunId, {
+      ...outcome,
+      sql: schemaChecked.guardFailure.sql,
+      model: schemaChecked.guardFailure.generation.model,
+    });
+    return {
+      ok: false,
+      queryRunId,
+      httpStatus: 400,
+      body: {
+        error: "SQL rejected by guardrails",
+        reason: schemaChecked.guardFailure.reason,
+        sql: schemaChecked.guardFailure.sql,
+      },
+    };
+  }
+  generation = schemaChecked.generation;
+  await persistSchemaHallucination(queryRunId, schemaChecked.hallucination);
+
   await recordGenerationMetrics(question, generation, backend);
 
   let executionId: string;

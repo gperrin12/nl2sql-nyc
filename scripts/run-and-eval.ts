@@ -32,6 +32,7 @@ import path from "path";
 import { getAppVersion } from "../lib/app-version";
 import { generateSql, type SqlGenerationResult } from "../lib/claude";
 import { ensureGuardedSql } from "../lib/ensure-guarded-sql";
+import { detectWarehouseHallucinations } from "../lib/hallucination-schema";
 import { evalMatchKey } from "../lib/eval-match";
 import {
   evalsStorageDescription,
@@ -230,6 +231,19 @@ type RunOutcome = {
   replay: ReplayResult;
 };
 
+function schemaHallucinationPatch(sql: string): {
+  hallucinationType: "schema_hallucination" | null;
+  hallucinations: ReturnType<typeof detectWarehouseHallucinations>;
+} {
+  const hallucinations = detectWarehouseHallucinations(sql);
+  return {
+    hallucinationType: hallucinations.hasHallucination
+      ? "schema_hallucination"
+      : null,
+    hallucinations,
+  };
+}
+
 async function runQuestionDirect(q: QuestionBankEntry): Promise<RunOutcome | null> {
   const question = q.question.trim();
   console.log(`  → generating (${pickBackend(question)})…`);
@@ -247,6 +261,7 @@ async function runQuestionDirect(q: QuestionBankEntry): Promise<RunOutcome | nul
 
   const guarded = await ensureGuardedSql(question, generation);
   if (!guarded.ok) {
+    const h = schemaHallucinationPatch(guarded.sql);
     console.log(`  ✗ guardrails — ${guarded.reason}`);
     await upsertQueryRun({
       question,
@@ -255,6 +270,7 @@ async function runQuestionDirect(q: QuestionBankEntry): Promise<RunOutcome | nul
       backend,
       athenaState: "FAILED",
       errorReason: guarded.reason,
+      ...h,
     });
     return {
       question,
@@ -280,6 +296,7 @@ async function runQuestionDirect(q: QuestionBankEntry): Promise<RunOutcome | nul
 
   generation = guarded.generation;
   const sql = guarded.sql;
+  const h = schemaHallucinationPatch(sql);
 
   let executionId: string;
   try {
@@ -294,6 +311,7 @@ async function runQuestionDirect(q: QuestionBankEntry): Promise<RunOutcome | nul
       backend,
       athenaState: "FAILED",
       errorReason: msg,
+      ...h,
     });
     return {
       question,
@@ -323,6 +341,7 @@ async function runQuestionDirect(q: QuestionBankEntry): Promise<RunOutcome | nul
     model: generation.model,
     backend,
     executionId,
+    ...h,
   });
 
   console.log("  → polling athena…");
