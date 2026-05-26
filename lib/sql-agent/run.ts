@@ -5,7 +5,7 @@ import {
   computeCostUsd,
   createAccumulator,
   writeTokensToQueryRun,
-} from "@/lib/add-token-logging";
+} from "@/lib/query-run-tokens";
 import {
   CLAUDE_DETERMINISTIC_SAMPLING,
   type SqlGenerationResult,

@@ -1,4 +1,4 @@
-import { writeTokensToQueryRunByExecutionId } from "@/lib/add-token-logging";
+import { writeTokensToQueryRunByExecutionId } from "@/lib/query-run-tokens";
 import type { SqlGenerationResult } from "@/lib/claude";
 import {
   beginQueryRun,
