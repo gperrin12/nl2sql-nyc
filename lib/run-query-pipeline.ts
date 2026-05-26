@@ -5,7 +5,10 @@ import {
 } from "@/lib/ensure-guarded-sql";
 import { ensureSchemaValidSql } from "@/lib/ensure-schema-sql";
 import { startQuery } from "@/lib/athena";
-import { persistSchemaHallucination } from "@/lib/hallucination-schema";
+import {
+  detectWarehouseHallucinations,
+  persistSchemaHallucination,
+} from "@/lib/hallucination-schema";
 import { recordGenerationMetrics } from "@/lib/record-generation-metrics";
 import {
   recordQueryRunTokens,
@@ -149,6 +152,9 @@ export async function runQueryPipeline(
     await onGuardSuccess?.(guarded.repairCount);
   }
 
+  const initialHallucination = detectWarehouseHallucinations(generation.sql);
+  await persistSchemaHallucination(queryRunId, initialHallucination);
+
   const schemaChecked = await ensureSchemaValidSql(question, generation, {
     guardOptions,
   });
@@ -177,12 +183,12 @@ export async function runQueryPipeline(
 
   let executionId: string;
   try {
-    executionId = await startQuery(guarded.sql);
+    executionId = await startQuery(generation.sql);
   } catch (e) {
     const outcome = outcomeForAthenaFailure(errorMessage(e));
     await applyOutcome(queryRunId, {
       ...outcome,
-      sql: guarded.sql,
+      sql: generation.sql,
       model: generation.model,
     });
     return {
@@ -192,7 +198,7 @@ export async function runQueryPipeline(
       body: {
         error: "Athena rejected the query",
         detail: outcome.errorReason,
-        sql: guarded.sql,
+        sql: generation.sql,
       },
     };
   }
@@ -200,7 +206,7 @@ export async function runQueryPipeline(
   const running = outcomeForRunning();
   await applyOutcome(queryRunId, {
     ...running,
-    sql: guarded.sql,
+    sql: generation.sql,
     model: generation.model,
     executionId,
   });
@@ -210,7 +216,7 @@ export async function runQueryPipeline(
   return {
     ok: true,
     executionId,
-    sql: guarded.sql,
+    sql: generation.sql,
     model: generation.model,
     backend,
     generation,

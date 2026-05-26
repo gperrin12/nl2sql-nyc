@@ -73,8 +73,8 @@ export function outcomeForAthenaFailure(detail: string): QueryOutcome {
   };
 }
 
-export function outcomeForRunning(): Pick<QueryOutcome, "athenaState" | "hallucinationType"> {
-  return { athenaState: "RUNNING", hallucinationType: null };
+export function outcomeForRunning(): Pick<QueryOutcome, "athenaState"> {
+  return { athenaState: "RUNNING" };
 }
 
 /**
