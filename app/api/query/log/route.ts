@@ -58,8 +58,9 @@ export async function POST(req: NextRequest) {
       | import("@/lib/sql-agent/types").AgentStreamPayload[]
       | undefined;
 
-    if (parsed.executionId?.trim()) {
-      await recordQueryRunFinalize(parsed.executionId.trim(), {
+    const executionId = parsed.executionId?.trim();
+    if (executionId) {
+      await recordQueryRunFinalize(executionId, {
         athenaState: parsed.athenaState,
         question: parsed.question,
         sql: parsed.sql,
@@ -74,10 +75,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({
         ok: true,
         appVersion: getAppVersion(),
-        note: "updated_by_execution_id",
+        note: "finalized_by_execution_id",
       });
     }
 
+    // Legacy clients without server-side beginQueryRun (pre-universal logging deploys)
     const id = await upsertQueryRun({
       question: parsed.question,
       sql: parsed.sql,
