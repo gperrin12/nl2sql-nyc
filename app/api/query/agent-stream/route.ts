@@ -5,11 +5,8 @@ import { generateSqlViaP8k8WithEvents } from "@/lib/p8k8";
 import { pickBackend } from "@/lib/route";
 import { runSqlAgentWithEvents } from "@/lib/sql-agent/run";
 import type { AgentStreamPayload } from "@/lib/sql-agent/types";
-import { ensureGuardedSql } from "@/lib/ensure-guarded-sql";
-import { startQuery } from "@/lib/athena";
 import { isAuthenticated } from "@/lib/auth";
-import { recordGenerationMetrics } from "@/lib/record-generation-metrics";
-import { recordQueryRunStart, recordQueryRunTokens } from "@/lib/record-query-run";
+import { runQueryPipeline } from "@/lib/run-query-pipeline";
 
 export const dynamic = "force-dynamic";
 
@@ -46,24 +43,25 @@ export async function POST(req: NextRequest) {
     async start(controller) {
       const push = (p: AgentStreamPayload) => controller.enqueue(sseLine(p));
 
-      try {
-        let generation;
-        if (backend === "agent") {
-          generation = await runSqlAgentWithEvents(parsed.question, push);
-        } else if (backend === "p8k8") {
-          generation = await generateSqlViaP8k8WithEvents(parsed.question, push);
-        } else {
+      const result = await runQueryPipeline({
+        question: parsed.question,
+        backend,
+        generate: async () => {
+          if (backend === "agent") {
+            return runSqlAgentWithEvents(parsed.question, push);
+          }
+          if (backend === "p8k8") {
+            return generateSqlViaP8k8WithEvents(parsed.question, push);
+          }
           await push({ type: "turn", index: 0 });
           await push({
             type: "reason",
             text: "Generating SQL via Claude (single-shot).",
           });
-          generation = await generateSql(parsed.question);
-        }
-
-        await push({ type: "sql_generated", sql: generation.sql });
-
-        const guarded = await ensureGuardedSql(parsed.question, generation, {
+          return generateSql(parsed.question);
+        },
+        onSqlGenerated: (sql) => push({ type: "sql_generated", sql }),
+        guardOptions: {
           onRepair: async ({ attempt, reason, sql }) => {
             await push({
               type: "reason",
@@ -71,63 +69,51 @@ export async function POST(req: NextRequest) {
             });
             await push({ type: "sql_generated", sql });
           },
-        });
-        if (!guarded.ok) {
-          await push({
-            type: "guardrails_failed",
-            reason: guarded.reason,
-            sql: guarded.sql,
-          });
-          controller.close();
-          return;
-        }
-        generation = guarded.generation;
-        await recordGenerationMetrics(parsed.question, generation, backend);
-        if (guarded.repairCount > 0) {
+        },
+        onGuardSuccess: async (repairCount) => {
           await push({
             type: "reason",
-            text: `Guardrail repair succeeded (${guarded.repairCount} pass${guarded.repairCount === 1 ? "" : "es"}).`,
+            text: `Guardrail repair succeeded (${repairCount} pass${repairCount === 1 ? "" : "es"}).`,
           });
-        }
+        },
+      });
 
-        let executionId: string;
-        try {
-          executionId = await startQuery(guarded.sql);
-        } catch (e) {
+      if (!result.ok) {
+        const err = String(result.body.error ?? "");
+        if (err === "SQL rejected by guardrails") {
+          await push({
+            type: "guardrails_failed",
+            reason: String(result.body.reason ?? "Guardrails rejected SQL"),
+            sql: String(result.body.sql ?? ""),
+          });
+        } else if (err === "Athena rejected the query") {
           await push({
             type: "athena_failed",
-            detail: errorMessage(e),
-            sql: guarded.sql,
+            detail: String(result.body.detail ?? "Athena error"),
+            sql:
+              typeof result.body.sql === "string" ? result.body.sql : undefined,
           });
-          controller.close();
-          return;
+        } else {
+          await push({
+            type: "error",
+            message: err || "Agent or pipeline failed",
+            detail:
+              typeof result.body.detail === "string"
+                ? result.body.detail
+                : undefined,
+          });
         }
-
-        await push({ type: "athena_started", executionId });
-        void recordQueryRunStart({
-          question: parsed.question,
-          sql: guarded.sql,
-          model: generation.model,
-          backend,
-          executionId,
-        }).then(() => recordQueryRunTokens(executionId, generation));
-        await push({
-          type: "done",
-          model: generation.model,
-          backend,
-          usage: {
-            inputTokens: generation.inputTokens,
-            outputTokens: generation.outputTokens,
-          },
-        });
-      } catch (e) {
-        await push({
-          type: "error",
-          message: "Agent or pipeline failed",
-          detail: errorMessage(e),
-        });
+        controller.close();
+        return;
       }
 
+      await push({ type: "athena_started", executionId: result.executionId });
+      await push({
+        type: "done",
+        model: result.model,
+        backend: result.backend,
+        usage: result.usage,
+      });
       controller.close();
     },
   });
@@ -139,8 +125,4 @@ export async function POST(req: NextRequest) {
       connection: "keep-alive",
     },
   });
-}
-
-function errorMessage(e: unknown): string {
-  return e instanceof Error ? e.message : String(e);
 }

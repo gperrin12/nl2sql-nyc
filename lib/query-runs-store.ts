@@ -13,20 +13,43 @@ function isUniqueViolation(e: unknown): boolean {
   return pgErrorCode(e) === "23505";
 }
 
+export type HallucinationType =
+  | "off_topic"
+  | "guardrail_blocked"
+  | "no_sql_produced"
+  | "schema_hallucination";
+
 export type QueryRunInsert = {
   question: string;
-  sql: string;
+  sql?: string | null;
   model?: string | null;
   backend?: string | null;
   executionId?: string | null;
   athenaState: string;
   errorReason?: string | null;
+  hallucinationType?: HallucinationType | null;
+  hallucinations?: unknown | null;
   scannedBytes?: number | null;
   runtimeMs?: number | null;
   rowCount?: number | null;
   trace?: AgentStreamPayload[] | null;
   /** Defaults to getAppVersion() when omitted. */
   appVersion?: string | null;
+};
+
+export type QueryRunUpdate = {
+  sql?: string | null;
+  model?: string | null;
+  backend?: string | null;
+  executionId?: string | null;
+  athenaState?: string;
+  errorReason?: string | null;
+  hallucinationType?: HallucinationType | null;
+  hallucinations?: unknown | null;
+  scannedBytes?: number | null;
+  runtimeMs?: number | null;
+  rowCount?: number | null;
+  trace?: AgentStreamPayload[] | null;
 };
 
 export type QueryRunRow = {
@@ -46,6 +69,95 @@ export type QueryRunRow = {
   app_version: string | null;
 };
 
+function normalizeSql(sql: string | null | undefined): string | null {
+  if (sql == null) return null;
+  const trimmed = sql.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+function hallucinationsJson(value: unknown | null | undefined): string | null {
+  if (value == null) return null;
+  return JSON.stringify(value);
+}
+
+/** Log every chat question at request start. No-op if DATABASE_URL is unset. */
+export async function beginQueryRun(input: {
+  question: string;
+  backend?: string | null;
+}): Promise<string | null> {
+  if (!isDatabaseConfigured()) return null;
+
+  const pool = getPgPool();
+  if (!pool) return null;
+
+  const appVersion = getAppVersion().slice(0, 128);
+
+  const result = await pool.query<{ id: string }>(
+    `INSERT INTO nl2sql.query_runs (
+      question, sql, backend, athena_state, app_version
+    ) VALUES ($1, NULL, $2, 'PENDING', $3)
+    RETURNING id`,
+    [input.question.trim(), input.backend ?? null, appVersion]
+  );
+
+  return result.rows[0]?.id ?? null;
+}
+
+/** Patch an existing query_runs row (all pipeline exit paths). */
+export async function updateQueryRun(
+  id: string,
+  patch: QueryRunUpdate
+): Promise<boolean> {
+  if (!isDatabaseConfigured()) return false;
+
+  const pool = getPgPool();
+  if (!pool) return false;
+
+  const sets: string[] = [];
+  const values: unknown[] = [id];
+  let n = 2;
+
+  const add = (column: string, value: unknown) => {
+    sets.push(`${column} = $${n}`);
+    values.push(value);
+    n += 1;
+  };
+
+  if (patch.sql !== undefined) add("sql", normalizeSql(patch.sql));
+  if (patch.model !== undefined) add("model", patch.model);
+  if (patch.backend !== undefined) add("backend", patch.backend);
+  if (patch.executionId !== undefined) add("execution_id", patch.executionId);
+  if (patch.athenaState !== undefined) add("athena_state", patch.athenaState);
+  if (patch.errorReason !== undefined) add("error_reason", patch.errorReason);
+  if (patch.hallucinationType !== undefined) {
+    add("hallucination_type", patch.hallucinationType);
+  }
+  if (patch.hallucinations !== undefined) {
+    sets.push(`hallucinations = $${n}::jsonb`);
+    values.push(hallucinationsJson(patch.hallucinations));
+    n += 1;
+  }
+  if (patch.scannedBytes !== undefined) add("scanned_bytes", patch.scannedBytes);
+  if (patch.runtimeMs !== undefined) add("runtime_ms", patch.runtimeMs);
+  if (patch.rowCount !== undefined) add("row_count", patch.rowCount);
+  if (patch.trace !== undefined) {
+    const traceJson =
+      patch.trace && patch.trace.length > 0 ? JSON.stringify(patch.trace) : null;
+    sets.push(`trace_json = $${n}::jsonb`);
+    values.push(traceJson);
+    n += 1;
+  }
+
+  if (sets.length === 0) return false;
+
+  const result = await pool.query(
+    `UPDATE nl2sql.query_runs SET ${sets.join(", ")} WHERE id = $1`,
+    values
+  );
+
+  return (result.rowCount ?? 0) > 0;
+}
+
 /** Persist one completed (or failed) query run. No-op if DATABASE_URL is unset. */
 export async function insertQueryRun(input: QueryRunInsert): Promise<string | null> {
   if (!isDatabaseConfigured()) return null;
@@ -56,21 +168,25 @@ export async function insertQueryRun(input: QueryRunInsert): Promise<string | nu
   const traceJson =
     input.trace && input.trace.length > 0 ? JSON.stringify(input.trace) : null;
   const appVersion = (input.appVersion ?? getAppVersion()).slice(0, 128);
+  const hallucinations = hallucinationsJson(input.hallucinations);
 
   const result = await pool.query<{ id: string }>(
     `INSERT INTO nl2sql.query_runs (
       question, sql, model, backend, execution_id, athena_state,
-      error_reason, scanned_bytes, runtime_ms, row_count, trace_json, app_version
-    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb, $12)
+      error_reason, hallucination_type, hallucinations,
+      scanned_bytes, runtime_ms, row_count, trace_json, app_version
+    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11, $12, $13::jsonb, $14)
     RETURNING id`,
     [
       input.question.trim(),
-      input.sql.trim(),
+      normalizeSql(input.sql),
       input.model ?? null,
       input.backend ?? null,
       input.executionId ?? null,
       input.athenaState,
       input.errorReason ?? null,
+      input.hallucinationType ?? null,
+      hallucinations,
       input.scannedBytes ?? null,
       input.runtimeMs ?? null,
       input.rowCount ?? null,
@@ -123,7 +239,11 @@ export async function finalizeQueryRun(
       scanned_bytes = $4,
       runtime_ms = $5,
       row_count = COALESCE($6, row_count),
-      trace_json = COALESCE($7::jsonb, trace_json)
+      trace_json = COALESCE($7::jsonb, trace_json),
+      hallucination_type = CASE
+        WHEN $2 = 'SUCCEEDED' THEN NULL
+        ELSE hallucination_type
+      END
     WHERE execution_id = $1`,
     [
       executionId,

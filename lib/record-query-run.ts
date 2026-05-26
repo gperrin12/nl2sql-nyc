@@ -1,11 +1,46 @@
 import { writeTokensToQueryRunByExecutionId } from "@/lib/add-token-logging";
 import type { SqlGenerationResult } from "@/lib/claude";
 import {
+  beginQueryRun,
   finalizeQueryRun,
   insertQueryRunStart,
+  updateQueryRun,
   upsertQueryRun,
   type QueryRunInsert,
+  type QueryRunUpdate,
 } from "@/lib/query-runs-store";
+
+/** Begin universal logging for a chat question (server-side; does not throw). */
+export async function startQueryRunLogging(input: {
+  question: string;
+  backend?: string | null;
+}): Promise<string | null> {
+  try {
+    return await beginQueryRun(input);
+  } catch (e) {
+    console.warn(
+      "[query-runs] begin failed:",
+      e instanceof Error ? e.message : e
+    );
+    return null;
+  }
+}
+
+/** Patch query_runs on any pipeline exit path (server-side; does not throw). */
+export async function safeUpdateQueryRun(
+  queryRunId: string | null,
+  patch: QueryRunUpdate
+): Promise<void> {
+  if (!queryRunId) return;
+  try {
+    await updateQueryRun(queryRunId, patch);
+  } catch (e) {
+    console.warn(
+      "[query-runs] update failed:",
+      e instanceof Error ? e.message : e
+    );
+  }
+}
 
 /** Persist agent/Claude token totals on the query_runs row (server-side; does not throw). */
 export async function recordQueryRunTokens(
@@ -33,7 +68,10 @@ export async function recordQueryRunTokens(
   }
 }
 
-/** After Athena execution starts (server-side; does not throw). */
+/**
+ * Legacy: insert RUNNING row when pipeline did not call beginQueryRun.
+ * Prefer startQueryRunLogging + safeUpdateQueryRun in new code paths.
+ */
 export async function recordQueryRunStart(
   input: Omit<QueryRunInsert, "athenaState"> & { executionId: string }
 ): Promise<void> {

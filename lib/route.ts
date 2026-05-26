@@ -4,11 +4,8 @@ import { generateSql } from "@/lib/claude";
 import { generateSqlViaP8k8 } from "@/lib/p8k8";
 import { mapSpatialIntent } from "@/lib/sql-agent/mapIntent";
 import { generateSqlWithAgent } from "@/lib/sql-agent/run";
-import { ensureGuardedSql } from "@/lib/ensure-guarded-sql";
-import { startQuery } from "@/lib/athena";
 import { isAuthenticated } from "@/lib/auth";
-import { recordGenerationMetrics } from "@/lib/record-generation-metrics";
-import { recordQueryRunStart, recordQueryRunTokens } from "@/lib/record-query-run";
+import { runQueryPipeline } from "@/lib/run-query-pipeline";
 
 const BodySchema = z.object({
   question: z.string().min(1).max(2000),
@@ -40,80 +37,36 @@ export async function POST(req: NextRequest) {
   let parsed: z.infer<typeof BodySchema>;
   try {
     parsed = BodySchema.parse(await req.json());
-  } catch (e) {
+  } catch {
     return NextResponse.json({ error: "Bad request" }, { status: 400 });
   }
 
   const backend = pickBackend(parsed.question);
 
-  // 1. Generate SQL
-  let generation;
-  try {
-    if (backend === "agent") {
-      generation = await generateSqlWithAgent(parsed.question);
-    } else if (backend === "p8k8") {
-      generation = await generateSqlViaP8k8(parsed.question);
-    } else {
-      generation = await generateSql(parsed.question);
-    }
-  } catch (e) {
-    return NextResponse.json(
-      { error: "SQL generation failed", detail: errorMessage(e) },
-      { status: 502 }
-    );
-  }
-
-  // 2. Guardrail check (auto-repair once or twice on rejection)
-  const guarded = await ensureGuardedSql(parsed.question, generation);
-  if (!guarded.ok) {
-    return NextResponse.json(
-      {
-        error: "SQL rejected by guardrails",
-        reason: guarded.reason,
-        sql: guarded.sql,
-      },
-      { status: 400 }
-    );
-  }
-  generation = guarded.generation;
-  await recordGenerationMetrics(parsed.question, generation, backend);
-
-  // 3. Start the Athena query
-  let executionId;
-  try {
-    executionId = await startQuery(guarded.sql);
-  } catch (e) {
-    return NextResponse.json(
-      {
-        error: "Athena rejected the query",
-        detail: errorMessage(e),
-        sql: guarded.sql,
-      },
-      { status: 502 }
-    );
-  }
-
-  void recordQueryRunStart({
+  const result = await runQueryPipeline({
     question: parsed.question,
-    sql: guarded.sql,
-    model: generation.model,
     backend,
-    executionId,
-  }).then(() => recordQueryRunTokens(executionId, generation));
-
-  return NextResponse.json({
-    executionId,
-    sql: guarded.sql,
-    model: generation.model,
-    backend,
-    summary: generation.summary,
-    usage: {
-      inputTokens: generation.inputTokens,
-      outputTokens: generation.outputTokens,
+    generate: async () => {
+      if (backend === "agent") {
+        return generateSqlWithAgent(parsed.question);
+      }
+      if (backend === "p8k8") {
+        return generateSqlViaP8k8(parsed.question);
+      }
+      return generateSql(parsed.question);
     },
   });
-}
 
-function errorMessage(e: unknown): string {
-  return e instanceof Error ? e.message : String(e);
+  if (!result.ok) {
+    return NextResponse.json(result.body, { status: result.httpStatus });
+  }
+
+  return NextResponse.json({
+    executionId: result.executionId,
+    sql: result.sql,
+    model: result.model,
+    backend: result.backend,
+    summary: result.summary,
+    usage: result.usage,
+  });
 }
