@@ -20,7 +20,7 @@ const JUDGE_MODEL = "claude-haiku-4-5";
 
 const JUDGE_SYSTEM = `You are an expert evaluator for a natural language to SQL system that queries a NYC civic data warehouse using AWS Athena (Trino dialect).
 
-You will be given a natural language question and the SQL that was generated for it. Evaluate it with a single overall score and respond with JSON only — no prose, no code fences.`;
+You will be given a natural language question, generated SQL, and execution context. Follow the requested rubric and respond with JSON only — no code fences.`;
 
 export type JudgeResult = {
   question: string;
@@ -55,28 +55,77 @@ import { blendJudgeOverall } from "@/lib/judge-blend";
 
 export { JUDGE_BLEND_COEFF, JUDGE_BLEND_DIVISOR } from "@/lib/judge-blend";
 
-function buildUserMessage(question: string, sql: string): string {
-  return `QUESTION: ${question}
+const CORRECTNESS_SCALE_CRITERIA = `
+Score 5 - Correct: The SQL directly and completely answers the question asked.
+           Uses the correct table(s), correct filters, correct aggregation, and
+           appropriate result format. A human reviewing the query would not change anything.
+
+Score 4 - Mostly correct: Minor issue that doesn't materially change the answer.
+           Examples: slightly different column alias, extra column returned, OR condition
+           where AND was needed but results are still substantially correct.
+
+Score 3 - Partially correct: Right general approach, wrong specific detail.
+           Gets the right tables but wrong filter value, or right aggregation but
+           wrong time range, or right intent but missing a required JOIN.
+           The query runs and returns data but the data is not fully reliable.
+
+Score 2 - Mostly wrong: Attempts to answer but contains a fundamental error that
+           makes the result misleading or incorrect.
+           Examples: wrong table, critical missing filter, wrong aggregation type
+           (SUM instead of COUNT, or vice versa in a context where it matters).
+
+Score 1 - Incorrect: Does not answer the question.
+           Either failed to execute entirely, references nonexistent tables/columns,
+           or performs a completely different operation than what was requested.
+`.trim();
+
+type ExecutionContext = {
+  success: boolean;
+  rowCount?: number | null;
+  errorMessage?: string | null;
+  sampleRows?: unknown[] | null;
+};
+
+function buildJudgePrompt(
+  question: string,
+  generatedSql: string,
+  executionContext: ExecutionContext
+): string {
+  const execSummary = executionContext.success
+    ? `Execution: SUCCESS - returned ${executionContext.rowCount ?? "unknown"} row(s)`
+    : `Execution: FAILED - ${executionContext.errorMessage ?? "unknown error"}`;
+
+  const sampleRows = Array.isArray(executionContext.sampleRows)
+    ? executionContext.sampleRows
+    : [];
+  const sampleRowsSection =
+    sampleRows.length > 0
+      ? `\nSample result rows (first ${Math.min(3, sampleRows.length)}):\n${JSON.stringify(sampleRows.slice(0, 3), null, 2)}`
+      : "";
+
+  return `You are an expert evaluator for an NL-to-SQL system that queries NYC civic data in AWS Athena (Trino dialect).
+
+Your task: evaluate how well the generated SQL answers the natural language question.
+
+QUESTION ASKED:
+${question}
 
 GENERATED SQL:
-${sql}
+${generatedSql}
 
-KEY RULES this SQL must follow:
-1. Partitioned tables (gtp_tlc_data, nypd_collisions, nyc_311) must filter by year and month. Partition columns are VARCHAR — use quoted literals like year = '2024'.
-2. VARCHAR columns must be cast before numeric operations: TRY_CAST(latitude AS DOUBLE), TRY_CAST(total_amount AS DOUBLE), etc.
-3. Raw lat/lon columns only exist on nypd_collisions, nyc_311, and par — NOT on gtp_tlc_data or taxi_zones.
-4. ST_Point takes (longitude, latitude) — X then Y. Never swap.
-5. census_tracts joins census_tract_demographics ONLY on geoid. Never on borough name or tract label.
-6. TLC zone IDs (pulocationid/dolocationid/locationid): never TRIM() — often integer; use IS NOT NULL and CAST/TRY_CAST both sides of joins to the same type. TRIM(pulocationid) <> '' is invalid.
-7. nyc_311.borough is UPPERCASE ('BROOKLYN'). census_tracts.boroname is Title Case ('Brooklyn'). Never equate directly.
-8. ACS measure columns are STRING — use TRY_CAST(TRIM(REGEXP_REPLACE(col, ',', '')) AS DOUBLE) for math.
-9. Never SUBSTRING on timestamp/datetime columns — use day_of_week() for weekday vs weekend (Trino weekend = days 6–7).
+EXECUTION RESULT:
+${execSummary}${sampleRowsSection}
 
-Respond with this JSON structure:
-{
-  "overall": <1-5>,
-  "issues": ["<specific problem 1>", "<specific problem 2>"]
-}`;
+SCORING RUBRIC:
+${CORRECTNESS_SCALE_CRITERIA}
+
+INSTRUCTIONS:
+1. First, write your reasoning: analyze the SQL against the question. Consider whether the correct tables, filters, aggregations, and joins were used.
+2. Then, assign a score from 1 to 5 using the rubric above.
+3. Then, assign a verdict: "correct" (score 4-5), "partial" (score 2-3), or "incorrect" (score 1).
+
+Respond with JSON only - no prose, no code fences, no commentary.
+Format: {"reasoning": "your analysis here", "score": N, "verdict": "correct|partial|incorrect"}`;
 }
 
 function extractJsonText(raw: string): string {
@@ -90,7 +139,9 @@ function extractJsonText(raw: string): string {
 }
 
 type ParsedJudgeBody = {
+  score?: number;
   overall?: number;
+  reasoning?: string;
   issues?: string[];
   verdict?: string;
 };
@@ -123,10 +174,18 @@ function parseJudgeResponse(
   const judgedAt = new Date().toISOString();
   try {
     const parsed = JSON.parse(extractJsonText(text)) as ParsedJudgeBody;
-    const overall = clampJudgeScore(parsed.overall);
-    const issues = Array.isArray(parsed.issues)
+    const overall = clampJudgeScore(parsed.score ?? parsed.overall);
+    const issuesFromArray = Array.isArray(parsed.issues)
       ? parsed.issues.filter((i): i is string => typeof i === "string")
       : [];
+    const reasoning =
+      typeof parsed.reasoning === "string" ? parsed.reasoning.trim() : "";
+    const issues =
+      issuesFromArray.length > 0
+        ? issuesFromArray
+        : reasoning
+          ? [reasoning]
+          : [];
     const verdict =
       parsed.verdict === "correct" ||
       parsed.verdict === "partial" ||
@@ -170,7 +229,17 @@ export async function judgeQueryPair(
     max_tokens: 1024,
     ...CLAUDE_DETERMINISTIC_SAMPLING,
     system: JUDGE_SYSTEM,
-    messages: [{ role: "user", content: buildUserMessage(question, sql) }],
+    messages: [
+      {
+        role: "user",
+        content: buildJudgePrompt(question, sql, {
+          success: true,
+          rowCount: null,
+          errorMessage: null,
+          sampleRows: null,
+        }),
+      },
+    ],
   });
 
   const text = response.content
@@ -186,32 +255,14 @@ function buildResultUserMessage(
   sql: string,
   replay: ReplayResult
 ): string {
-  const sqlBlock = buildUserMessage(question, sql);
-  const columnsStr =
-    replay.columns?.length ? replay.columns.join(", ") : "(none)";
-  const sampleStr = replay.sampleRows?.length
-    ? JSON.stringify(replay.sampleRows, null, 2)
-    : "(none)";
-  const vizStr = replay.uiVizDescription ?? replay.vizType ?? "unknown";
-  const emptyStr = replay.emptyResult ? "yes" : "no";
-  const errorLine =
-    replay.athenaStatus === "FAILED" ||
-    replay.athenaStatus === "ERROR" ||
-    replay.athenaStatus === "TIMEOUT"
-      ? `\n- Error: ${replay.errorReason ?? replay.athenaStatus}`
-      : "";
+  const sqlBlock = buildJudgePrompt(question, sql, {
+    success: replay.athenaStatus === "SUCCEEDED",
+    rowCount: replay.rowCount,
+    errorMessage: replay.errorReason ?? replay.athenaStatus,
+    sampleRows: replay.sampleRows,
+  });
 
   return `${sqlBlock}
-
-ATHENA EXECUTION RESULT:
-- Status: ${replay.athenaStatus}
-- Row count: ${replay.rowCount ?? "n/a"}
-- Columns: ${columnsStr}
-- Sample rows (first 5):
-${sampleStr}
-- App visualization (same logic as the web Results panel): ${vizStr}
-- Primary viz type: ${replay.vizType ?? "unknown"}
-- Empty result: ${emptyStr}${errorLine}
 
 Now evaluate two additional dimensions:
 
