@@ -133,8 +133,8 @@ function clampJudgeScore(n: unknown): number {
 
 function scoreToVerdict(score: number): CorrectnessVerdict {
   if (score >= 4) return "correct";
-  if (score <= 1) return "incorrect";
-  return "partial";
+  if (score === 3) return "partial";
+  return "incorrect";
 }
 
 function parseCorrectnessResult(text: string): CorrectnessResult {
