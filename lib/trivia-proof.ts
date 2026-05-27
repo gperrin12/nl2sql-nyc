@@ -169,6 +169,26 @@ function findRankingWinner(
   };
 }
 
+/** Winner by SQL row order (ORDER BY ... DESC LIMIT 4 expected). */
+function findOrderedWinner(
+  columns: string[],
+  rows: Record<string, string | null>[]
+): RankingWinner | null {
+  if (rows.length === 0) return null;
+  const cols = resolveRankingColumns(columns, rows);
+  if (!cols) return null;
+  const { metricColumn, labelColumn } = cols;
+  const labelValue = rows[0][labelColumn];
+  if (labelValue == null || labelValue === "") return null;
+  return {
+    rowIndex: 0,
+    labelColumn,
+    labelValue,
+    metricColumn,
+    metricValue: rows[0][metricColumn] ?? "",
+  };
+}
+
 function optionIndexForValue(
   options: string[],
   value: string
@@ -213,7 +233,9 @@ export function resolveTriviaProofFromResults(
     }
   }
 
-  const winner = findRankingWinner(columns, rows);
+  // Primary truth source: first row after ORDER BY ... DESC LIMIT 4.
+  // Fallback to metric inference only when ordered winner can't be read.
+  const winner = findOrderedWinner(columns, rows) ?? findRankingWinner(columns, rows);
   if (!winner) return null;
 
   const idx = optionIndexForValue(options, winner.labelValue);

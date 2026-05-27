@@ -1,5 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
+import { CLAUDE_DETERMINISTIC_SAMPLING } from "@/lib/claude";
 import { renderTriviaSchemaForPrompt } from "@/lib/schemas";
 import {
   getCategoryGenerationHint,
@@ -134,6 +135,8 @@ export async function generateTriviaQuestion(options?: {
   const response = await client.messages.create({
     model,
     max_tokens: 1024,
+    ...CLAUDE_DETERMINISTIC_SAMPLING,
+    temperature: 0,
     system: TRIVIA_SYSTEM,
     messages: [{ role: "user", content: userContent }],
   });
