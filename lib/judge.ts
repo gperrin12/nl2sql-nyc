@@ -1,7 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { CLAUDE_DETERMINISTIC_SAMPLING } from "@/lib/claude";
 import type { ReplayResult } from "@/lib/replay";
-import type { VizType } from "@/lib/viz-infer";
 import {
   classifyQuestion,
   type QueryCategory,
@@ -13,84 +11,102 @@ export { classifyQuestion } from "@/lib/query-category";
 export type { QueryDataset } from "@/lib/query-dataset";
 export { detectDatasets, resolveEvalDataset } from "@/lib/query-dataset";
 
+export type CorrectnessVerdict = "correct" | "partial" | "incorrect";
+
 const client = new Anthropic();
-const JUDGE_MODEL = "claude-sonnet-4-5";
-
-const JUDGE_SYSTEM = `You are an expert evaluator for a natural language to SQL system that queries a NYC civic data warehouse using AWS Athena (Trino dialect).
-
-You will be given a natural language question and the SQL that was generated for it. Evaluate the SQL on four dimensions and respond with JSON only — no prose, no code fences.`;
+const JUDGE_MODEL = "claude-haiku-4-5";
 
 export type JudgeResult = {
   question: string;
   sql: string;
   category: QueryCategory;
   dataset: QueryDataset;
-  scores: {
-    validity: number;
-    intent: number;
-    compliance: number;
-    efficiency: number;
-  };
   overall: number;
   issues: string[];
-  verdict: "good" | "acceptable" | "poor";
+  verdict: CorrectnessVerdict;
   judgedAt: string;
 };
-
-export type ResultEval = {
-  rowCount: number | null;
-  emptyResult: boolean;
-  vizType: VizType | null;
-  /** What ResultsPanel renders (map/chart/table), from inferUiViz. */
-  uiVizDescription?: string | null;
-  athenaStatus: string;
-  resultQuality: number;
-  vizFit: number;
-  resultIssues: string[];
+export type FullJudgeResult = JudgeResult;
+type CorrectnessResult = {
+  score: number;
+  reasoning: string;
+  verdict: CorrectnessVerdict;
+  judgeModel: string;
 };
 
-export type FullJudgeResult = JudgeResult & {
-  /** SQL-only overall before full-eval blend; equals overall when no resultEval. */
-  sqlOverall?: number;
-  resultEval?: ResultEval;
+const CORRECTNESS_SCALE_CRITERIA = `
+Score 5 - Correct: The SQL directly and completely answers the question asked.
+           Uses the correct table(s), correct filters, correct aggregation, and
+           appropriate result format. A human reviewing the query would not change anything.
+
+Score 4 - Mostly correct: Minor issue that doesn't materially change the answer.
+           Examples: slightly different column alias, extra column returned, OR condition
+           where AND was needed but results are still substantially correct.
+
+Score 3 - Partially correct: Right general approach, wrong specific detail.
+           Gets the right tables but wrong filter value, or right aggregation but
+           wrong time range, or right intent but missing a required JOIN.
+           The query runs and returns data but the data is not fully reliable.
+
+Score 2 - Mostly wrong: Attempts to answer but contains a fundamental error that
+           makes the result misleading or incorrect.
+           Examples: wrong table, critical missing filter, wrong aggregation type
+           (SUM instead of COUNT, or vice versa in a context where it matters).
+
+Score 1 - Incorrect: Does not answer the question.
+           Either failed to execute entirely, references nonexistent tables/columns,
+           or performs a completely different operation than what was requested.
+`.trim();
+
+type ExecutionContext = {
+  success: boolean;
+  rowCount?: number | null;
+  errorMessage?: string | null;
+  sampleRows?: unknown[] | null;
 };
 
-import { blendJudgeOverall } from "@/lib/judge-blend";
+function buildJudgePrompt(
+  question: string,
+  generatedSql: string,
+  executionContext: ExecutionContext
+): string {
+  const execSummary = executionContext.success
+    ? `Execution: SUCCESS - returned ${executionContext.rowCount ?? "unknown"} row(s)${
+        executionContext.rowCount === 0 ? " (empty result)" : ""
+      }`
+    : `Execution: FAILED - ${executionContext.errorMessage ?? "unknown error"}`;
 
-export { JUDGE_BLEND_COEFF, JUDGE_BLEND_DIVISOR } from "@/lib/judge-blend";
+  const sampleRows = Array.isArray(executionContext.sampleRows)
+    ? executionContext.sampleRows
+    : [];
+  const sampleRowsSection =
+    sampleRows.length > 0
+      ? `\nSample result rows (first ${Math.min(3, sampleRows.length)}):\n${JSON.stringify(sampleRows.slice(0, 3), null, 2)}`
+      : "";
 
-function buildUserMessage(question: string, sql: string): string {
-  return `QUESTION: ${question}
+  return `You are an expert evaluator for an NL-to-SQL system that queries NYC civic data in AWS Athena (Trino dialect).
+
+Your task: evaluate how well the generated SQL answers the natural language question.
+
+QUESTION ASKED:
+${question}
 
 GENERATED SQL:
-${sql}
+${generatedSql}
 
-KEY RULES this SQL must follow:
-1. Partitioned tables (gtp_tlc_data, nypd_collisions, nyc_311) must filter by year and month. Partition columns are VARCHAR — use quoted literals like year = '2024'.
-2. VARCHAR columns must be cast before numeric operations: TRY_CAST(latitude AS DOUBLE), TRY_CAST(total_amount AS DOUBLE), etc.
-3. Raw lat/lon columns only exist on nypd_collisions, nyc_311, and par — NOT on gtp_tlc_data or taxi_zones.
-4. ST_Point takes (longitude, latitude) — X then Y. Never swap.
-5. census_tracts joins census_tract_demographics ONLY on geoid. Never on borough name or tract label.
-6. TLC zone IDs (pulocationid/dolocationid/locationid): never TRIM() — often integer; use IS NOT NULL and CAST/TRY_CAST both sides of joins to the same type. TRIM(pulocationid) <> '' is invalid.
-7. nyc_311.borough is UPPERCASE ('BROOKLYN'). census_tracts.boroname is Title Case ('Brooklyn'). Never equate directly.
-8. ACS measure columns are STRING — use TRY_CAST(TRIM(REGEXP_REPLACE(col, ',', '')) AS DOUBLE) for math.
-9. Never SUBSTRING on timestamp/datetime columns — use day_of_week() for weekday vs weekend (Trino weekend = days 6–7).
+EXECUTION RESULT:
+${execSummary}${sampleRowsSection}
 
-Respond with this JSON structure:
-{
-  "scores": {
-    "validity": <0-10>,
-    "intent": <0-10>,
-    "compliance": <0-10>,
-    "efficiency": <0-10>
-  },
-  "overall": <0-10>,
-  "issues": ["<specific problem 1>", "<specific problem 2>"],
-  "verdict": "<good|acceptable|poor>"
-}
+SCORING RUBRIC:
+${CORRECTNESS_SCALE_CRITERIA}
 
-verdict must be: "good" if overall >= 8, "acceptable" if overall 5-7, "poor" if overall <= 4.
-issues should be an empty array if none found.`;
+INSTRUCTIONS:
+1. First, write your reasoning: analyze the SQL against the question. Consider whether the correct tables, filters, aggregations, and joins were used.
+2. Then, assign a score from 1 to 5 using the rubric above.
+3. Then, assign a verdict: "correct" (score 4-5), "partial" (score 2-3), or "incorrect" (score 1).
+
+Respond with JSON only - no prose, no code fences, no commentary.
+Format: {"reasoning": "your analysis here", "score": N, "verdict": "correct|partial|incorrect"}`;
 }
 
 function extractJsonText(raw: string): string {
@@ -104,204 +120,71 @@ function extractJsonText(raw: string): string {
 }
 
 type ParsedJudgeBody = {
-  scores?: {
-    validity?: number;
-    intent?: number;
-    compliance?: number;
-    efficiency?: number;
-  };
+  score?: number;
   overall?: number;
+  reasoning?: string;
   issues?: string[];
   verdict?: string;
 };
 
-function clampScore(n: unknown): number {
+function clampJudgeScore(n: unknown): number {
   const v = typeof n === "number" ? n : Number(n);
-  if (!Number.isFinite(v)) return 0;
-  return Math.max(0, Math.min(10, Math.round(v * 10) / 10));
+  if (!Number.isFinite(v)) return 1;
+  return Math.max(1, Math.min(5, Math.round(v)));
 }
 
-function verdictFromOverall(overall: number): "good" | "acceptable" | "poor" {
-  if (overall >= 8) return "good";
-  if (overall <= 4) return "poor";
-  return "acceptable";
+function scoreToVerdict(score: number): CorrectnessVerdict {
+  if (score >= 4) return "correct";
+  if (score === 3) return "partial";
+  return "incorrect";
 }
 
-function parseJudgeResponse(
-  question: string,
-  sql: string,
-  category: QueryCategory,
-  dataset: QueryDataset,
-  text: string
-): JudgeResult {
-  const judgedAt = new Date().toISOString();
+function parseCorrectnessResult(text: string): CorrectnessResult {
   try {
     const parsed = JSON.parse(extractJsonText(text)) as ParsedJudgeBody;
-    const scores = {
-      validity: clampScore(parsed.scores?.validity),
-      intent: clampScore(parsed.scores?.intent),
-      compliance: clampScore(parsed.scores?.compliance),
-      efficiency: clampScore(parsed.scores?.efficiency),
-    };
-    const overall = clampScore(parsed.overall);
-    const issues = Array.isArray(parsed.issues)
-      ? parsed.issues.filter((i): i is string => typeof i === "string")
-      : [];
+    const score = clampJudgeScore(parsed.score ?? parsed.overall);
+    const reasoning =
+      typeof parsed.reasoning === "string" ? parsed.reasoning.trim() : "";
     const verdict =
-      parsed.verdict === "good" ||
-      parsed.verdict === "acceptable" ||
-      parsed.verdict === "poor"
+      parsed.verdict === "correct" ||
+      parsed.verdict === "partial" ||
+      parsed.verdict === "incorrect"
         ? parsed.verdict
-        : verdictFromOverall(overall);
-
+        : scoreToVerdict(score);
+    return { score, reasoning, verdict, judgeModel: JUDGE_MODEL };
+  } catch (error) {
+    console.error("judge parse error", error);
     return {
-      question,
-      sql,
-      category,
-      dataset,
-      scores,
-      overall,
-      issues,
-      verdict,
-      judgedAt,
-    };
-  } catch {
-    return {
-      question,
-      sql,
-      category,
-      dataset,
-      scores: { validity: 0, intent: 0, compliance: 0, efficiency: 0 },
-      overall: 0,
-      issues: ["judge parse error — could not parse model response"],
-      verdict: "poor",
-      judgedAt,
+      score: 1,
+      reasoning: "parse_error",
+      verdict: "incorrect",
+      judgeModel: JUDGE_MODEL,
     };
   }
 }
 
 export async function judgeQueryPair(
   question: string,
-  sql: string
+  sql: string,
+  executionContext?: ExecutionContext
 ): Promise<JudgeResult> {
   const category = classifyQuestion(question);
   const dataset = detectDatasets(sql);
 
   const response = await client.messages.create({
     model: JUDGE_MODEL,
-    max_tokens: 1024,
-    ...CLAUDE_DETERMINISTIC_SAMPLING,
-    system: JUDGE_SYSTEM,
-    messages: [{ role: "user", content: buildUserMessage(question, sql) }],
-  });
-
-  const text = response.content
-    .filter((b) => b.type === "text")
-    .map((b) => b.text)
-    .join("\n");
-
-  return parseJudgeResponse(question, sql, category, dataset, text);
-}
-
-function buildResultUserMessage(
-  question: string,
-  sql: string,
-  replay: ReplayResult
-): string {
-  const sqlBlock = buildUserMessage(question, sql);
-  const columnsStr =
-    replay.columns?.length ? replay.columns.join(", ") : "(none)";
-  const sampleStr = replay.sampleRows?.length
-    ? JSON.stringify(replay.sampleRows, null, 2)
-    : "(none)";
-  const vizStr = replay.uiVizDescription ?? replay.vizType ?? "unknown";
-  const emptyStr = replay.emptyResult ? "yes" : "no";
-  const errorLine =
-    replay.athenaStatus === "FAILED" ||
-    replay.athenaStatus === "ERROR" ||
-    replay.athenaStatus === "TIMEOUT"
-      ? `\n- Error: ${replay.errorReason ?? replay.athenaStatus}`
-      : "";
-
-  return `${sqlBlock}
-
-ATHENA EXECUTION RESULT:
-- Status: ${replay.athenaStatus}
-- Row count: ${replay.rowCount ?? "n/a"}
-- Columns: ${columnsStr}
-- Sample rows (first 5):
-${sampleStr}
-- App visualization (same logic as the web Results panel): ${vizStr}
-- Primary viz type: ${replay.vizType ?? "unknown"}
-- Empty result: ${emptyStr}${errorLine}
-
-Now evaluate two additional dimensions:
-
-5. Result quality (0-10): Does the returned data actually answer the question?
-   - 0 rows when rows are expected = 0
-   - FAILED query = 0
-   - Correct shape and meaningful values = 8-10
-   - Partially correct (wrong columns, unexpected nulls) = 4-7
-
-6. Visualization fit (0-10): Does the app's presentation above match this question?
-   - Spatial / H3 / heatmap / "where" / map questions + map (including H3 hex choropleth) = 9-10
-   - The app always shows a results table too; do not penalize an accompanying table when a map or chart is present
-   - Time-series question + chart = 9-10
-   - Only table when a map or chart was clearly needed = 3-5
-   - Can't tell from data = 5
-
-Respond with JSON only:
-{
-  "resultQuality": <0-10>,
-  "vizFit": <0-10>,
-  "resultIssues": ["issue 1", "issue 2"]
-}`;
-}
-
-type ParsedResultBody = {
-  resultQuality?: number;
-  vizFit?: number;
-  resultIssues?: string[];
-};
-
-function parseResultJudgeResponse(text: string): {
-  resultQuality: number;
-  vizFit: number;
-  resultIssues: string[];
-} {
-  try {
-    const parsed = JSON.parse(extractJsonText(text)) as ParsedResultBody;
-    return {
-      resultQuality: clampScore(parsed.resultQuality),
-      vizFit: clampScore(parsed.vizFit),
-      resultIssues: Array.isArray(parsed.resultIssues)
-        ? parsed.resultIssues.filter((i): i is string => typeof i === "string")
-        : [],
-    };
-  } catch {
-    return {
-      resultQuality: 0,
-      vizFit: 5,
-      resultIssues: ["result judge parse error"],
-    };
-  }
-}
-
-export async function judgeFullResult(
-  question: string,
-  sql: string,
-  replay: ReplayResult
-): Promise<FullJudgeResult> {
-  const sqlEval = await judgeQueryPair(question, sql);
-  const judgedAt = new Date().toISOString();
-
-  const response = await client.messages.create({
-    model: JUDGE_MODEL,
-    max_tokens: 1024,
-    ...CLAUDE_DETERMINISTIC_SAMPLING,
-    system: JUDGE_SYSTEM,
+    max_tokens: 512,
+    temperature: 0,
     messages: [
-      { role: "user", content: buildResultUserMessage(question, sql, replay) },
+      {
+        role: "user",
+        content: buildJudgePrompt(question, sql, {
+          success: executionContext?.success ?? true,
+          rowCount: executionContext?.rowCount ?? null,
+          errorMessage: executionContext?.errorMessage ?? null,
+          sampleRows: executionContext?.sampleRows ?? null,
+        }),
+      },
     ],
   });
 
@@ -310,28 +193,28 @@ export async function judgeFullResult(
     .map((b) => b.text)
     .join("\n");
 
-  const parsed = parseResultJudgeResponse(text);
-  const overall = blendJudgeOverall(
-    sqlEval.overall,
-    parsed.resultQuality,
-    parsed.vizFit
-  );
-
+  const correctness = parseCorrectnessResult(text);
   return {
-    ...sqlEval,
-    sqlOverall: sqlEval.overall,
-    overall: clampScore(overall),
-    verdict: verdictFromOverall(overall),
-    judgedAt,
-    resultEval: {
-      rowCount: replay.rowCount,
-      emptyResult: replay.emptyResult,
-      vizType: replay.vizType,
-      uiVizDescription: replay.uiVizDescription,
-      athenaStatus: replay.athenaStatus,
-      resultQuality: parsed.resultQuality,
-      vizFit: parsed.vizFit,
-      resultIssues: parsed.resultIssues,
-    },
+    question,
+    sql,
+    category,
+    dataset,
+    overall: correctness.score,
+    issues: correctness.reasoning ? [correctness.reasoning] : [],
+    verdict: scoreToVerdict(correctness.score),
+    judgedAt: new Date().toISOString(),
   };
+}
+
+export async function judgeFullResult(
+  question: string,
+  sql: string,
+  replay: ReplayResult
+): Promise<FullJudgeResult> {
+  return judgeQueryPair(question, sql, {
+    success: replay.athenaStatus === "SUCCEEDED",
+    rowCount: replay.rowCount,
+    errorMessage: replay.errorReason ?? replay.athenaStatus,
+    sampleRows: replay.sampleRows,
+  });
 }

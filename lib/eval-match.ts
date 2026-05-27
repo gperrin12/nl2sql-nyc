@@ -1,6 +1,5 @@
 /**
  * Match dashboard moments to judge results.
- * Prefer full eval (resultEval) by question when replay SQL differs from p8k8.
  */
 
 import type { FullJudgeResult } from "@/lib/judge";
@@ -53,10 +52,8 @@ export function buildEvalIndex(evals: FullJudgeResult[]): EvalIndex {
 
 /**
  * Find the best eval for a dashboard moment.
- * 1. Exact question+SQL with resultEval
- * 2. Newest same-question entry with resultEval (full replay eval)
- * 3. Exact question+SQL (SQL-only)
- * 4. Newest same-question entry
+ * 1. Exact question+SQL
+ * 2. Newest same-question entry
  */
 export function findEvalForMoment(
   moment: { question: string; sql: string },
@@ -64,14 +61,9 @@ export function findEvalForMoment(
 ): FullJudgeResult | undefined {
   const exactKey = evalMatchKey(moment.question, moment.sql);
   const exact = index.byExactKey.get(exactKey);
-  if (exact?.resultEval) return exact;
-
+  if (exact) return exact;
   const q = moment.question.trim();
   const byQ = index.byQuestion.get(q) ?? [];
-  const fullEval = byQ.find((e) => e.resultEval);
-  if (fullEval) return fullEval;
-
-  if (exact) return exact;
   return byQ[0];
 }
 

@@ -127,7 +127,7 @@ function hasFullEval(
 ): boolean {
   const key = evalMatchKey(question, sql);
   const entry = existing.find((e) => evalMatchKey(e.question, e.sql) === key);
-  return Boolean(entry?.resultEval);
+  return Boolean(entry);
 }
 
 /** Union of questions from prior evals and p8k8 pairs (stable order: evals first, then p8k8). */
@@ -149,9 +149,9 @@ function collectQuestionCatalog(
 }
 
 function printSummary(newResults: FullJudgeResult[], all: FullJudgeResult[]): void {
-  const good = newResults.filter((r) => r.verdict === "good").length;
-  const acceptable = newResults.filter((r) => r.verdict === "acceptable").length;
-  const poor = newResults.filter((r) => r.verdict === "poor").length;
+  const correct = newResults.filter((r) => r.verdict === "correct").length;
+  const partial = newResults.filter((r) => r.verdict === "partial").length;
+  const incorrect = newResults.filter((r) => r.verdict === "incorrect").length;
   const n = newResults.length;
   const avg =
     n > 0 ? newResults.reduce((s, r) => s + r.overall, 0) / n : 0;
@@ -168,12 +168,10 @@ function printSummary(newResults: FullJudgeResult[], all: FullJudgeResult[]): vo
   console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
   console.log(`Evaluated: ${n} new pairs`);
   if (n > 0) {
-    console.log(`Good:       ${good}  (${Math.round((good / n) * 100)}%)`);
-    console.log(
-      `Acceptable: ${acceptable}  (${Math.round((acceptable / n) * 100)}%)`
-    );
-    console.log(`Poor:       ${poor}  (${Math.round((poor / n) * 100)}%)`);
-    console.log(`Avg score:  ${avg.toFixed(1)} / 10`);
+    console.log(`Correct:    ${correct}  (${Math.round((correct / n) * 100)}%)`);
+    console.log(`Partial:    ${partial}  (${Math.round((partial / n) * 100)}%)`);
+    console.log(`Incorrect:  ${incorrect}  (${Math.round((incorrect / n) * 100)}%)`);
+    console.log(`Avg score:  ${avg.toFixed(1)} / 5`);
     console.log("");
     console.log("By category:");
     for (const [cat, { count, sum }] of [...byCategory.entries()].sort(
@@ -187,45 +185,6 @@ function printSummary(newResults: FullJudgeResult[], all: FullJudgeResult[]): vo
   }
   console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
   console.log(`Written to ${evalsStorageDescription()} (${all.length} total)`);
-}
-
-function printFullSummary(newResults: FullJudgeResult[]): void {
-  const withResult = newResults.filter((r) => r.resultEval);
-  if (withResult.length === 0) return;
-
-  const counts = {
-    SUCCEEDED: 0,
-    FAILED: 0,
-    TIMEOUT: 0,
-    ERROR: 0,
-  };
-  let empty = 0;
-  let sumQuality = 0;
-  let sumVizFit = 0;
-
-  for (const r of withResult) {
-    const re = r.resultEval!;
-    const status = re.athenaStatus as keyof typeof counts;
-    if (status in counts) counts[status] += 1;
-    if (re.emptyResult) empty += 1;
-    sumQuality += re.resultQuality;
-    sumVizFit += re.vizFit;
-  }
-
-  const n = withResult.length;
-  console.log("");
-  console.log("FULL EVAL RESULTS");
-  console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-  console.log("Athena outcomes:");
-  console.log(`  SUCCEEDED:  ${counts.SUCCEEDED}`);
-  console.log(`  FAILED:     ${counts.FAILED}  ← investigate these`);
-  console.log(`  TIMEOUT:    ${counts.TIMEOUT}`);
-  console.log(`  ERROR:      ${counts.ERROR}`);
-  console.log(`  Empty (0 rows): ${empty}  ← silent failures`);
-  console.log("");
-  console.log(`Avg result quality: ${(sumQuality / n).toFixed(1)} / 10`);
-  console.log(`Avg viz fit:        ${(sumVizFit / n).toFixed(1)} / 10`);
-  console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 }
 
 async function main(): Promise<void> {
@@ -313,7 +272,7 @@ async function main(): Promise<void> {
         !REPLACE_EVALS &&
         hasFullEval(existing, question, replay.sql)
       ) {
-        console.log("  → already judged with resultEval, skipping");
+        console.log("  → already judged, skipping");
         if (i < questions.length - 1) await sleep(REPLAY_DELAY_MS);
         continue;
       }
@@ -361,7 +320,7 @@ async function main(): Promise<void> {
   }
 
   printSummary(newResults, merged);
-  if (FULL_EVAL) printFullSummary(newResults);
+  if (FULL_EVAL) console.log("Full eval mode: single-score judging completed.");
 }
 
 main().catch((e) => {

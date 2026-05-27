@@ -9,7 +9,7 @@
  *   SEED_IDS=agg-001,...   filter by question bank id
  *   SEED_CATEGORY=spatial  filter by seed category
  *   SEED_STATUS=succeeded  filter by seed status (succeeded|empty|failed|timeout|start_failed)
- *   JUDGE_FORCE=true       re-judge even if question+sql already has resultEval
+ *   JUDGE_FORCE=true       re-judge even if question+sql already has a prior score
  *   JUDGE_DRY_RUN=true     print plan only
  */
 
@@ -80,7 +80,7 @@ function hasFullEval(
 ): boolean {
   const key = evalMatchKey(question, sql);
   const entry = existing.find((e) => evalMatchKey(e.question, e.sql) === key);
-  return Boolean(entry?.resultEval);
+  return Boolean(entry);
 }
 
 function loadSeedResults(): SeedResult[] {
@@ -171,9 +171,9 @@ function printPlan(
 }
 
 function printSummary(newResults: FullJudgeResult[], all: FullJudgeResult[]): void {
-  const good = newResults.filter((r) => r.verdict === "good").length;
-  const acceptable = newResults.filter((r) => r.verdict === "acceptable").length;
-  const poor = newResults.filter((r) => r.verdict === "poor").length;
+  const correct = newResults.filter((r) => r.verdict === "correct").length;
+  const partial = newResults.filter((r) => r.verdict === "partial").length;
+  const incorrect = newResults.filter((r) => r.verdict === "incorrect").length;
   const n = newResults.length;
   const avg =
     n > 0 ? newResults.reduce((s, r) => s + r.overall, 0) / n : 0;
@@ -190,12 +190,10 @@ function printSummary(newResults: FullJudgeResult[], all: FullJudgeResult[]): vo
   console.log("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
   console.log(`Judged: ${n} new pairs from seed-results`);
   if (n > 0) {
-    console.log(`Good:       ${good}  (${Math.round((good / n) * 100)}%)`);
-    console.log(
-      `Acceptable: ${acceptable}  (${Math.round((acceptable / n) * 100)}%)`
-    );
-    console.log(`Poor:       ${poor}  (${Math.round((poor / n) * 100)}%)`);
-    console.log(`Avg score:  ${avg.toFixed(1)} / 10`);
+    console.log(`Correct:    ${correct}  (${Math.round((correct / n) * 100)}%)`);
+    console.log(`Partial:    ${partial}  (${Math.round((partial / n) * 100)}%)`);
+    console.log(`Incorrect:  ${incorrect}  (${Math.round((incorrect / n) * 100)}%)`);
+    console.log(`Avg score:  ${avg.toFixed(1)} / 5`);
     console.log("\nBy category:");
     for (const [cat, { count, sum }] of [...byCategory.entries()].sort(
       (a, b) => a[0].localeCompare(b[0])
@@ -207,37 +205,6 @@ function printSummary(newResults: FullJudgeResult[], all: FullJudgeResult[]): vo
   }
   console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
   console.log(`Written to ${evalsStorageDescription()} (${all.length} total)`);
-}
-
-function printFullSummary(newResults: FullJudgeResult[]): void {
-  const withResult = newResults.filter((r) => r.resultEval);
-  if (withResult.length === 0) return;
-
-  const counts = { SUCCEEDED: 0, FAILED: 0, TIMEOUT: 0, ERROR: 0 };
-  let empty = 0;
-  let sumQuality = 0;
-  let sumVizFit = 0;
-
-  for (const r of withResult) {
-    const re = r.resultEval!;
-    const status = re.athenaStatus as keyof typeof counts;
-    if (status in counts) counts[status] += 1;
-    if (re.emptyResult) empty += 1;
-    sumQuality += re.resultQuality;
-    sumVizFit += re.vizFit;
-  }
-
-  const n = withResult.length;
-  console.log("\nFULL EVAL (from seed Athena outcomes)");
-  console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-  console.log(`  SUCCEEDED:  ${counts.SUCCEEDED}`);
-  console.log(`  FAILED:     ${counts.FAILED}`);
-  console.log(`  TIMEOUT:    ${counts.TIMEOUT}`);
-  console.log(`  ERROR:      ${counts.ERROR}`);
-  console.log(`  Empty (0 rows): ${empty}`);
-  console.log(`Avg result quality: ${(sumQuality / n).toFixed(1)} / 10`);
-  console.log(`Avg viz fit:        ${(sumVizFit / n).toFixed(1)} / 10`);
-  console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 }
 
 async function main(): Promise<void> {
@@ -314,7 +281,7 @@ async function main(): Promise<void> {
     await saveEvals(merged);
 
     console.log(
-      `  → ${result.verdict} (overall ${result.overall}/10, sql ${result.sqlOverall ?? result.overall}/10)`
+      `  → ${result.verdict} (score ${result.overall}/5)`
     );
 
     if (i < toJudge.length - 1) await sleep(JUDGE_DELAY_MS);
@@ -332,7 +299,7 @@ async function main(): Promise<void> {
   }
 
   printSummary(newResults, final);
-  printFullSummary(newResults);
+  console.log("Seed judging completed with single-score output.");
 }
 
 main().catch((e) => {
