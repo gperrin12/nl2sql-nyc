@@ -32,28 +32,7 @@ export type JudgeResult = {
   verdict: CorrectnessVerdict;
   judgedAt: string;
 };
-
-export type ResultEval = {
-  rowCount: number | null;
-  emptyResult: boolean;
-  vizType: VizType | null;
-  /** What ResultsPanel renders (map/chart/table), from inferUiViz. */
-  uiVizDescription?: string | null;
-  athenaStatus: string;
-  resultQuality: number;
-  vizFit: number;
-  resultIssues: string[];
-};
-
-export type FullJudgeResult = JudgeResult & {
-  /** SQL-only overall before full-eval blend; equals overall when no resultEval. */
-  sqlOverall?: number;
-  resultEval?: ResultEval;
-};
-
-import { blendJudgeOverall } from "@/lib/judge-blend";
-
-export { JUDGE_BLEND_COEFF, JUDGE_BLEND_DIVISOR } from "@/lib/judge-blend";
+export type FullJudgeResult = JudgeResult;
 
 const CORRECTNESS_SCALE_CRITERIA = `
 Score 5 - Correct: The SQL directly and completely answers the question asked.
@@ -152,12 +131,6 @@ function clampJudgeScore(n: unknown): number {
   return Math.max(1, Math.min(5, Math.round(v)));
 }
 
-function clampResultScore(n: unknown): number {
-  const v = typeof n === "number" ? n : Number(n);
-  if (!Number.isFinite(v)) return 1;
-  return Math.max(1, Math.min(5, Math.round(v)));
-}
-
 function verdictFromOverall(overall: number): CorrectnessVerdict {
   if (overall >= 4) return "correct";
   if (overall <= 2) return "incorrect";
@@ -219,7 +192,8 @@ function parseJudgeResponse(
 
 export async function judgeQueryPair(
   question: string,
-  sql: string
+  sql: string,
+  executionContext?: ExecutionContext
 ): Promise<JudgeResult> {
   const category = classifyQuestion(question);
   const dataset = detectDatasets(sql);
@@ -233,10 +207,10 @@ export async function judgeQueryPair(
       {
         role: "user",
         content: buildJudgePrompt(question, sql, {
-          success: true,
-          rowCount: null,
-          errorMessage: null,
-          sampleRows: null,
+          success: executionContext?.success ?? true,
+          rowCount: executionContext?.rowCount ?? null,
+          errorMessage: executionContext?.errorMessage ?? null,
+          sampleRows: executionContext?.sampleRows ?? null,
         }),
       },
     ],
@@ -250,117 +224,15 @@ export async function judgeQueryPair(
   return parseJudgeResponse(question, sql, category, dataset, text);
 }
 
-function buildResultUserMessage(
-  question: string,
-  sql: string,
-  replay: ReplayResult
-): string {
-  const sqlBlock = buildJudgePrompt(question, sql, {
-    success: replay.athenaStatus === "SUCCEEDED",
-    rowCount: replay.rowCount,
-    errorMessage: replay.errorReason ?? replay.athenaStatus,
-    sampleRows: replay.sampleRows,
-  });
-
-  return `${sqlBlock}
-
-Now evaluate two additional dimensions:
-
-5. Result quality (1-5): Does the returned data actually answer the question?
-   - 0 rows when rows are expected = 1
-   - FAILED query = 1
-   - Correct shape and meaningful values = 5
-   - Partially correct (wrong columns, unexpected nulls) = 2-4
-
-6. Visualization fit (1-5): Does the app's presentation above match this question?
-   - Spatial / H3 / heatmap / "where" / map questions + map (including H3 hex choropleth) = 5
-   - The app always shows a results table too; do not penalize an accompanying table when a map or chart is present
-   - Time-series question + chart = 5
-   - Only table when a map or chart was clearly needed = 2-3
-   - Can't tell from data = 3
-
-Respond with JSON only:
-{
-  "resultQuality": <1-5>,
-  "vizFit": <1-5>,
-  "resultIssues": ["issue 1", "issue 2"]
-}`;
-}
-
-type ParsedResultBody = {
-  resultQuality?: number;
-  vizFit?: number;
-  resultIssues?: string[];
-};
-
-function parseResultJudgeResponse(text: string): {
-  resultQuality: number;
-  vizFit: number;
-  resultIssues: string[];
-} {
-  try {
-    const parsed = JSON.parse(extractJsonText(text)) as ParsedResultBody;
-    return {
-      resultQuality: clampResultScore(parsed.resultQuality),
-      vizFit: clampResultScore(parsed.vizFit),
-      resultIssues: Array.isArray(parsed.resultIssues)
-        ? parsed.resultIssues.filter((i): i is string => typeof i === "string")
-        : [],
-    };
-  } catch {
-    return {
-      resultQuality: 1,
-      vizFit: 3,
-      resultIssues: ["result judge parse error"],
-    };
-  }
-}
-
 export async function judgeFullResult(
   question: string,
   sql: string,
   replay: ReplayResult
 ): Promise<FullJudgeResult> {
-  const sqlEval = await judgeQueryPair(question, sql);
-  const judgedAt = new Date().toISOString();
-
-  const response = await client.messages.create({
-    model: JUDGE_MODEL,
-    max_tokens: 1024,
-    ...CLAUDE_DETERMINISTIC_SAMPLING,
-    system: JUDGE_SYSTEM,
-    messages: [
-      { role: "user", content: buildResultUserMessage(question, sql, replay) },
-    ],
+  return judgeQueryPair(question, sql, {
+    success: replay.athenaStatus === "SUCCEEDED",
+    rowCount: replay.rowCount,
+    errorMessage: replay.errorReason ?? replay.athenaStatus,
+    sampleRows: replay.sampleRows,
   });
-
-  const text = response.content
-    .filter((b) => b.type === "text")
-    .map((b) => b.text)
-    .join("\n");
-
-  const parsed = parseResultJudgeResponse(text);
-  const overall = blendJudgeOverall(
-    sqlEval.overall,
-    parsed.resultQuality,
-    parsed.vizFit
-  );
-
-  return {
-    ...sqlEval,
-    sqlOverall: sqlEval.overall,
-    overall: clampJudgeScore(overall),
-    verdict: verdictFromOverall(overall),
-    judgedAt,
-    resultEval: {
-      rowCount: replay.rowCount,
-      emptyResult: replay.emptyResult,
-      vizType: replay.vizType,
-      uiVizDescription: replay.uiVizDescription,
-      athenaStatus: replay.athenaStatus,
-      resultQuality: parsed.resultQuality,
-      vizFit: parsed.vizFit,
-      resultIssues: parsed.resultIssues,
-    },
-  };
 }

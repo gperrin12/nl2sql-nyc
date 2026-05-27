@@ -2,7 +2,6 @@
 
 import type { ReactNode } from "react";
 import type { FullJudgeResult } from "@/lib/judge";
-import { blendJudgeOverall } from "@/lib/judge-blend";
 import type { QueryCategory } from "@/lib/query-category";
 import {
   DATASET_LABELS,
@@ -38,17 +37,6 @@ const CATEGORY_LABELS: Record<QueryCategory, string> = {
 };
 
 function evalDisplayScore(e: FullJudgeResult): number {
-  if (typeof e.overall === "number" && Number.isFinite(e.overall)) {
-    return e.overall;
-  }
-  const re = e.resultEval;
-  if (re) {
-    const sql =
-      typeof e.sqlOverall === "number" && Number.isFinite(e.sqlOverall)
-        ? e.sqlOverall
-        : e.overall;
-    return blendJudgeOverall(sql, re.resultQuality, re.vizFit);
-  }
   return e.overall;
 }
 
@@ -225,9 +213,6 @@ export function EvalSummary({ evals, momentCount }: EvalSummaryProps) {
   const correct = evals.filter((e) => e.verdict === "correct").length;
   const partial = evals.filter((e) => e.verdict === "partial").length;
   const incorrect = evals.filter((e) => e.verdict === "incorrect").length;
-  const fullEvalCount = evals.filter((e) => e.resultEval != null).length;
-  const fullEvalPct =
-    evals.length > 0 ? Math.round((fullEvalCount / evals.length) * 100) : 0;
 
   const categoryRows = buildBreakdown(
     evals,
@@ -284,7 +269,6 @@ export function EvalSummary({ evals, momentCount }: EvalSummaryProps) {
             incorrect {incorrect}
           </span>
         </div>
-        <StatPill label="Full eval" value={`${fullEvalPct}%`} mono />
       </div>
 
       <BreakdownTable

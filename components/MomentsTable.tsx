@@ -13,7 +13,6 @@ import {
   formatJudgeHeaderTooltip,
   formatSqlJudgeHeaderTooltip,
   getSqlOverall,
-  JUDGE_BLEND_DIVISOR,
 } from "@/lib/judge-display";
 import { formatLatencyMs } from "@/lib/sql-metrics";
 
@@ -31,9 +30,7 @@ export type MomentColumnId =
   | "athena"
   | "tokens"
   | "sqlJudge"
-  | "judge"
-  | "resultQuality"
-  | "vizFit";
+  | "judge";
 
 type ColumnDef = {
   id: MomentColumnId;
@@ -122,20 +119,6 @@ const COLUMN_DEFS: ColumnDef[] = [
     label: "Judge",
     defaultVisible: true,
     headerClass: "w-[5.5rem] text-right",
-    cellClass: "text-right tabular-nums whitespace-nowrap",
-  },
-  {
-    id: "resultQuality",
-    label: "Result",
-    defaultVisible: true,
-    headerClass: "w-[4.5rem] text-right",
-    cellClass: "text-right tabular-nums whitespace-nowrap",
-  },
-  {
-    id: "vizFit",
-    label: "Viz",
-    defaultVisible: true,
-    headerClass: "w-[3.5rem] text-right",
     cellClass: "text-right tabular-nums whitespace-nowrap",
   },
 ];
@@ -281,8 +264,6 @@ function columnHeaderTitle(id: MomentColumnId): string | undefined {
   if (id === "sqlJudge") return formatSqlJudgeHeaderTooltip();
   if (id === "judge") return formatJudgeHeaderTooltip();
   if (id === "cplx") return "Complexity score";
-  if (id === "resultQuality") return "Result quality (1–5): does Athena data answer the question?";
-  if (id === "vizFit") return "Viz fit (1–5): is map/chart/table right for this question?";
   if (id === "athena") return "Athena execution state from nl2sql.query_runs";
   return undefined;
 }
@@ -339,7 +320,6 @@ function ExpandedSqlToolbar({
 function MomentRow({
   moment: m,
   evalResult,
-  evalSqlDiffers,
   expanded,
   onToggle,
   copied,
@@ -349,7 +329,6 @@ function MomentRow({
 }: {
   moment: DashboardMoment;
   evalResult: FullJudgeResult | undefined;
-  evalSqlDiffers: boolean;
   expanded: boolean;
   onToggle: () => void;
   copied: boolean;
@@ -449,22 +428,6 @@ function MomentRow({
         ) : (
           <span className="text-[var(--muted)]">—</span>
         );
-      case "resultQuality":
-        return evalResult?.resultEval != null ? (
-          <span className={judgeScoreColor(evalResult.resultEval.resultQuality)}>
-            {evalResult.resultEval.resultQuality.toFixed(0)}/5
-          </span>
-        ) : (
-          <span className="text-[var(--muted)]">—</span>
-        );
-      case "vizFit":
-        return evalResult?.resultEval != null ? (
-          <span className={judgeScoreColor(evalResult.resultEval.vizFit)}>
-            {evalResult.resultEval.vizFit.toFixed(0)}/5
-          </span>
-        ) : (
-          <span className="text-[var(--muted)]">—</span>
-        );
       default:
         return null;
     }
@@ -547,15 +510,8 @@ function MomentRow({
                 </div>
                 <p className="text-xs text-[var(--muted)] font-mono">
                   SQL judge: {getSqlOverall(evalResult).toFixed(0)}/5
-                  {evalResult.resultEval ? (
-                    <>
-                      {" "}
-                      · Judge = (SQL {getSqlOverall(evalResult).toFixed(0)} + 2×Result{" "}
-                      {evalResult.resultEval.resultQuality.toFixed(0)} + Viz{" "}
-                      {evalResult.resultEval.vizFit.toFixed(0)}) / {JUDGE_BLEND_DIVISOR} →{" "}
-                      {evalResult.overall.toFixed(1)}/5
-                    </>
-                  ) : null}
+                  {" · "}
+                  Overall: {evalResult.overall.toFixed(0)}/5
                 </p>
                 <div className="grid grid-cols-1 gap-2 text-xs">
                   <div className="rounded border border-[var(--border)] px-2 py-1.5">
@@ -576,53 +532,6 @@ function MomentRow({
                             : "text-amber-400"
                         }
                       >
-                        • {issue}
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-            )}
-
-            {evalResult?.resultEval && (
-              <div className="space-y-2 border-t border-[var(--border)] pt-3">
-                {evalSqlDiffers && (
-                  <p className="text-xs text-amber-400/90">
-                    Full eval from replay SQL (differs from p8k8 snapshot below).
-                  </p>
-                )}
-                <p className="text-xs text-[var(--muted)]">
-                  Result: {evalResult.resultEval.athenaStatus}
-                  {evalResult.resultEval.rowCount != null &&
-                    ` · ${evalResult.resultEval.rowCount} rows`}
-                  {(evalResult.resultEval.uiVizDescription ??
-                    evalResult.resultEval.vizType) &&
-                    ` · ${evalResult.resultEval.uiVizDescription ?? evalResult.resultEval.vizType}`}
-                </p>
-                <div className="flex flex-wrap gap-4 text-xs">
-                  <span>
-                    Result quality:{" "}
-                    <span
-                      className={judgeScoreColor(
-                        evalResult.resultEval.resultQuality
-                      )}
-                    >
-                      {evalResult.resultEval.resultQuality}/5
-                    </span>
-                  </span>
-                  <span>
-                    Viz fit:{" "}
-                    <span
-                      className={judgeScoreColor(evalResult.resultEval.vizFit)}
-                    >
-                      {evalResult.resultEval.vizFit}/5
-                    </span>
-                  </span>
-                </div>
-                {evalResult.resultEval.resultIssues.length > 0 && (
-                  <ul className="text-xs space-y-1">
-                    {evalResult.resultEval.resultIssues.map((issue, i) => (
-                      <li key={i} className="text-amber-400">
                         • {issue}
                       </li>
                     ))}
@@ -850,16 +759,11 @@ export function MomentsTable({
             {moments.map((m) => {
               const expanded = expandedId === m.id;
               const evalResult = evalByMomentId.get(m.id);
-              const evalSqlDiffers =
-                evalResult != null &&
-                evalResult.resultEval != null &&
-                !evalMatchesMoment(evalResult, m);
               return (
                 <MomentRow
                   key={m.id}
                   moment={m}
                   evalResult={evalResult}
-                  evalSqlDiffers={evalSqlDiffers}
                   expanded={expanded}
                   onToggle={() => setExpandedId(expanded ? null : m.id)}
                   copied={copiedId === m.id}
