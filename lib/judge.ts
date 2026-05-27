@@ -202,6 +202,7 @@ export async function judgeQueryPair(
     model: JUDGE_MODEL,
     max_tokens: 1024,
     ...CLAUDE_DETERMINISTIC_SAMPLING,
+    temperature: 0,
     system: JUDGE_SYSTEM,
     messages: [
       {
