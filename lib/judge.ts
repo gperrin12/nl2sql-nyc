@@ -71,7 +71,9 @@ function buildJudgePrompt(
   executionContext: ExecutionContext
 ): string {
   const execSummary = executionContext.success
-    ? `Execution: SUCCESS - returned ${executionContext.rowCount ?? "unknown"} row(s)`
+    ? `Execution: SUCCESS - returned ${executionContext.rowCount ?? "unknown"} row(s)${
+        executionContext.rowCount === 0 ? " (empty result)" : ""
+      }`
     : `Execution: FAILED - ${executionContext.errorMessage ?? "unknown error"}`;
 
   const sampleRows = Array.isArray(executionContext.sampleRows)
