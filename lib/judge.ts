@@ -14,7 +14,7 @@ export type { QueryDataset } from "@/lib/query-dataset";
 export { detectDatasets, resolveEvalDataset } from "@/lib/query-dataset";
 
 const client = new Anthropic();
-const JUDGE_MODEL = "claude-sonnet-4-5";
+const JUDGE_MODEL = "claude-haiku-4-5";
 
 const JUDGE_SYSTEM = `You are an expert evaluator for a natural language to SQL system that queries a NYC civic data warehouse using AWS Athena (Trino dialect).
 
