@@ -1,7 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { CLAUDE_DETERMINISTIC_SAMPLING } from "@/lib/claude";
 import type { ReplayResult } from "@/lib/replay";
-import type { VizType } from "@/lib/viz-infer";
 import {
   classifyQuestion,
   type QueryCategory,
@@ -18,10 +16,6 @@ export type CorrectnessVerdict = "correct" | "partial" | "incorrect";
 const client = new Anthropic();
 const JUDGE_MODEL = "claude-haiku-4-5";
 
-const JUDGE_SYSTEM = `You are an expert evaluator for a natural language to SQL system that queries a NYC civic data warehouse using AWS Athena (Trino dialect).
-
-You will be given a natural language question, generated SQL, and execution context. Follow the requested rubric and respond with JSON only — no code fences.`;
-
 export type JudgeResult = {
   question: string;
   sql: string;
@@ -33,6 +27,12 @@ export type JudgeResult = {
   judgedAt: string;
 };
 export type FullJudgeResult = JudgeResult;
+type CorrectnessResult = {
+  score: number;
+  reasoning: string;
+  verdict: CorrectnessVerdict;
+  judgeModel: string;
+};
 
 const CORRECTNESS_SCALE_CRITERIA = `
 Score 5 - Correct: The SQL directly and completely answers the question asked.
@@ -131,61 +131,32 @@ function clampJudgeScore(n: unknown): number {
   return Math.max(1, Math.min(5, Math.round(v)));
 }
 
-function verdictFromOverall(overall: number): CorrectnessVerdict {
-  if (overall >= 4) return "correct";
-  if (overall <= 2) return "incorrect";
+function scoreToVerdict(score: number): CorrectnessVerdict {
+  if (score >= 4) return "correct";
+  if (score <= 1) return "incorrect";
   return "partial";
 }
 
-function parseJudgeResponse(
-  question: string,
-  sql: string,
-  category: QueryCategory,
-  dataset: QueryDataset,
-  text: string
-): JudgeResult {
-  const judgedAt = new Date().toISOString();
+function parseCorrectnessResult(text: string): CorrectnessResult {
   try {
     const parsed = JSON.parse(extractJsonText(text)) as ParsedJudgeBody;
-    const overall = clampJudgeScore(parsed.score ?? parsed.overall);
-    const issuesFromArray = Array.isArray(parsed.issues)
-      ? parsed.issues.filter((i): i is string => typeof i === "string")
-      : [];
+    const score = clampJudgeScore(parsed.score ?? parsed.overall);
     const reasoning =
       typeof parsed.reasoning === "string" ? parsed.reasoning.trim() : "";
-    const issues =
-      issuesFromArray.length > 0
-        ? issuesFromArray
-        : reasoning
-          ? [reasoning]
-          : [];
     const verdict =
       parsed.verdict === "correct" ||
       parsed.verdict === "partial" ||
       parsed.verdict === "incorrect"
         ? parsed.verdict
-        : verdictFromOverall(overall);
-
+        : scoreToVerdict(score);
+    return { score, reasoning, verdict, judgeModel: JUDGE_MODEL };
+  } catch (error) {
+    console.error("judge parse error", error);
     return {
-      question,
-      sql,
-      category,
-      dataset,
-      overall,
-      issues,
-      verdict,
-      judgedAt,
-    };
-  } catch {
-    return {
-      question,
-      sql,
-      category,
-      dataset,
-      overall: 1,
-      issues: ["judge parse error — could not parse model response"],
+      score: 1,
+      reasoning: "parse_error",
       verdict: "incorrect",
-      judgedAt,
+      judgeModel: JUDGE_MODEL,
     };
   }
 }
@@ -200,10 +171,8 @@ export async function judgeQueryPair(
 
   const response = await client.messages.create({
     model: JUDGE_MODEL,
-    max_tokens: 1024,
-    ...CLAUDE_DETERMINISTIC_SAMPLING,
+    max_tokens: 512,
     temperature: 0,
-    system: JUDGE_SYSTEM,
     messages: [
       {
         role: "user",
@@ -222,7 +191,17 @@ export async function judgeQueryPair(
     .map((b) => b.text)
     .join("\n");
 
-  return parseJudgeResponse(question, sql, category, dataset, text);
+  const correctness = parseCorrectnessResult(text);
+  return {
+    question,
+    sql,
+    category,
+    dataset,
+    overall: correctness.score,
+    issues: correctness.reasoning ? [correctness.reasoning] : [],
+    verdict: scoreToVerdict(correctness.score),
+    judgedAt: new Date().toISOString(),
+  };
 }
 
 export async function judgeFullResult(
