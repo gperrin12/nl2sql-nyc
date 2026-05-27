@@ -212,14 +212,14 @@ function truncateSql(sql: string, max = 48): string {
 }
 
 function judgeScoreColor(overall: number): string {
-  if (overall >= 8) return "text-green-400";
-  if (overall <= 4) return "text-red-400";
+  if (overall >= 4) return "text-green-400";
+  if (overall <= 2) return "text-red-400";
   return "text-amber-400";
 }
 
 function verdictBadgeClass(verdict: FullJudgeResult["verdict"]): string {
-  if (verdict === "good") return "bg-green-500/20 text-green-400 border-green-500/30";
-  if (verdict === "poor") return "bg-red-500/20 text-red-400 border-red-500/30";
+  if (verdict === "correct") return "bg-green-500/20 text-green-400 border-green-500/30";
+  if (verdict === "incorrect") return "bg-red-500/20 text-red-400 border-red-500/30";
   return "bg-amber-500/20 text-amber-400 border-amber-500/30";
 }
 
@@ -281,8 +281,8 @@ function columnHeaderTitle(id: MomentColumnId): string | undefined {
   if (id === "sqlJudge") return formatSqlJudgeHeaderTooltip();
   if (id === "judge") return formatJudgeHeaderTooltip();
   if (id === "cplx") return "Complexity score";
-  if (id === "resultQuality") return "Result quality (0–10): does Athena data answer the question?";
-  if (id === "vizFit") return "Viz fit (0–10): is map/chart/table right for this question?";
+  if (id === "resultQuality") return "Result quality (1–5): does Athena data answer the question?";
+  if (id === "vizFit") return "Viz fit (1–5): is map/chart/table right for this question?";
   if (id === "athena") return "Athena execution state from nl2sql.query_runs";
   return undefined;
 }
@@ -430,7 +430,7 @@ function MomentRow({
       case "sqlJudge":
         return evalResult ? (
           <span className={judgeScoreColor(getSqlOverall(evalResult))}>
-            {getSqlOverall(evalResult).toFixed(1)}/10
+            {getSqlOverall(evalResult).toFixed(0)}/5
           </span>
         ) : (
           <span className="text-[var(--muted)]">—</span>
@@ -443,7 +443,7 @@ function MomentRow({
             className="cursor-help border-b border-dotted border-[var(--muted)]"
           >
             <span className={judgeScoreColor(evalResult.overall)}>
-              {evalResult.overall.toFixed(1)}/10
+              {evalResult.overall.toFixed(0)}/5
             </span>
           </HoverTooltip>
         ) : (
@@ -452,7 +452,7 @@ function MomentRow({
       case "resultQuality":
         return evalResult?.resultEval != null ? (
           <span className={judgeScoreColor(evalResult.resultEval.resultQuality)}>
-            {evalResult.resultEval.resultQuality.toFixed(1)}/10
+            {evalResult.resultEval.resultQuality.toFixed(0)}/5
           </span>
         ) : (
           <span className="text-[var(--muted)]">—</span>
@@ -460,7 +460,7 @@ function MomentRow({
       case "vizFit":
         return evalResult?.resultEval != null ? (
           <span className={judgeScoreColor(evalResult.resultEval.vizFit)}>
-            {evalResult.resultEval.vizFit.toFixed(1)}/10
+            {evalResult.resultEval.vizFit.toFixed(0)}/5
           </span>
         ) : (
           <span className="text-[var(--muted)]">—</span>
@@ -546,40 +546,22 @@ function MomentRow({
                   </span>
                 </div>
                 <p className="text-xs text-[var(--muted)] font-mono">
-                  SQL judge: {getSqlOverall(evalResult).toFixed(1)}/10
+                  SQL judge: {getSqlOverall(evalResult).toFixed(0)}/5
                   {evalResult.resultEval ? (
                     <>
                       {" "}
-                      · Judge = (SQL {getSqlOverall(evalResult).toFixed(1)} + 2×Result{" "}
-                      {evalResult.resultEval.resultQuality.toFixed(1)} + Viz{" "}
-                      {evalResult.resultEval.vizFit.toFixed(1)}) / {JUDGE_BLEND_DIVISOR} →{" "}
-                      {evalResult.overall.toFixed(1)}/10
+                      · Judge = (SQL {getSqlOverall(evalResult).toFixed(0)} + 2×Result{" "}
+                      {evalResult.resultEval.resultQuality.toFixed(0)} + Viz{" "}
+                      {evalResult.resultEval.vizFit.toFixed(0)}) / {JUDGE_BLEND_DIVISOR} →{" "}
+                      {evalResult.overall.toFixed(1)}/5
                     </>
                   ) : null}
                 </p>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                <div className="grid grid-cols-1 gap-2 text-xs">
                   <div className="rounded border border-[var(--border)] px-2 py-1.5">
-                    <span className="text-[var(--muted)]">Validity</span>
+                    <span className="text-[var(--muted)]">Overall SQL score</span>
                     <p className="font-mono text-[var(--text)]">
-                      {evalResult.scores.validity}/10
-                    </p>
-                  </div>
-                  <div className="rounded border border-[var(--border)] px-2 py-1.5">
-                    <span className="text-[var(--muted)]">Intent</span>
-                    <p className="font-mono text-[var(--text)]">
-                      {evalResult.scores.intent}/10
-                    </p>
-                  </div>
-                  <div className="rounded border border-[var(--border)] px-2 py-1.5">
-                    <span className="text-[var(--muted)]">Compliance</span>
-                    <p className="font-mono text-[var(--text)]">
-                      {evalResult.scores.compliance}/10
-                    </p>
-                  </div>
-                  <div className="rounded border border-[var(--border)] px-2 py-1.5">
-                    <span className="text-[var(--muted)]">Efficiency</span>
-                    <p className="font-mono text-[var(--text)]">
-                      {evalResult.scores.efficiency}/10
+                      {getSqlOverall(evalResult).toFixed(0)}/5
                     </p>
                   </div>
                 </div>
@@ -589,7 +571,7 @@ function MomentRow({
                       <li
                         key={i}
                         className={
-                          evalResult.verdict === "poor"
+                          evalResult.verdict === "incorrect"
                             ? "text-red-400"
                             : "text-amber-400"
                         }
@@ -625,7 +607,7 @@ function MomentRow({
                         evalResult.resultEval.resultQuality
                       )}
                     >
-                      {evalResult.resultEval.resultQuality}/10
+                      {evalResult.resultEval.resultQuality}/5
                     </span>
                   </span>
                   <span>
@@ -633,7 +615,7 @@ function MomentRow({
                     <span
                       className={judgeScoreColor(evalResult.resultEval.vizFit)}
                     >
-                      {evalResult.resultEval.vizFit}/10
+                      {evalResult.resultEval.vizFit}/5
                     </span>
                   </span>
                 </div>

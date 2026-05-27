@@ -4,7 +4,7 @@ export const JUDGE_BLEND_COEFF = { sql: 1, result: 2, viz: 1 } as const;
 export const JUDGE_BLEND_DIVISOR = 4;
 
 function clampScore(n: number): number {
-  return Math.max(0, Math.min(10, Math.round(n * 10) / 10));
+  return Math.max(1, Math.min(5, Math.round(n)));
 }
 
 export function blendJudgeOverall(

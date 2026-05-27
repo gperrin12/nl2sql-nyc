@@ -13,27 +13,23 @@ export { classifyQuestion } from "@/lib/query-category";
 export type { QueryDataset } from "@/lib/query-dataset";
 export { detectDatasets, resolveEvalDataset } from "@/lib/query-dataset";
 
+export type CorrectnessVerdict = "correct" | "partial" | "incorrect";
+
 const client = new Anthropic();
 const JUDGE_MODEL = "claude-haiku-4-5";
 
 const JUDGE_SYSTEM = `You are an expert evaluator for a natural language to SQL system that queries a NYC civic data warehouse using AWS Athena (Trino dialect).
 
-You will be given a natural language question and the SQL that was generated for it. Evaluate the SQL on four dimensions and respond with JSON only — no prose, no code fences.`;
+You will be given a natural language question and the SQL that was generated for it. Evaluate it with a single overall score and respond with JSON only — no prose, no code fences.`;
 
 export type JudgeResult = {
   question: string;
   sql: string;
   category: QueryCategory;
   dataset: QueryDataset;
-  scores: {
-    validity: number;
-    intent: number;
-    compliance: number;
-    efficiency: number;
-  };
   overall: number;
   issues: string[];
-  verdict: "good" | "acceptable" | "poor";
+  verdict: CorrectnessVerdict;
   judgedAt: string;
 };
 
@@ -78,19 +74,9 @@ KEY RULES this SQL must follow:
 
 Respond with this JSON structure:
 {
-  "scores": {
-    "validity": <0-10>,
-    "intent": <0-10>,
-    "compliance": <0-10>,
-    "efficiency": <0-10>
-  },
-  "overall": <0-10>,
-  "issues": ["<specific problem 1>", "<specific problem 2>"],
-  "verdict": "<good|acceptable|poor>"
-}
-
-verdict must be: "good" if overall >= 8, "acceptable" if overall 5-7, "poor" if overall <= 4.
-issues should be an empty array if none found.`;
+  "overall": <1-5>,
+  "issues": ["<specific problem 1>", "<specific problem 2>"]
+}`;
 }
 
 function extractJsonText(raw: string): string {
@@ -104,27 +90,27 @@ function extractJsonText(raw: string): string {
 }
 
 type ParsedJudgeBody = {
-  scores?: {
-    validity?: number;
-    intent?: number;
-    compliance?: number;
-    efficiency?: number;
-  };
   overall?: number;
   issues?: string[];
   verdict?: string;
 };
 
-function clampScore(n: unknown): number {
+function clampJudgeScore(n: unknown): number {
   const v = typeof n === "number" ? n : Number(n);
-  if (!Number.isFinite(v)) return 0;
-  return Math.max(0, Math.min(10, Math.round(v * 10) / 10));
+  if (!Number.isFinite(v)) return 1;
+  return Math.max(1, Math.min(5, Math.round(v)));
 }
 
-function verdictFromOverall(overall: number): "good" | "acceptable" | "poor" {
-  if (overall >= 8) return "good";
-  if (overall <= 4) return "poor";
-  return "acceptable";
+function clampResultScore(n: unknown): number {
+  const v = typeof n === "number" ? n : Number(n);
+  if (!Number.isFinite(v)) return 1;
+  return Math.max(1, Math.min(5, Math.round(v)));
+}
+
+function verdictFromOverall(overall: number): CorrectnessVerdict {
+  if (overall >= 4) return "correct";
+  if (overall <= 2) return "incorrect";
+  return "partial";
 }
 
 function parseJudgeResponse(
@@ -137,20 +123,14 @@ function parseJudgeResponse(
   const judgedAt = new Date().toISOString();
   try {
     const parsed = JSON.parse(extractJsonText(text)) as ParsedJudgeBody;
-    const scores = {
-      validity: clampScore(parsed.scores?.validity),
-      intent: clampScore(parsed.scores?.intent),
-      compliance: clampScore(parsed.scores?.compliance),
-      efficiency: clampScore(parsed.scores?.efficiency),
-    };
-    const overall = clampScore(parsed.overall);
+    const overall = clampJudgeScore(parsed.overall);
     const issues = Array.isArray(parsed.issues)
       ? parsed.issues.filter((i): i is string => typeof i === "string")
       : [];
     const verdict =
-      parsed.verdict === "good" ||
-      parsed.verdict === "acceptable" ||
-      parsed.verdict === "poor"
+      parsed.verdict === "correct" ||
+      parsed.verdict === "partial" ||
+      parsed.verdict === "incorrect"
         ? parsed.verdict
         : verdictFromOverall(overall);
 
@@ -159,7 +139,6 @@ function parseJudgeResponse(
       sql,
       category,
       dataset,
-      scores,
       overall,
       issues,
       verdict,
@@ -171,10 +150,9 @@ function parseJudgeResponse(
       sql,
       category,
       dataset,
-      scores: { validity: 0, intent: 0, compliance: 0, efficiency: 0 },
-      overall: 0,
+      overall: 1,
       issues: ["judge parse error — could not parse model response"],
-      verdict: "poor",
+      verdict: "incorrect",
       judgedAt,
     };
   }
@@ -237,23 +215,23 @@ ${sampleStr}
 
 Now evaluate two additional dimensions:
 
-5. Result quality (0-10): Does the returned data actually answer the question?
-   - 0 rows when rows are expected = 0
-   - FAILED query = 0
-   - Correct shape and meaningful values = 8-10
-   - Partially correct (wrong columns, unexpected nulls) = 4-7
+5. Result quality (1-5): Does the returned data actually answer the question?
+   - 0 rows when rows are expected = 1
+   - FAILED query = 1
+   - Correct shape and meaningful values = 5
+   - Partially correct (wrong columns, unexpected nulls) = 2-4
 
-6. Visualization fit (0-10): Does the app's presentation above match this question?
-   - Spatial / H3 / heatmap / "where" / map questions + map (including H3 hex choropleth) = 9-10
+6. Visualization fit (1-5): Does the app's presentation above match this question?
+   - Spatial / H3 / heatmap / "where" / map questions + map (including H3 hex choropleth) = 5
    - The app always shows a results table too; do not penalize an accompanying table when a map or chart is present
-   - Time-series question + chart = 9-10
-   - Only table when a map or chart was clearly needed = 3-5
-   - Can't tell from data = 5
+   - Time-series question + chart = 5
+   - Only table when a map or chart was clearly needed = 2-3
+   - Can't tell from data = 3
 
 Respond with JSON only:
 {
-  "resultQuality": <0-10>,
-  "vizFit": <0-10>,
+  "resultQuality": <1-5>,
+  "vizFit": <1-5>,
   "resultIssues": ["issue 1", "issue 2"]
 }`;
 }
@@ -272,16 +250,16 @@ function parseResultJudgeResponse(text: string): {
   try {
     const parsed = JSON.parse(extractJsonText(text)) as ParsedResultBody;
     return {
-      resultQuality: clampScore(parsed.resultQuality),
-      vizFit: clampScore(parsed.vizFit),
+      resultQuality: clampResultScore(parsed.resultQuality),
+      vizFit: clampResultScore(parsed.vizFit),
       resultIssues: Array.isArray(parsed.resultIssues)
         ? parsed.resultIssues.filter((i): i is string => typeof i === "string")
         : [],
     };
   } catch {
     return {
-      resultQuality: 0,
-      vizFit: 5,
+      resultQuality: 1,
+      vizFit: 3,
       resultIssues: ["result judge parse error"],
     };
   }
@@ -320,7 +298,7 @@ export async function judgeFullResult(
   return {
     ...sqlEval,
     sqlOverall: sqlEval.overall,
-    overall: clampScore(overall),
+    overall: clampJudgeScore(overall),
     verdict: verdictFromOverall(overall),
     judgedAt,
     resultEval: {

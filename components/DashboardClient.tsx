@@ -50,9 +50,9 @@ const CATEGORY_OPTIONS: QueryCategory[] = [
 ];
 
 const VERDICT_OPTIONS: FullJudgeResult["verdict"][] = [
-  "good",
-  "acceptable",
-  "poor",
+  "correct",
+  "partial",
+  "incorrect",
 ];
 
 const DATASET_OPTIONS: QueryDataset[] = [

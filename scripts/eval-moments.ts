@@ -149,9 +149,9 @@ function collectQuestionCatalog(
 }
 
 function printSummary(newResults: FullJudgeResult[], all: FullJudgeResult[]): void {
-  const good = newResults.filter((r) => r.verdict === "good").length;
-  const acceptable = newResults.filter((r) => r.verdict === "acceptable").length;
-  const poor = newResults.filter((r) => r.verdict === "poor").length;
+  const correct = newResults.filter((r) => r.verdict === "correct").length;
+  const partial = newResults.filter((r) => r.verdict === "partial").length;
+  const incorrect = newResults.filter((r) => r.verdict === "incorrect").length;
   const n = newResults.length;
   const avg =
     n > 0 ? newResults.reduce((s, r) => s + r.overall, 0) / n : 0;
@@ -168,12 +168,10 @@ function printSummary(newResults: FullJudgeResult[], all: FullJudgeResult[]): vo
   console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
   console.log(`Evaluated: ${n} new pairs`);
   if (n > 0) {
-    console.log(`Good:       ${good}  (${Math.round((good / n) * 100)}%)`);
-    console.log(
-      `Acceptable: ${acceptable}  (${Math.round((acceptable / n) * 100)}%)`
-    );
-    console.log(`Poor:       ${poor}  (${Math.round((poor / n) * 100)}%)`);
-    console.log(`Avg score:  ${avg.toFixed(1)} / 10`);
+    console.log(`Correct:    ${correct}  (${Math.round((correct / n) * 100)}%)`);
+    console.log(`Partial:    ${partial}  (${Math.round((partial / n) * 100)}%)`);
+    console.log(`Incorrect:  ${incorrect}  (${Math.round((incorrect / n) * 100)}%)`);
+    console.log(`Avg score:  ${avg.toFixed(1)} / 5`);
     console.log("");
     console.log("By category:");
     for (const [cat, { count, sum }] of [...byCategory.entries()].sort(
@@ -223,8 +221,8 @@ function printFullSummary(newResults: FullJudgeResult[]): void {
   console.log(`  ERROR:      ${counts.ERROR}`);
   console.log(`  Empty (0 rows): ${empty}  ← silent failures`);
   console.log("");
-  console.log(`Avg result quality: ${(sumQuality / n).toFixed(1)} / 10`);
-  console.log(`Avg viz fit:        ${(sumVizFit / n).toFixed(1)} / 10`);
+  console.log(`Avg result quality: ${(sumQuality / n).toFixed(1)} / 5`);
+  console.log(`Avg viz fit:        ${(sumVizFit / n).toFixed(1)} / 5`);
   console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 }
 

@@ -20,10 +20,10 @@ type BreakdownRow = {
   label: string;
   count: number;
   avgScore: number;
-  goodPct: number;
-  good: number;
-  acceptable: number;
-  poor: number;
+  correctPct: number;
+  correct: number;
+  partial: number;
+  incorrect: number;
 };
 
 const CATEGORY_LABELS: Record<QueryCategory, string> = {
@@ -46,19 +46,10 @@ function evalDisplayScore(e: FullJudgeResult): number {
     const sql =
       typeof e.sqlOverall === "number" && Number.isFinite(e.sqlOverall)
         ? e.sqlOverall
-        : (e.scores.validity +
-            e.scores.intent +
-            e.scores.compliance +
-            e.scores.efficiency) /
-          4;
+        : e.overall;
     return blendJudgeOverall(sql, re.resultQuality, re.vizFit);
   }
-  return (
-    e.scores.validity +
-    e.scores.intent +
-    e.scores.compliance +
-    e.scores.efficiency
-  ) / 4;
+  return e.overall;
 }
 
 function buildBreakdown(
@@ -68,7 +59,7 @@ function buildBreakdown(
 ): BreakdownRow[] {
   const buckets = new Map<
     string,
-    { scores: number[]; good: number; acceptable: number; poor: number }
+    { scores: number[]; correct: number; partial: number; incorrect: number }
   >();
 
   for (const e of evals) {
@@ -82,13 +73,13 @@ function buildBreakdown(
 
     let b = buckets.get(key);
     if (!b) {
-      b = { scores: [], good: 0, acceptable: 0, poor: 0 };
+      b = { scores: [], correct: 0, partial: 0, incorrect: 0 };
       buckets.set(key, b);
     }
     b.scores.push(evalDisplayScore(e));
-    if (e.verdict === "good") b.good += 1;
-    else if (e.verdict === "acceptable") b.acceptable += 1;
-    else if (e.verdict === "poor") b.poor += 1;
+    if (e.verdict === "correct") b.correct += 1;
+    else if (e.verdict === "partial") b.partial += 1;
+    else if (e.verdict === "incorrect") b.incorrect += 1;
   }
 
   const rows: BreakdownRow[] = [];
@@ -101,10 +92,10 @@ function buildBreakdown(
       label: labelFn(key),
       count,
       avgScore,
-      goodPct: (b.good / count) * 100,
-      good: b.good,
-      acceptable: b.acceptable,
-      poor: b.poor,
+      correctPct: (b.correct / count) * 100,
+      correct: b.correct,
+      partial: b.partial,
+      incorrect: b.incorrect,
     });
   }
 
@@ -112,34 +103,34 @@ function buildBreakdown(
 }
 
 function VerdictSplitBar({
-  good,
-  acceptable,
-  poor,
+  correct,
+  partial,
+  incorrect,
   total,
 }: {
-  good: number;
-  acceptable: number;
-  poor: number;
+  correct: number;
+  partial: number;
+  incorrect: number;
   total: number;
 }) {
   if (total === 0) {
     return <div className="h-1.5 w-full min-w-[4rem] rounded-full bg-[var(--border)]" />;
   }
-  const g = (good / total) * 100;
-  const a = (acceptable / total) * 100;
-  const p = (poor / total) * 100;
+  const c = (correct / total) * 100;
+  const p = (partial / total) * 100;
+  const i = (incorrect / total) * 100;
   return (
     <div
       className="flex h-1.5 w-full min-w-[4rem] overflow-hidden rounded-full bg-[var(--border)]"
-      title={`good ${good}, acceptable ${acceptable}, poor ${poor}`}
+      title={`correct ${correct}, partial ${partial}, incorrect ${incorrect}`}
     >
-      {g > 0 && (
-        <div className="bg-[var(--accent)]" style={{ width: `${g}%` }} />
+      {c > 0 && (
+        <div className="bg-[var(--accent)]" style={{ width: `${c}%` }} />
       )}
-      {a > 0 && (
-        <div className="bg-amber-400" style={{ width: `${a}%` }} />
+      {p > 0 && (
+        <div className="bg-amber-400" style={{ width: `${p}%` }} />
       )}
-      {p > 0 && <div className="bg-red-400" style={{ width: `${p}%` }} />}
+      {i > 0 && <div className="bg-red-400" style={{ width: `${i}%` }} />}
     </div>
   );
 }
@@ -167,7 +158,7 @@ function BreakdownTable({
               <th className="px-2.5 py-1.5 font-medium">{dimensionLabel}</th>
               <th className="px-2.5 py-1.5 font-medium text-right w-12">Count</th>
               <th className="px-2.5 py-1.5 font-medium text-right w-16">Avg Score</th>
-              <th className="px-2.5 py-1.5 font-medium text-right w-14">Good %</th>
+              <th className="px-2.5 py-1.5 font-medium text-right w-14">Correct %</th>
               <th className="px-2.5 py-1.5 font-medium min-w-[5rem]">Split</th>
             </tr>
           </thead>
@@ -185,13 +176,13 @@ function BreakdownTable({
                   {row.avgScore.toFixed(1)}
                 </td>
                 <td className="px-2.5 py-1.5 text-right font-mono tabular-nums text-[var(--muted)]">
-                  {row.goodPct.toFixed(0)}%
+                  {row.correctPct.toFixed(0)}%
                 </td>
                 <td className="px-2.5 py-1.5">
                   <VerdictSplitBar
-                    good={row.good}
-                    acceptable={row.acceptable}
-                    poor={row.poor}
+                    correct={row.correct}
+                    partial={row.partial}
+                    incorrect={row.incorrect}
                     total={row.count}
                   />
                 </td>
@@ -231,9 +222,9 @@ export function EvalSummary({ evals, momentCount }: EvalSummaryProps) {
       ? scores.reduce((a, n) => a + n, 0) / scores.length
       : 0;
 
-  const good = evals.filter((e) => e.verdict === "good").length;
-  const acceptable = evals.filter((e) => e.verdict === "acceptable").length;
-  const poor = evals.filter((e) => e.verdict === "poor").length;
+  const correct = evals.filter((e) => e.verdict === "correct").length;
+  const partial = evals.filter((e) => e.verdict === "partial").length;
+  const incorrect = evals.filter((e) => e.verdict === "incorrect").length;
   const fullEvalCount = evals.filter((e) => e.resultEval != null).length;
   const fullEvalPct =
     evals.length > 0 ? Math.round((fullEvalCount / evals.length) * 100) : 0;
@@ -275,7 +266,7 @@ export function EvalSummary({ evals, momentCount }: EvalSummaryProps) {
           label="Avg score"
           value={
             <span className="font-mono tabular-nums">
-              {avgScore.toFixed(1)} / 10
+              {avgScore.toFixed(1)} / 5
             </span>
           }
         />
@@ -284,13 +275,13 @@ export function EvalSummary({ evals, momentCount }: EvalSummaryProps) {
             Verdicts
           </span>
           <span className="px-2 py-0.5 rounded-full text-xs font-mono bg-[var(--accent)]/20 text-[var(--accent)]">
-            good {good}
+            correct {correct}
           </span>
           <span className="px-2 py-0.5 rounded-full text-xs font-mono bg-amber-400/20 text-amber-400">
-            acceptable {acceptable}
+            partial {partial}
           </span>
           <span className="px-2 py-0.5 rounded-full text-xs font-mono bg-red-400/20 text-red-400">
-            poor {poor}
+            incorrect {incorrect}
           </span>
         </div>
         <StatPill label="Full eval" value={`${fullEvalPct}%`} mono />
