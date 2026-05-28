@@ -48,6 +48,23 @@ When Athena fails or returns unusable results, call **`POST /api/query/repair`**
 
 In the web UI, when a query ends in **`FAILED`**, a **Repair with AI** prompt appears (requires confirmation — not automatic). You get up to **5** repairs per submitted question; **Not now** hides the prompt until the next failed run.
 
+## Evaluation & Baseline
+
+**v3 Baseline** (12-question golden dataset, LLM-as-judge scoring with temperature=0):
+
+| Metric | Value |
+|--------|-------|
+| Total queries evaluated | 12 |
+| Correct (score 5) | 41.7% (5 queries) |
+| Mostly correct (score 4) | 16.7% (2 queries) |
+| Partial (score 3) | 16.7% (2 queries) |
+| Mostly wrong (score 2) | 8.3% (1 query) |
+| Incorrect (score 1) | 16.7% (2 queries) |
+| Acceptable accuracy (score 4-5) | 58.3% |
+| Average judge score | 3.58 |
+
+This baseline represents the starting point for optimization work.
+
 ## Local setup
 
 ```bash
