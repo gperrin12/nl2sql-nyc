@@ -63,6 +63,8 @@ Open http://localhost:3000. When logged in, **`/dashboard`** lists **one row per
 
 **Run + eval** (`npm run run:eval`) reads `data/questions.json`, generates SQL with your local env (`USE_P8K8` / `CLAUDE_SQL_AGENT`), logs to Postgres, judges, and writes `evals.json`. Use `npm run run:eval:full` for Athena+viz judging. No browser required.
 
+**Golden eval** (`npm run eval:golden`) reads `data/golden-dataset.json` (12 curated questions with ground truth), runs the **tool-using SQL agent** for every question, executes on Athena, judges SQL + results, logs to `nl2sql.query_runs` with `app_version = v3-baseline` and `judge_overall`, and merges scores into `evals.json`. Requires `DATABASE_URL`, `ANTHROPIC_API_KEY`, and `ATHENA_OUTPUT_LOCATION`. Dry run: `npm run eval:golden:dry`. Filter: `RUN_LIMIT=1 SEED_IDS=agg-003 npm run eval:golden`. Re-judge stored runs for that baseline: `EVAL_APP_VERSION=v3-baseline npm run eval`.
+
 ### Dashboard evals on Vercel
 
 Vercel has no persistent disk, so judge results from `npm run eval` must live in **S3** (same AWS creds as Athena):
