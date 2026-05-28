@@ -1,4 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { getAnthropicClient } from "@/lib/anthropic-client";
 import {
   addUsage,
   buildTokenSummary,
@@ -12,8 +13,6 @@ import {
 } from "@/lib/claude";
 import { listWarehouseTableNames, renderTablesForPrompt } from "@/lib/schemas";
 import type { AgentStreamPayload } from "./types";
-
-const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 const DEFAULT_MODEL = "claude-sonnet-4-5";
 
@@ -159,7 +158,7 @@ export async function runSqlAgentWithEvents(
   for (let turn = 0; turn < MAX_AGENT_TURNS; turn++) {
     await onEvent({ type: "turn", index: turn });
 
-    const response = await client.messages.create({
+    const response = await getAnthropicClient().messages.create({
       model,
       max_tokens: 4096,
       ...CLAUDE_DETERMINISTIC_SAMPLING,

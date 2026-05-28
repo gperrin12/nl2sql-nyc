@@ -1,5 +1,5 @@
-import Anthropic from "@anthropic-ai/sdk";
 import type { ReplayResult } from "@/lib/replay";
+import { getAnthropicClient } from "@/lib/anthropic-client";
 import {
   classifyQuestion,
   type QueryCategory,
@@ -13,7 +13,6 @@ export { detectDatasets, resolveEvalDataset } from "@/lib/query-dataset";
 
 export type CorrectnessVerdict = "correct" | "partial" | "incorrect";
 
-const client = new Anthropic();
 const JUDGE_MODEL = "claude-haiku-4-5";
 
 export type JudgeResult = {
@@ -171,7 +170,7 @@ export async function judgeQueryPair(
   const category = classifyQuestion(question);
   const dataset = detectDatasets(sql);
 
-  const response = await client.messages.create({
+  const response = await getAnthropicClient().messages.create({
     model: JUDGE_MODEL,
     max_tokens: 512,
     temperature: 0,
