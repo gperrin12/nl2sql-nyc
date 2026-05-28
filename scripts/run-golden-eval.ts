@@ -1,18 +1,22 @@
 /**
  * Golden dataset eval: agent-only SQL generation, Athena execution, LLM judge,
- * log to nl2sql.query_runs with app_version = v3-baseline and judge_overall.
+ * log to nl2sql.query_runs with a golden app_version tag and judge_overall.
  *
  * Usage (reads .env / .env.local):
  *   npm run eval:golden
+ *   npm run eval:golden -- --version v3.1
+ *   GOLDEN_APP_VERSION=v3.1 npm run eval:golden
  *   npm run eval:golden:dry
  *
  * Flags:
+ *   --version   — app_version tag (default: lib/golden-eval-version.ts, currently v3.1)
  *   --dry-run   — print plan only
  *   --no-judge  — run agent + Athena + DB only
  *   --force     — re-judge even when eval exists for same question+sql
  *   --replace   — evals file contains only this run's results (not merged)
  *
  * Env:
+ *   GOLDEN_APP_VERSION  — same as --version (CLI wins if both set)
  *   DATABASE_URL, ANTHROPIC_API_KEY, ATHENA_OUTPUT_LOCATION
  *   SEED_IDS, SEED_CATEGORY, SEED_DIFFICULTY, RUN_LIMIT, RUN_DELAY_MS
  */
@@ -45,12 +49,13 @@ import {
 } from "../lib/record-query-run";
 import type { ReplayResult } from "../lib/replay";
 import { generateSqlWithAgent } from "../lib/sql-agent/run";
+import { resolveGoldenAppVersion } from "../lib/golden-eval-version";
 import {
   getQueryRunIdByExecutionId,
   upsertQueryRun,
 } from "../lib/query-runs-store";
 
-const GOLDEN_APP_VERSION = "v3-baseline";
+const GOLDEN_APP_VERSION = resolveGoldenAppVersion();
 
 const DRY_RUN = process.argv.includes("--dry-run");
 const FORCE_JUDGE = process.argv.includes("--force");
