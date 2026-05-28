@@ -1,145 +1,886 @@
-[{
-  "id": "agg-014",
-  "question": "What is the 311 complaint rate per 1000 residents by borough in 2024 using ACS 2023 population?",
-  "category": "aggregation",
-  "difficulty": "hard",
-  "ground_truth_answer":"TBD",
-  "expected_sql_pattern":""
-},
-{
-  "id": "agg-003",
-  "question": "How many yellow cab trips were taken in 2025?",
-  "category": "aggregation",
-  "difficulty": "easy",
-  "ground_truth_answer":"TBD",
-  "expected_sql_pattern":""
-},
-{
-  "id": "rnk-006",
-  "question": "Which 10 taxi zones had the most yellow cab dropoffs in Manhattan in 2025?",
-  "category": "ranking",
-  "difficulty": "medium",
-  "ground_truth_answer":"TBD",
-  "expected_sql_pattern":""
-},
-{
-  "id": "rnk-011",
-  "question": "Which taxi zones have the highest ratio of tips to fare amount for yellow cabs in 2025?",
-  "category": "ranking",
-  "difficulty": "hard",
-  "ground_truth_answer":"TBD",
-  "expected_sql_pattern":""
-},
-{
-  "id": "ts-011",
-  "question": "Show the monthly trend of cyclist fatalities in NYC from 2020 to 2023",
-  "category": "time-series",
-  "difficulty": "hard",
-  "ground_truth_answer":"TBD",
-  "expected_sql_pattern":""
-},
-{
-  "id": "ts-004",
-  "question": "What was the monthly average yellow cab fare in 2025?",
-  "category": "time-series",
-  "difficulty": "easy",
-  "ground_truth_answer":"TBD",
-  "expected_sql_pattern":""
-},
-{
-  "id": "ts-005",
-  "question": "How did monthly noise complaints in NYC change from 2024 to 2025?",
-  "category": "time-series",
-  "difficulty": "medium",
-  "ground_truth_answer":"TBD",
-  "expected_sql_pattern":""
-},
-{
-  "id": "spa-006",
-  "question": "Show a heatmap of 311 complaints at H3 resolution 9 in Brooklyn in 2024",
-  "category": "spatial",
-  "difficulty": "medium",
-  "ground_truth_answer":"TBD",
-  "expected_sql_pattern":""
-},
-{
-  "id": "spa-012",
-  "question": "Show collision density by census tract in Manhattan in 2025",
-  "category": "spatial",
-  "difficulty": "hard",
-  "ground_truth_answer":"TBD",
-  "expected_sql_pattern":""
-},
-{
-  "id": "spa-013",
-  "question": "Map 311 complaints within 1000 feet of Atlantic Ave in Brooklyn in 2024",
-  "category": "spatial",
-  "difficulty": "hard",
-  "ground_truth_answer":"TBD",
-  "expected_sql_pattern":""
-},
-{
-  "id": "dem-001",
-  "question": "What is the total population of each NYC borough according to the 2023 ACS?",
-  "category": "demographic",
-  "difficulty": "easy",
-  "ground_truth_answer":"TBD",
-  "expected_sql_pattern":""
-},
-{
-  "id": "dem-009",
-  "question": "Which census tracts with median income below $40,000 had the most 311 complaints per capita in 2024?",
-  "category": "demographic",
-  "difficulty": "hard",
-  "ground_truth_answer":"TBD",
-  "expected_sql_pattern":""
-},
-{
-  "id": "cmp-001",
-  "question": "How do yellow cab and green cab trip counts compare in 2025?",
-  "category": "comparison",
-  "difficulty": "easy",
-  "ground_truth_answer":"TBD",
-  "expected_sql_pattern":""
-},
-{
-  "id": "cmp-009",
-  "question": "How does taxi trip volume from Manhattan compare pre-pandemic (2019) vs post-pandemic (2025) by month?",
-  "category": "comparison",
-  "difficulty": "hard",
-  "ground_truth_answer":"TBD",
-  "expected_sql_pattern":""
-},
-{
-  "id": "lkp-003",
-  "question": "What taxi zone does location ID 132 correspond to?",
-  "category": "lookup",
-  "difficulty": "easy",
-  "ground_truth_answer":"TBD",
-  "expected_sql_pattern":""
-},
-{
-  "id": "lkp-009",
-  "question": "What census tract does the corner of 125th St and Lenox Ave fall in?",
-  "category": "lookup",
-  "difficulty": "hard",
-  "ground_truth_answer":"TBD",
-  "expected_sql_pattern":""
-},
-{
-  "id": "xbl-002",
-  "question": "Compare average yellow cab trip distance for pickups in high-poverty vs low-poverty census tracts in 2023",
-  "category": "comparison", 
-  "difficulty": "hard",
-  "ground_truth_answer":"TBD",
-  "expected_sql_pattern":""
-},
-{
-  "id": "agg-009",
-  "question": "What is the average tip amount for yellow cab trips by payment type in 2025?",
-  "category": "aggregation",
-  "difficulty": "medium",
-  "ground_truth_answer":"TBD",
-  "expected_sql_pattern":""
-}
+[
+  {
+    "id": "agg-014",
+    "question": "What is the 311 complaint rate per 1000 residents by borough in 2024 using ACS 2023 population?",
+    "category": "aggregation",
+    "difficulty": "hard",
+    "ground_truth_answer": "Complaints per 1,000 residents (2024 311, ACS 2023 population): Bronx 520.0, Manhattan 444.0, Brooklyn 394.9, Queens 354.9, Staten Island 246.0.",
+    "expected_sql_pattern": "WITH boro_pop AS (SELECT ct.boroname AS boro, SUM(TRY_CAST(TRIM(REGEXP_REPLACE(ctd.total_pop_2023, ',', '')) AS DOUBLE)) AS sum_pop_2023 FROM census_tract_demographics ctd JOIN census_tracts ct ON TRIM(CAST(ct.geoid AS VARCHAR)) = TRIM(CAST(ctd.geoid AS VARCHAR)) GROUP BY 1), complaints_2024_311 AS (SELECT borough AS boro, COUNT(unique_key) AS complaint_count FROM nyc_311 WHERE year = '2024' GROUP BY 1) SELECT b.boro, ROUND(1000.0 * c.complaint_count / b.sum_pop_2023, 1) AS complaints_per_1k FROM boro_pop b LEFT JOIN complaints_2024_311 c ON UPPER(b.boro) = c.boro ORDER BY complaints_per_1k DESC"
+  },
+  {
+    "id": "agg-003",
+    "question": "How many yellow cab trips were taken in 2025?",
+    "category": "aggregation",
+    "difficulty": "easy",
+    "ground_truth_answer": "Number of yellow cab trips taken in 2025: 15,168,579",
+    "expected_sql_pattern": "SELECT COUNT(*) FROM gtp_tlc_data WHERE year = '2025' and type = 'yellow'"
+  },
+  {
+    "id": "rnk-006",
+    "question": "Which 10 taxi zones had the most yellow cab dropoffs in Manhattan in 2025?",
+    "category": "ranking",
+    "difficulty": "medium",
+    "ground_truth_answer": [
+      {
+        "rank": 1,
+        "dropoff_zone": "Upper East Side North",
+        "trip_count": 648072
+      },
+      {
+        "rank": 2,
+        "dropoff_zone": "Upper East Side South",
+        "trip_count": 616155
+      },
+      {
+        "rank": 3,
+        "dropoff_zone": "Midtown Center",
+        "trip_count": 549390
+      },
+      {
+        "rank": 4,
+        "dropoff_zone": "Times Sq/Theatre District",
+        "trip_count": 462757
+      },
+      {
+        "rank": 5,
+        "dropoff_zone": "Murray Hill",
+        "trip_count": 430504
+      },
+      {
+        "rank": 6,
+        "dropoff_zone": "Midtown East",
+        "trip_count": 401775
+      },
+      {
+        "rank": 7,
+        "dropoff_zone": "Lincoln Square East",
+        "trip_count": 401596
+      },
+      {
+        "rank": 8,
+        "dropoff_zone": "Upper West Side South",
+        "trip_count": 400440
+      },
+      {
+        "rank": 9,
+        "dropoff_zone": "East Chelsea",
+        "trip_count": 393171
+      },
+      {
+        "rank": 10,
+        "dropoff_zone": "Lenox Hill West",
+        "trip_count": 380591
+      }
+    ],
+    "expected_sql_pattern": "merge gtp_tlc_data and taxi_zones on dolocationid and filter for Manhattan and year 2025 and type yellow and group by dropoff_zone and count the number of trips and order by trip_count desc limit 10"
+  },
+  {
+    "id": "rnk-011",
+    "question": "Which taxi zones have the highest ratio of tips to fare amount for yellow cabs in 2025?",
+    "category": "ranking",
+    "difficulty": "hard",
+    "ground_truth_answer": [
+      {
+        "rank": 1,
+        "dropoff_zone": "Governor's Island/Ellis Island/Liberty Island",
+        "tip_fare_ratio": 0.238
+      },
+      {
+        "rank": 2,
+        "dropoff_zone": "LaGuardia Airport",
+        "tip_fare_ratio": 0.215
+      },
+      {
+        "rank": 3,
+        "dropoff_zone": "Upper East Side South",
+        "tip_fare_ratio": 0.209
+      },
+      {
+        "rank": 4,
+        "dropoff_zone": "Upper East Side North",
+        "tip_fare_ratio": 0.209
+      },
+      {
+        "rank": 5,
+        "dropoff_zone": "Upper West Side South",
+        "tip_fare_ratio": 0.205
+      },
+      {
+        "rank": 6,
+        "dropoff_zone": "Lincoln Square East",
+        "tip_fare_ratio": 0.199
+      },
+      {
+        "rank": 7,
+        "dropoff_zone": "Sutton Place/Turtle Bay North",
+        "tip_fare_ratio": 0.198
+      },
+      {
+        "rank": 8,
+        "dropoff_zone": "Central Park",
+        "tip_fare_ratio": 0.197
+      },
+      {
+        "rank": 9,
+        "dropoff_zone": "Upper West Side North",
+        "tip_fare_ratio": 0.196
+      },
+      {
+        "rank": 10,
+        "dropoff_zone": "Midtown East",
+        "tip_fare_ratio": 0.196
+      }
+    ],
+    "expected_sql_pattern": "join gtp_tlc_data to taxi_zones using dolocationid (dropoff), filter to year = '2025' and type = 'yellow', group by dropoff_zone, then calculate the tip fare ratio as sum(tip_amount)/sum(fare_amount), order by tip_fare_ratio desc, and limit to 10. Note: question is ambiguous between pickup/dropoff; this uses dropoff zones."
+  },
+  {
+    "id": "ts-004",
+    "question": "What was the monthly average yellow cab fare in 2025?",
+    "category": "time-series",
+    "difficulty": "easy",
+    "ground_truth_answer": "17.43",
+    "expected_sql_pattern": "select EXTRACT(MONTH FROM lpep_pickup_datetime) as month, round(avg(fare_amount), 2) as avg_fare from gtp_tlc_data where year = '2025' and type = 'yellow' group by month order by month"
+  },
+  {
+    "id": "ts-005",
+    "question": "How did monthly noise complaints in NYC change from 2024 to 2025?",
+    "category": "time-series",
+    "difficulty": "medium",
+    "ground_truth_answer": [
+      {
+        "year": 2024,
+        "month": 1,
+        "complaint_count": 38678
+      },
+      {
+        "year": 2024,
+        "month": 2,
+        "complaint_count": 39985
+      },
+      {
+        "year": 2024,
+        "month": 3,
+        "complaint_count": 50931
+      },
+      {
+        "year": 2024,
+        "month": 4,
+        "complaint_count": 55817
+      },
+      {
+        "year": 2024,
+        "month": 5,
+        "complaint_count": 68280
+      },
+      {
+        "year": 2024,
+        "month": 6,
+        "complaint_count": 75528
+      },
+      {
+        "year": 2024,
+        "month": 7,
+        "complaint_count": 65374
+      },
+      {
+        "year": 2024,
+        "month": 8,
+        "complaint_count": 63392
+      },
+      {
+        "year": 2024,
+        "month": 9,
+        "complaint_count": 87960
+      },
+      {
+        "year": 2024,
+        "month": 10,
+        "complaint_count": 77010
+      },
+      {
+        "year": 2024,
+        "month": 11,
+        "complaint_count": 63753
+      },
+      {
+        "year": 2024,
+        "month": 12,
+        "complaint_count": 66567
+      },
+      {
+        "year": 2025,
+        "month": 1,
+        "complaint_count": 87250
+      },
+      {
+        "year": 2025,
+        "month": 2,
+        "complaint_count": 42507
+      },
+      {
+        "year": 2025,
+        "month": 3,
+        "complaint_count": 53122
+      },
+      {
+        "year": 2025,
+        "month": 4,
+        "complaint_count": 59123
+      },
+      {
+        "year": 2025,
+        "month": 5,
+        "complaint_count": 74541
+      },
+      {
+        "year": 2025,
+        "month": 6,
+        "complaint_count": 72281
+      },
+      {
+        "year": 2025,
+        "month": 7,
+        "complaint_count": 64113
+      },
+      {
+        "year": 2025,
+        "month": 8,
+        "complaint_count": 76841
+      },
+      {
+        "year": 2025,
+        "month": 9,
+        "complaint_count": 75320
+      },
+      {
+        "year": 2025,
+        "month": 10,
+        "complaint_count": 83353
+      },
+      {
+        "year": 2025,
+        "month": 11,
+        "complaint_count": 69255
+      },
+      {
+        "year": 2025,
+        "month": 12,
+        "complaint_count": 75294
+      }
+    ],
+    "expected_sql_pattern": "Parse ISO 8601 created_date, filter to complaint_type LIKE 'Noise', group by year and month, count per month for 2024-2025. Shows monthly trend without borough/subcategory filtering."
+  },
+  {
+    "id": "spa-006",
+    "question": "Show a heatmap of 311 complaints at H3 resolution 9 in Brooklyn in 2024",
+    "category": "spatial",
+    "difficulty": "medium",
+    "ground_truth_answer": [
+      {
+        "h3_r9": "892a107458bffff",
+        "complaint_311_count": 417
+      },
+      {
+        "h3_r9": "892a10774d7ffff",
+        "complaint_311_count": 1464
+      },
+      {
+        "h3_r9": "892a100dd53ffff",
+        "complaint_311_count": 947
+      },
+      {
+        "h3_r9": "892a1074283ffff",
+        "complaint_311_count": 979
+      },
+      {
+        "h3_r9": "892a100d387ffff",
+        "complaint_311_count": 273
+      },
+      {
+        "h3_r9": "892a10744abffff",
+        "complaint_311_count": 775
+      },
+      {
+        "h3_r9": "892a100caa7ffff",
+        "complaint_311_count": 488
+      },
+      {
+        "h3_r9": "892a10762cbffff",
+        "complaint_311_count": 828
+      },
+      {
+        "h3_r9": "892a100db13ffff",
+        "complaint_311_count": 1603
+      },
+      {
+        "h3_r9": "892a100cb6fffff",
+        "complaint_311_count": 380
+      },
+      {
+        "h3_r9": "892a1074093ffff",
+        "complaint_311_count": 601
+      },
+      {
+        "h3_r9": "892a100d143ffff",
+        "complaint_311_count": 2649
+      },
+      {
+        "h3_r9": "892a100ddd3ffff",
+        "complaint_311_count": 1521
+      },
+      {
+        "h3_r9": "892a1074423ffff",
+        "complaint_311_count": 562
+      },
+      {
+        "h3_r9": "892a107700bffff",
+        "complaint_311_count": 760
+      },
+      {
+        "h3_r9": "892a10741bbffff",
+        "complaint_311_count": 230
+      },
+      {
+        "h3_r9": "892a100d147ffff",
+        "complaint_311_count": 1425
+      },
+      {
+        "h3_r9": "892a10745a3ffff",
+        "complaint_311_count": 729
+      },
+      {
+        "h3_r9": "892a100ca63ffff",
+        "complaint_311_count": 257
+      },
+      {
+        "h3_r9": "892a107756bffff",
+        "complaint_311_count": 993
+      },
+      {
+        "h3_r9": "892a107468fffff",
+        "complaint_311_count": 466
+      },
+      {
+        "h3_r9": "892a107624bffff",
+        "complaint_311_count": 1249
+      },
+      {
+        "h3_r9": "892a1074697ffff",
+        "complaint_311_count": 700
+      },
+      {
+        "h3_r9": "892a100dd37ffff",
+        "complaint_311_count": 576
+      },
+      {
+        "h3_r9": "892a107620bffff",
+        "complaint_311_count": 758
+      },
+      {
+        "h3_r9": "892a1074577ffff",
+        "complaint_311_count": 542
+      },
+      {
+        "h3_r9": "892a1075557ffff",
+        "complaint_311_count": 703
+      },
+      {
+        "h3_r9": "892a100deb3ffff",
+        "complaint_311_count": 952
+      },
+      {
+        "h3_r9": "892a1076487ffff",
+        "complaint_311_count": 144
+      },
+      {
+        "h3_r9": "892a100dbb7ffff",
+        "complaint_311_count": 528
+      },
+      {
+        "h3_r9": "892a100ce6fffff",
+        "complaint_311_count": 1200
+      },
+      {
+        "h3_r9": "892a10741cfffff",
+        "complaint_311_count": 177
+      },
+      {
+        "h3_r9": "892a10740c3ffff",
+        "complaint_311_count": 671
+      },
+      {
+        "h3_r9": "892a100daafffff",
+        "complaint_311_count": 1672
+      },
+      {
+        "h3_r9": "892a1077463ffff",
+        "complaint_311_count": 918
+      },
+      {
+        "h3_r9": "892a107664fffff",
+        "complaint_311_count": 1086
+      },
+      {
+        "h3_r9": "892a107669bffff",
+        "complaint_311_count": 367
+      },
+      {
+        "h3_r9": "892a1074457ffff",
+        "complaint_311_count": 775
+      },
+      {
+        "h3_r9": "892a1076313ffff",
+        "complaint_311_count": 230
+      },
+      {
+        "h3_r9": "892a100da8fffff",
+        "complaint_311_count": 390
+      },
+      {
+        "h3_r9": "892a1077053ffff",
+        "complaint_311_count": 420
+      },
+      {
+        "h3_r9": "892a100d023ffff",
+        "complaint_311_count": 1330
+      },
+      {
+        "h3_r9": "892a10760d7ffff",
+        "complaint_311_count": 134
+      },
+      {
+        "h3_r9": "892a10765bbffff",
+        "complaint_311_count": 89
+      },
+      {
+        "h3_r9": "892a107746bffff",
+        "complaint_311_count": 706
+      },
+      {
+        "h3_r9": "892a107452bffff",
+        "complaint_311_count": 818
+      },
+      {
+        "h3_r9": "892a100ca8fffff",
+        "complaint_311_count": 740
+      },
+      {
+        "h3_r9": "892a107457bffff",
+        "complaint_311_count": 432
+      },
+      {
+        "h3_r9": "892a100d87bffff",
+        "complaint_311_count": 1253
+      },
+      {
+        "h3_r9": "892a100d9bbffff",
+        "complaint_311_count": 712
+      },
+      {
+        "h3_r9": "892a107747bffff",
+        "complaint_311_count": 1035
+      },
+      {
+        "h3_r9": "892a1074187ffff",
+        "complaint_311_count": 857
+      },
+      {
+        "h3_r9": "892a107401bffff",
+        "complaint_311_count": 611
+      },
+      {
+        "h3_r9": "892a1072d0fffff",
+        "complaint_311_count": 1717
+      },
+      {
+        "h3_r9": "892a10763afffff",
+        "complaint_311_count": 373
+      },
+      {
+        "h3_r9": "892a1076ad3ffff",
+        "complaint_311_count": 432
+      },
+      {
+        "h3_r9": "892a10773cbffff",
+        "complaint_311_count": 705
+      },
+      {
+        "h3_r9": "892a100d027ffff",
+        "complaint_311_count": 2038
+      },
+      {
+        "h3_r9": "892a100da7bffff",
+        "complaint_311_count": 1396
+      },
+      {
+        "h3_r9": "892a1074613ffff",
+        "complaint_311_count": 991
+      },
+      {
+        "h3_r9": "892a100de47ffff",
+        "complaint_311_count": 1494
+      },
+      {
+        "h3_r9": "892a100dd2bffff",
+        "complaint_311_count": 751
+      },
+      {
+        "h3_r9": "892a1076033ffff",
+        "complaint_311_count": 326
+      },
+      {
+        "h3_r9": "892a1077333ffff",
+        "complaint_311_count": 631
+      },
+      {
+        "h3_r9": "892a107400fffff",
+        "complaint_311_count": 442
+      },
+      {
+        "h3_r9": "892a10770cbffff",
+        "complaint_311_count": 387
+      },
+      {
+        "h3_r9": "892a10766c3ffff",
+        "complaint_311_count": 521
+      },
+      {
+        "h3_r9": "892a100cea3ffff",
+        "complaint_311_count": 1545
+      },
+      {
+        "h3_r9": "892a100d15bffff",
+        "complaint_311_count": 887
+      },
+      {
+        "h3_r9": "892a107411bffff",
+        "complaint_311_count": 290
+      },
+      {
+        "h3_r9": "892a100dd63ffff",
+        "complaint_311_count": 831
+      },
+      {
+        "h3_r9": "892a100d9cfffff",
+        "complaint_311_count": 725
+      },
+      {
+        "h3_r9": "892a1077067ffff",
+        "complaint_311_count": 924
+      },
+      {
+        "h3_r9": "892a10772afffff",
+        "complaint_311_count": 721
+      },
+      {
+        "h3_r9": "892a100daa7ffff",
+        "complaint_311_count": 1402
+      },
+      {
+        "h3_r9": "892a1075437ffff",
+        "complaint_311_count": 436
+      },
+      {
+        "h3_r9": "892a107606fffff",
+        "complaint_311_count": 858
+      },
+      {
+        "h3_r9": "892a107448fffff",
+        "complaint_311_count": 455
+      },
+      {
+        "h3_r9": "892a107700fffff",
+        "complaint_311_count": 782
+      },
+      {
+        "h3_r9": "892a100d933ffff",
+        "complaint_311_count": 997
+      },
+      {
+        "h3_r9": "892a100d97bffff",
+        "complaint_311_count": 1257
+      },
+      {
+        "h3_r9": "892a100cb0bffff",
+        "complaint_311_count": 460
+      },
+      {
+        "h3_r9": "892a1077537ffff",
+        "complaint_311_count": 1409
+      },
+      {
+        "h3_r9": "892a100cea7ffff",
+        "complaint_311_count": 607
+      },
+      {
+        "h3_r9": "892a1074647ffff",
+        "complaint_311_count": 397
+      },
+      {
+        "h3_r9": "892a10772b7ffff",
+        "complaint_311_count": 1126
+      },
+      {
+        "h3_r9": "892a100cac3ffff",
+        "complaint_311_count": 686
+      }
+    ],
+    "expected_sql_pattern": "Convert lat/lng to H3 index at resolution 9, filter to Brooklyn 2024, group by h3_index, count complaints per hex, order by count descending."
+  },
+  {
+    "id": "dem-001",
+    "question": "What is the total population of each NYC borough according to the 2023 ACS?",
+    "category": "demographic",
+    "difficulty": "easy",
+    "ground_truth_answer": [
+      {
+        "boroname": "Bronx",
+        "sum_total_pop_2023": 1419250
+      },
+      {
+        "boroname": "Queens",
+        "sum_total_pop_2023": 2330124
+      },
+      {
+        "boroname": "Brooklyn",
+        "sum_total_pop_2023": 2646306
+      },
+      {
+        "boroname": "Manhattan",
+        "sum_total_pop_2023": 1627788
+      },
+      {
+        "boroname": "Staten Island",
+        "sum_total_pop_2023": 492734
+      }
+    ],
+    "expected_sql_pattern": "need to take total_pop_2023 from census_tract_demographics and merge with census_tracts on geoid to get the borough name - then sum the total_pop_2023 for each borough"
+  },
+  {
+    "id": "dem-009",
+    "question": "Which census tracts with median income below $40,000 had the most 311 complaints per capita in 2024?",
+    "category": "demographic",
+    "difficulty": "hard",
+    "ground_truth_answer": [
+      {
+        "rank": 1,
+        "geoid": "36005042000",
+        "median_household_income_2023": 32279,
+        "total_pop_2023": 4665,
+        "complaint_count": 65853,
+        "complaints_per_1000": 14116.4
+      },
+      {
+        "rank": 2,
+        "geoid": "36061011900",
+        "median_household_income_2023": 15843,
+        "total_pop_2023": 1174,
+        "complaint_count": 3964,
+        "complaints_per_1000": 3376.49
+      },
+      {
+        "rank": 3,
+        "geoid": "36005014702",
+        "median_household_income_2023": 21533,
+        "total_pop_2023": 4985,
+        "complaint_count": 5943,
+        "complaints_per_1000": 1192.18
+      },
+      {
+        "rank": 4,
+        "geoid": "36047002300",
+        "median_household_income_2023": 25968,
+        "total_pop_2023": 3642,
+        "complaint_count": 4202,
+        "complaints_per_1000": 1153.76
+      },
+      {
+        "rank": 5,
+        "geoid": "36005026900",
+        "median_household_income_2023": 29140,
+        "total_pop_2023": 4185,
+        "complaint_count": 4728,
+        "complaints_per_1000": 1129.75
+      },
+      {
+        "rank": 6,
+        "geoid": "36005038303",
+        "median_household_income_2023": 23958,
+        "total_pop_2023": 3621,
+        "complaint_count": 3944,
+        "complaints_per_1000": 1089.2
+      },
+      {
+        "rank": 7,
+        "geoid": "36005036901",
+        "median_household_income_2023": 16277,
+        "total_pop_2023": 1810,
+        "complaint_count": 1923,
+        "complaints_per_1000": 1062.43
+      },
+      {
+        "rank": 8,
+        "geoid": "36005011701",
+        "median_household_income_2023": 35298,
+        "total_pop_2023": 1318,
+        "complaint_count": 1208,
+        "complaints_per_1000": 916.54
+      },
+      {
+        "rank": 9,
+        "geoid": "36005038500",
+        "median_household_income_2023": 17598,
+        "total_pop_2023": 5574,
+        "complaint_count": 5090,
+        "complaints_per_1000": 913.17
+      },
+      {
+        "rank": 10,
+        "geoid": "36061025100",
+        "median_household_income_2023": 39115,
+        "total_pop_2023": 2698,
+        "complaint_count": 2452,
+        "complaints_per_1000": 908.82
+      },
+      {
+        "rank": 11,
+        "geoid": "36005038304",
+        "median_household_income_2023": 22551,
+        "total_pop_2023": 2080,
+        "complaint_count": 1695,
+        "complaints_per_1000": 814.9
+      },
+      {
+        "rank": 12,
+        "geoid": "36005020100",
+        "median_household_income_2023": 36218,
+        "total_pop_2023": 3950,
+        "complaint_count": 3208,
+        "complaints_per_1000": 812.15
+      },
+      {
+        "rank": 13,
+        "geoid": "36005040100",
+        "median_household_income_2023": 26875,
+        "total_pop_2023": 4630,
+        "complaint_count": 3721,
+        "complaints_per_1000": 803.67
+      },
+      {
+        "rank": 14,
+        "geoid": "36005006500",
+        "median_household_income_2023": 24184,
+        "total_pop_2023": 5182,
+        "complaint_count": 4002,
+        "complaints_per_1000": 772.29
+      },
+      {
+        "rank": 15,
+        "geoid": "36047087401",
+        "median_household_income_2023": 35298,
+        "total_pop_2023": 3069,
+        "complaint_count": 2366,
+        "complaints_per_1000": 770.94
+      },
+      {
+        "rank": 16,
+        "geoid": "36061023000",
+        "median_household_income_2023": 38636,
+        "total_pop_2023": 9357,
+        "complaint_count": 7114,
+        "complaints_per_1000": 760.29
+      },
+      {
+        "rank": 17,
+        "geoid": "36005007100",
+        "median_household_income_2023": 34853,
+        "total_pop_2023": 2562,
+        "complaint_count": 1914,
+        "complaints_per_1000": 747.07
+      },
+      {
+        "rank": 18,
+        "geoid": "36061002901",
+        "median_household_income_2023": 11612,
+        "total_pop_2023": 789,
+        "complaint_count": 557,
+        "complaints_per_1000": 705.96
+      },
+      {
+        "rank": 19,
+        "geoid": "36005036300",
+        "median_household_income_2023": 28259,
+        "total_pop_2023": 6423,
+        "complaint_count": 4523,
+        "complaints_per_1000": 704.19
+      },
+      {
+        "rank": 20,
+        "geoid": "36005028300",
+        "median_household_income_2023": 14194,
+        "total_pop_2023": 2486,
+        "complaint_count": 1704,
+        "complaints_per_1000": 685.44
+      }
+    ],
+    "expected_sql_pattern": "WITH low_income_tracts AS (SELECT geoid, CAST(median_household_income_2023 AS DOUBLE) AS median_household_income_2023, CAST(total_pop_2023 AS DOUBLE) AS total_pop_2023 FROM census_tract_demographics ctd WHERE CAST(ctd.median_household_income_2023 AS DOUBLE) < 40000), complaints_by_tract AS (SELECT ct.geoid, COUNT(*) AS complaint_count FROM nyc_311 c JOIN census_tracts ct ON ST_Contains(ST_GEOMETRY_FROM_TEXT(ct.geometry_wkt), ST_Point(CAST(c.longitude AS DOUBLE), CAST(c.latitude AS DOUBLE))) WHERE c.year = '2024' GROUP BY ct.geoid) SELECT lit.geoid, lit.median_household_income_2023, lit.total_pop_2023, cbt.complaint_count, ROUND(1000.0 * cbt.complaint_count / NULLIF(lit.total_pop_2023, 0), 2) AS complaints_per_1000 FROM low_income_tracts lit JOIN complaints_by_tract cbt ON lit.geoid = cbt.geoid ORDER BY complaints_per_1000 DESC LIMIT 20"
+  },
+  {
+    "id": "cmp-001",
+    "question": "How do yellow cab and green cab trip counts compare in 2025?",
+    "category": "comparison",
+    "difficulty": "easy",
+    "ground_truth_answer": [
+      {
+        "type": "green",
+        "trip_count": 48326
+      },
+      {
+        "type": "yellow",
+        "trip_count": 15168579
+      }
+    ],
+    "expected_sql_pattern": "SELECT type, COUNT(*) AS trip_count\nFROM gtp_tlc_data\nWHERE year = '2025' AND type IN ('yellow', 'green')\nGROUP BY type\nORDER BY type;"
+  },
+  {
+    "id": "lkp-003",
+    "question": "What taxi zone does location ID 132 correspond to?",
+    "category": "lookup",
+    "difficulty": "easy",
+    "ground_truth_answer": "JFK Airport",
+    "expected_sql_pattern": "SELECT LocationID, Zone FROM taxi_zones WHERE LocationID = '132'"
+  },
+  {
+    "id": "agg-009",
+    "question": "What is the average tip amount for yellow cab trips by payment type in 2025?",
+    "category": "aggregation",
+    "difficulty": "medium",
+    "ground_truth_answer": [
+      {
+        "payment_type_name": "Flex Fare",
+        "avg_tip": 0.37
+      },
+      {
+        "payment_type_name": "Credit card",
+        "avg_tip": 4.19
+      },
+      {
+        "payment_type_name": "Cash",
+        "avg_tip": 0
+      },
+      {
+        "payment_type_name": "No charge",
+        "avg_tip": 0.02
+      },
+      {
+        "payment_type_name": "Dispute",
+        "avg_tip": 0.04
+      },
+      {
+        "payment_type_name": "Unknown",
+        "avg_tip": 0
+      }
+    ],
+    "expected_sql_pattern": "SELECT\n  CASE payment_type\n    WHEN 0 THEN 'Flex Fare'\n    WHEN 1 THEN 'Credit card'\n    WHEN 2 THEN 'Cash'\n    WHEN 3 THEN 'No charge'\n    WHEN 4 THEN 'Dispute'\n    WHEN 5 THEN 'Unknown'\n    WHEN 6 THEN 'Voided trip'\n  END AS payment_type_name,\n  ROUND(AVG(tip_amount), 2) AS avg_tip\nFROM gtp_tlc_data\nWHERE year = '2025'\n  AND type = 'yellow'\nGROUP BY payment_type\nORDER BY payment_type;"
+  }
 ]
