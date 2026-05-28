@@ -50,6 +50,7 @@ export type QueryRunUpdate = {
   runtimeMs?: number | null;
   rowCount?: number | null;
   trace?: AgentStreamPayload[] | null;
+  judgeOverall?: number | null;
 };
 
 export type QueryRunRow = {
@@ -84,13 +85,14 @@ function hallucinationsJson(value: unknown | null | undefined): string | null {
 export async function beginQueryRun(input: {
   question: string;
   backend?: string | null;
+  appVersion?: string | null;
 }): Promise<string | null> {
   if (!isDatabaseConfigured()) return null;
 
   const pool = getPgPool();
   if (!pool) return null;
 
-  const appVersion = getAppVersion().slice(0, 128);
+  const appVersion = (input.appVersion ?? getAppVersion()).slice(0, 128);
 
   const result = await pool.query<{ id: string }>(
     `INSERT INTO nl2sql.query_runs (
@@ -147,6 +149,12 @@ export async function updateQueryRun(
     values.push(traceJson);
     n += 1;
   }
+  if (patch.judgeOverall !== undefined) {
+    add(
+      "judge_overall",
+      patch.judgeOverall == null ? null : String(patch.judgeOverall)
+    );
+  }
 
   if (sets.length === 0) return false;
 
@@ -156,6 +164,14 @@ export async function updateQueryRun(
   );
 
   return (result.rowCount ?? 0) > 0;
+}
+
+/** Persist LLM judge score (1–5) on a query_runs row. */
+export async function updateQueryRunJudge(
+  id: string,
+  judgeOverall: number
+): Promise<boolean> {
+  return updateQueryRun(id, { judgeOverall });
 }
 
 /** Persist one completed (or failed) query run. No-op if DATABASE_URL is unset. */
@@ -259,6 +275,23 @@ export async function finalizeQueryRun(
   );
 
   return (result.rowCount ?? 0) > 0;
+}
+
+export async function getQueryRunJudgeOverall(
+  id: string
+): Promise<number | null> {
+  if (!isDatabaseConfigured()) return null;
+  const pool = getPgPool();
+  if (!pool) return null;
+
+  const result = await pool.query<{ judge_overall: string | null }>(
+    `SELECT judge_overall::text FROM nl2sql.query_runs WHERE id = $1 LIMIT 1`,
+    [id]
+  );
+  const raw = result.rows[0]?.judge_overall;
+  if (raw == null || raw.trim() === "") return null;
+  const n = Number(raw);
+  return Number.isFinite(n) ? n : null;
 }
 
 export async function getQueryRunIdByExecutionId(

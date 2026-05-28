@@ -5,15 +5,33 @@ import {
   finalizeQueryRun,
   insertQueryRunStart,
   updateQueryRun,
+  updateQueryRunJudge,
   upsertQueryRun,
   type QueryRunInsert,
   type QueryRunUpdate,
 } from "@/lib/query-runs-store";
 
+/** Persist LLM judge score on query_runs (server-side; does not throw). */
+export async function recordQueryRunJudge(
+  queryRunId: string | null,
+  judgeOverall: number
+): Promise<void> {
+  if (!queryRunId) return;
+  try {
+    await updateQueryRunJudge(queryRunId, judgeOverall);
+  } catch (e) {
+    console.warn(
+      "[query-runs] judge update failed:",
+      e instanceof Error ? e.message : e
+    );
+  }
+}
+
 /** Begin universal logging for a chat question (server-side; does not throw). */
 export async function startQueryRunLogging(input: {
   question: string;
   backend?: string | null;
+  appVersion?: string | null;
 }): Promise<string | null> {
   try {
     return await beginQueryRun(input);

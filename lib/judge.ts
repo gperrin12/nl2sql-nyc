@@ -1,5 +1,6 @@
-import Anthropic from "@anthropic-ai/sdk";
+import type Anthropic from "@anthropic-ai/sdk";
 import type { ReplayResult } from "@/lib/replay";
+import { getAnthropicClient } from "@/lib/anthropic-client";
 import {
   classifyQuestion,
   type QueryCategory,
@@ -13,8 +14,30 @@ export { detectDatasets, resolveEvalDataset } from "@/lib/query-dataset";
 
 export type CorrectnessVerdict = "correct" | "partial" | "incorrect";
 
-const client = new Anthropic();
 const JUDGE_MODEL = "claude-haiku-4-5";
+
+const JUDGE_SUBMIT_TOOL: Anthropic.Tool = {
+  name: "submit_evaluation",
+  description: "Submit the SQL correctness evaluation.",
+  input_schema: {
+    type: "object",
+    properties: {
+      score: {
+        type: "integer",
+        description: "Integer 1-5 per rubric.",
+      },
+      verdict: {
+        type: "string",
+        enum: ["correct", "partial", "incorrect"],
+      },
+      reasoning: {
+        type: "string",
+        description: "Brief analysis (1-3 sentences, plain text, no quotes).",
+      },
+    },
+    required: ["score", "verdict", "reasoning"],
+  },
+};
 
 export type JudgeResult = {
   question: string;
@@ -101,22 +124,70 @@ SCORING RUBRIC:
 ${CORRECTNESS_SCALE_CRITERIA}
 
 INSTRUCTIONS:
-1. First, write your reasoning: analyze the SQL against the question. Consider whether the correct tables, filters, aggregations, and joins were used.
-2. Then, assign a score from 1 to 5 using the rubric above.
-3. Then, assign a verdict: "correct" (score 4-5), "partial" (score 2-3), or "incorrect" (score 1).
+Call submit_evaluation with:
+- score: integer 1-5 per rubric
+- verdict: "correct" (4-5), "partial" (2-3), or "incorrect" (1)
+- reasoning: 1-3 short sentences (plain text; no double-quote characters)`;
+}
 
-Respond with JSON only - no prose, no code fences, no commentary.
-Format: {"reasoning": "your analysis here", "score": N, "verdict": "correct|partial|incorrect"}`;
+function parseJudgeToolInput(input: unknown): ParsedJudgeBody | null {
+  if (!input || typeof input !== "object") return null;
+  const body = input as ParsedJudgeBody;
+  const score = body.score ?? body.overall;
+  if (score == null) return null;
+  return body;
+}
+
+/** First balanced `{...}` object (respects strings) — avoids lastIndexOf on nested `}`. */
+function extractFirstJsonObject(text: string): string | null {
+  const start = text.indexOf("{");
+  if (start < 0) return null;
+
+  let depth = 0;
+  let inString = false;
+  let escape = false;
+
+  for (let i = start; i < text.length; i++) {
+    const ch = text[i];
+    if (inString) {
+      if (escape) escape = false;
+      else if (ch === "\\") escape = true;
+      else if (ch === '"') inString = false;
+      continue;
+    }
+    if (ch === '"') {
+      inString = true;
+      continue;
+    }
+    if (ch === "{") depth++;
+    else if (ch === "}") {
+      depth--;
+      if (depth === 0) return text.slice(start, i + 1);
+    }
+  }
+  return null;
 }
 
 function extractJsonText(raw: string): string {
-  const trimmed = raw.trim();
-  const fenced = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/i);
-  if (fenced) return fenced[1].trim();
-  const start = trimmed.indexOf("{");
-  const end = trimmed.lastIndexOf("}");
-  if (start >= 0 && end > start) return trimmed.slice(start, end + 1);
-  return trimmed;
+  let text = raw.trim();
+
+  // Closed markdown fence
+  const fenced = text.match(/^```(?:json)?\s*([\s\S]*?)```\s*$/i);
+  if (fenced) text = fenced[1].trim();
+
+  // Opening fence without closing (common Haiku slip)
+  if (/^```(?:json)?/i.test(text)) {
+    text = text.replace(/^```(?:json)?\s*/i, "").replace(/\s*```\s*$/i, "").trim();
+  }
+
+  const object = extractFirstJsonObject(text);
+  if (object) return object;
+
+  const start = text.indexOf("{");
+  const end = text.lastIndexOf("}");
+  if (start >= 0 && end > start) return text.slice(start, end + 1);
+
+  return text;
 }
 
 type ParsedJudgeBody = {
@@ -135,32 +206,103 @@ function clampJudgeScore(n: unknown): number {
 
 function scoreToVerdict(score: number): CorrectnessVerdict {
   if (score >= 4) return "correct";
-  if (score === 3) return "partial";
+  if (score >= 2) return "partial";
   return "incorrect";
 }
 
-function parseCorrectnessResult(text: string): CorrectnessResult {
-  try {
-    const parsed = JSON.parse(extractJsonText(text)) as ParsedJudgeBody;
-    const score = clampJudgeScore(parsed.score ?? parsed.overall);
-    const reasoning =
-      typeof parsed.reasoning === "string" ? parsed.reasoning.trim() : "";
-    const verdict =
-      parsed.verdict === "correct" ||
-      parsed.verdict === "partial" ||
-      parsed.verdict === "incorrect"
-        ? parsed.verdict
-        : scoreToVerdict(score);
-    return { score, reasoning, verdict, judgeModel: JUDGE_MODEL };
-  } catch (error) {
-    console.error("judge parse error", error);
-    return {
-      score: 1,
-      reasoning: "parse_error",
-      verdict: "incorrect",
-      judgeModel: JUDGE_MODEL,
-    };
+function normalizeVerdict(
+  verdict: string | undefined,
+  score: number
+): CorrectnessVerdict {
+  if (
+    verdict === "correct" ||
+    verdict === "partial" ||
+    verdict === "incorrect"
+  ) {
+    return verdict;
   }
+  return scoreToVerdict(score);
+}
+
+function bodyToCorrectnessResult(body: ParsedJudgeBody): CorrectnessResult {
+  const score = clampJudgeScore(body.score ?? body.overall);
+  const reasoning =
+    typeof body.reasoning === "string" ? body.reasoning.trim() : "";
+  return {
+    score,
+    reasoning,
+    verdict: normalizeVerdict(body.verdict, score),
+    judgeModel: JUDGE_MODEL,
+  };
+}
+
+/** Regex fallback when model returns prose/invalid JSON instead of tool input. */
+function parseJudgeFieldsFromText(text: string): ParsedJudgeBody | null {
+  const scoreMatch =
+    text.match(/"score"\s*:\s*(\d+)/i) ?? text.match(/\bscore\s*[:=]\s*(\d+)/i);
+  if (!scoreMatch) return null;
+
+  const verdictMatch = text.match(
+    /"verdict"\s*:\s*"(correct|partial|incorrect)"/i
+  );
+
+  let reasoning = "";
+  const reasoningMatch = text.match(
+    /"reasoning"\s*:\s*"((?:\\.|[^"\\])*)"/i
+  );
+  if (reasoningMatch) {
+    try {
+      reasoning = JSON.parse(`"${reasoningMatch[1]}"`) as string;
+    } catch {
+      reasoning = reasoningMatch[1].replace(/\\n/g, "\n").trim();
+    }
+  }
+
+  return {
+    score: Number(scoreMatch[1]),
+    verdict: verdictMatch?.[1],
+    reasoning,
+  };
+}
+
+function parseCorrectnessFromText(text: string): CorrectnessResult | null {
+  const regexBody = parseJudgeFieldsFromText(text);
+  if (regexBody) {
+    try {
+      return bodyToCorrectnessResult(regexBody);
+    } catch {
+      /* fall through */
+    }
+  }
+
+  try {
+    return bodyToCorrectnessResult(
+      JSON.parse(extractJsonText(text)) as ParsedJudgeBody
+    );
+  } catch {
+    return null;
+  }
+}
+
+function parseCorrectnessResult(
+  text: string,
+  toolInput: unknown
+): CorrectnessResult {
+  const fromTool = parseJudgeToolInput(toolInput);
+  if (fromTool) {
+    return bodyToCorrectnessResult(fromTool);
+  }
+
+  const fromText = parseCorrectnessFromText(text);
+  if (fromText) return fromText;
+
+  console.error("judge parse error: no tool input and text parse failed");
+  return {
+    score: 1,
+    reasoning: "parse_error",
+    verdict: "incorrect",
+    judgeModel: JUDGE_MODEL,
+  };
 }
 
 export async function judgeQueryPair(
@@ -171,10 +313,12 @@ export async function judgeQueryPair(
   const category = classifyQuestion(question);
   const dataset = detectDatasets(sql);
 
-  const response = await client.messages.create({
+  const response = await getAnthropicClient().messages.create({
     model: JUDGE_MODEL,
-    max_tokens: 512,
+    max_tokens: 1024,
     temperature: 0,
+    tools: [JUDGE_SUBMIT_TOOL],
+    tool_choice: { type: "tool", name: "submit_evaluation" },
     messages: [
       {
         role: "user",
@@ -188,12 +332,17 @@ export async function judgeQueryPair(
     ],
   });
 
+  const toolBlock = response.content.find(
+    (b): b is Anthropic.ToolUseBlock =>
+      b.type === "tool_use" && b.name === "submit_evaluation"
+  );
+
   const text = response.content
     .filter((b) => b.type === "text")
     .map((b) => b.text)
     .join("\n");
 
-  const correctness = parseCorrectnessResult(text);
+  const correctness = parseCorrectnessResult(text, toolBlock?.input);
   return {
     question,
     sql,
@@ -201,7 +350,7 @@ export async function judgeQueryPair(
     dataset,
     overall: correctness.score,
     issues: correctness.reasoning ? [correctness.reasoning] : [],
-    verdict: scoreToVerdict(correctness.score),
+    verdict: correctness.verdict,
     judgedAt: new Date().toISOString(),
   };
 }

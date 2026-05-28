@@ -48,6 +48,23 @@ When Athena fails or returns unusable results, call **`POST /api/query/repair`**
 
 In the web UI, when a query ends in **`FAILED`**, a **Repair with AI** prompt appears (requires confirmation — not automatic). You get up to **5** repairs per submitted question; **Not now** hides the prompt until the next failed run.
 
+## Evaluation & Baseline
+
+**v3 Baseline** (12-question golden dataset, LLM-as-judge scoring with temperature=0):
+
+| Metric | Value |
+|--------|-------|
+| Total queries evaluated | 12 |
+| Correct (score 5) | 41.7% (5 queries) |
+| Mostly correct (score 4) | 16.7% (2 queries) |
+| Partial (score 3) | 16.7% (2 queries) |
+| Mostly wrong (score 2) | 8.3% (1 query) |
+| Incorrect (score 1) | 16.7% (2 queries) |
+| Acceptable accuracy (score 4-5) | 58.3% |
+| Average judge score | 3.58 |
+
+This baseline represents the starting point for optimization work.
+
 ## Local setup
 
 ```bash
@@ -62,6 +79,8 @@ Open http://localhost:3000. When logged in, **`/dashboard`** lists **one row per
 **Eval script** (`npm run eval`) uses the same Postgres source and defaults to the current deploy; **`EVAL_APP_VERSION=all`** includes all rows. Legacy: `npm run eval:p8k8`.
 
 **Run + eval** (`npm run run:eval`) reads `data/questions.json`, generates SQL with your local env (`USE_P8K8` / `CLAUDE_SQL_AGENT`), logs to Postgres, judges, and writes `evals.json`. Use `npm run run:eval:full` for Athena+viz judging. No browser required.
+
+**Golden eval** (`npm run eval:golden`) reads `data/golden-dataset.json` (12 curated questions), runs the **tool-using SQL agent**, executes on Athena, judges, and logs to `nl2sql.query_runs` with a **version tag** (`app_version`, default `v3.1` in `lib/golden-eval-version.ts`) plus `judge_overall`. Change the tag without editing code: `GOLDEN_APP_VERSION=v3.2 npm run eval:golden`, `npm run eval:golden -- --version v3.2`, or bump `DEFAULT_GOLDEN_APP_VERSION`. Convenience scripts: `npm run eval:golden:v3.1`, `npm run eval:golden:v3-baseline`. Requires `DATABASE_URL`, `ANTHROPIC_API_KEY`, `ATHENA_OUTPUT_LOCATION`. Dry run: `npm run eval:golden:dry`. Filter: `RUN_LIMIT=1 SEED_IDS=agg-003 npm run eval:golden`. Re-judge logged rows: `EVAL_APP_VERSION=v3.1 npm run eval`.
 
 ### Dashboard evals on Vercel
 

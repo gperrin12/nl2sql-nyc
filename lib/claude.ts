@@ -1,8 +1,6 @@
-import Anthropic from "@anthropic-ai/sdk";
 import type { TokenSummary } from "@/lib/query-run-tokens";
+import { getAnthropicClient } from "@/lib/anthropic-client";
 import { renderSchemaForPrompt } from "./schemas";
-
-const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 const DEFAULT_MODEL = "claude-sonnet-4-5";
 
@@ -57,7 +55,7 @@ export type SqlGenerationResult = {
 export async function generateSql(question: string): Promise<SqlGenerationResult> {
   const model = process.env.CLAUDE_MODEL ?? DEFAULT_MODEL;
 
-  const response = await client.messages.create({
+  const response = await getAnthropicClient().messages.create({
     model,
     max_tokens: 1024,
     ...CLAUDE_DETERMINISTIC_SAMPLING,
@@ -94,7 +92,7 @@ export async function generateSqlWithRepair(
     `Feedback (errors, zero rows, or constraints):\n${feedback}\n\n` +
     `Output a single corrected SELECT or WITH only. No commentary.`;
 
-  const response = await client.messages.create({
+  const response = await getAnthropicClient().messages.create({
     model,
     max_tokens: 2048,
     ...CLAUDE_DETERMINISTIC_SAMPLING,

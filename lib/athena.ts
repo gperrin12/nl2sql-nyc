@@ -7,11 +7,33 @@ import {
 } from "@aws-sdk/client-athena";
 import { ATHENA_RESULT_FETCH_ROWS } from "@/lib/athenaLimits";
 
-const client = new AthenaClient({ region: process.env.AWS_REGION ?? "us-east-1" });
+let athenaClient: AthenaClient | undefined;
 
-const DATABASE = process.env.ATHENA_DATABASE ?? "nyc_tlc";
-const OUTPUT_LOCATION = process.env.ATHENA_OUTPUT_LOCATION ?? "";
-const WORKGROUP = process.env.ATHENA_WORKGROUP ?? "primary";
+function getAthenaClient(): AthenaClient {
+  if (!athenaClient) {
+    athenaClient = new AthenaClient({
+      region: process.env.AWS_REGION?.trim() || "us-east-1",
+    });
+  }
+  return athenaClient;
+}
+
+/** Read at call time so script loadEnvFile() runs before first query. */
+function getAthenaQueryConfig(): {
+  database: string;
+  outputLocation: string;
+  workgroup: string;
+} {
+  const outputLocation = process.env.ATHENA_OUTPUT_LOCATION?.trim() ?? "";
+  if (!outputLocation) {
+    throw new Error("ATHENA_OUTPUT_LOCATION env var is not set");
+  }
+  return {
+    database: process.env.ATHENA_DATABASE?.trim() || "nyc_tlc",
+    outputLocation,
+    workgroup: process.env.ATHENA_WORKGROUP?.trim() || "primary",
+  };
+}
 
 export type AthenaStatus = QueryExecutionState | "UNKNOWN";
 
@@ -24,16 +46,14 @@ export type AthenaResults = {
 
 /** Kick off an Athena query. Returns the executionId for polling. */
 export async function startQuery(sql: string): Promise<string> {
-  if (!OUTPUT_LOCATION) {
-    throw new Error("ATHENA_OUTPUT_LOCATION env var is not set");
-  }
+  const { database, outputLocation, workgroup } = getAthenaQueryConfig();
   const command = new StartQueryExecutionCommand({
     QueryString: sql,
-    QueryExecutionContext: { Database: DATABASE },
-    ResultConfiguration: { OutputLocation: OUTPUT_LOCATION },
-    WorkGroup: WORKGROUP,
+    QueryExecutionContext: { Database: database },
+    ResultConfiguration: { OutputLocation: outputLocation },
+    WorkGroup: workgroup,
   });
-  const response = await client.send(command);
+  const response = await getAthenaClient().send(command);
   if (!response.QueryExecutionId) {
     throw new Error("Athena did not return a QueryExecutionId");
   }
@@ -45,7 +65,7 @@ export async function getStatus(
   executionId: string
 ): Promise<{ state: AthenaStatus; reason?: string; scannedBytes: number; runtimeMs: number }> {
   const command = new GetQueryExecutionCommand({ QueryExecutionId: executionId });
-  const response = await client.send(command);
+  const response = await getAthenaClient().send(command);
   const exec = response.QueryExecution;
   return {
     state: (exec?.Status?.State as AthenaStatus) ?? "UNKNOWN",
@@ -66,7 +86,7 @@ export async function getResults(
     QueryExecutionId: executionId,
     MaxResults: Math.min(maxRows + 1, 1000), // +1 for header row, capped at API max
   });
-  const response = await client.send(command);
+  const response = await getAthenaClient().send(command);
 
   const meta = response.ResultSet?.ResultSetMetadata?.ColumnInfo ?? [];
   const columns = meta.map((c) => c.Label ?? c.Name ?? "");

@@ -36,10 +36,16 @@ export function loadQuestionsFromFile(
   return parsed as QuestionBankEntry[];
 }
 
+export type QuestionFilterable = {
+  id: string;
+  category: string;
+  difficulty: string;
+};
+
 /** Filters via SEED_IDS, SEED_CATEGORY, SEED_DIFFICULTY (same as npm run seed). */
-export function applyQuestionFilters(
-  questions: QuestionBankEntry[]
-): QuestionBankEntry[] {
+export function applyQuestionFilters<T extends QuestionFilterable>(
+  questions: T[]
+): T[] {
   let list = questions;
 
   const idsRaw = process.env.SEED_IDS?.trim();
