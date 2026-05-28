@@ -1,0 +1,145 @@
+[{
+  "id": "agg-014",
+  "question": "What is the 311 complaint rate per 1000 residents by borough in 2024 using ACS 2023 population?",
+  "category": "aggregation",
+  "difficulty": "hard",
+  "ground_truth_answer":"TBD",
+  "expected_sql_pattern":""
+},
+{
+  "id": "agg-003",
+  "question": "How many yellow cab trips were taken in 2025?",
+  "category": "aggregation",
+  "difficulty": "easy",
+  "ground_truth_answer":"TBD",
+  "expected_sql_pattern":""
+},
+{
+  "id": "rnk-006",
+  "question": "Which 10 taxi zones had the most yellow cab dropoffs in Manhattan in 2025?",
+  "category": "ranking",
+  "difficulty": "medium",
+  "ground_truth_answer":"TBD",
+  "expected_sql_pattern":""
+},
+{
+  "id": "rnk-011",
+  "question": "Which taxi zones have the highest ratio of tips to fare amount for yellow cabs in 2025?",
+  "category": "ranking",
+  "difficulty": "hard",
+  "ground_truth_answer":"TBD",
+  "expected_sql_pattern":""
+},
+{
+  "id": "ts-011",
+  "question": "Show the monthly trend of cyclist fatalities in NYC from 2020 to 2023",
+  "category": "time-series",
+  "difficulty": "hard",
+  "ground_truth_answer":"TBD",
+  "expected_sql_pattern":""
+},
+{
+  "id": "ts-004",
+  "question": "What was the monthly average yellow cab fare in 2025?",
+  "category": "time-series",
+  "difficulty": "easy",
+  "ground_truth_answer":"TBD",
+  "expected_sql_pattern":""
+},
+{
+  "id": "ts-005",
+  "question": "How did monthly noise complaints in NYC change from 2024 to 2025?",
+  "category": "time-series",
+  "difficulty": "medium",
+  "ground_truth_answer":"TBD",
+  "expected_sql_pattern":""
+},
+{
+  "id": "spa-006",
+  "question": "Show a heatmap of 311 complaints at H3 resolution 9 in Brooklyn in 2024",
+  "category": "spatial",
+  "difficulty": "medium",
+  "ground_truth_answer":"TBD",
+  "expected_sql_pattern":""
+},
+{
+  "id": "spa-012",
+  "question": "Show collision density by census tract in Manhattan in 2025",
+  "category": "spatial",
+  "difficulty": "hard",
+  "ground_truth_answer":"TBD",
+  "expected_sql_pattern":""
+},
+{
+  "id": "spa-013",
+  "question": "Map 311 complaints within 1000 feet of Atlantic Ave in Brooklyn in 2024",
+  "category": "spatial",
+  "difficulty": "hard",
+  "ground_truth_answer":"TBD",
+  "expected_sql_pattern":""
+},
+{
+  "id": "dem-001",
+  "question": "What is the total population of each NYC borough according to the 2023 ACS?",
+  "category": "demographic",
+  "difficulty": "easy",
+  "ground_truth_answer":"TBD",
+  "expected_sql_pattern":""
+},
+{
+  "id": "dem-009",
+  "question": "Which census tracts with median income below $40,000 had the most 311 complaints per capita in 2024?",
+  "category": "demographic",
+  "difficulty": "hard",
+  "ground_truth_answer":"TBD",
+  "expected_sql_pattern":""
+},
+{
+  "id": "cmp-001",
+  "question": "How do yellow cab and green cab trip counts compare in 2025?",
+  "category": "comparison",
+  "difficulty": "easy",
+  "ground_truth_answer":"TBD",
+  "expected_sql_pattern":""
+},
+{
+  "id": "cmp-009",
+  "question": "How does taxi trip volume from Manhattan compare pre-pandemic (2019) vs post-pandemic (2025) by month?",
+  "category": "comparison",
+  "difficulty": "hard",
+  "ground_truth_answer":"TBD",
+  "expected_sql_pattern":""
+},
+{
+  "id": "lkp-003",
+  "question": "What taxi zone does location ID 132 correspond to?",
+  "category": "lookup",
+  "difficulty": "easy",
+  "ground_truth_answer":"TBD",
+  "expected_sql_pattern":""
+},
+{
+  "id": "lkp-009",
+  "question": "What census tract does the corner of 125th St and Lenox Ave fall in?",
+  "category": "lookup",
+  "difficulty": "hard",
+  "ground_truth_answer":"TBD",
+  "expected_sql_pattern":""
+},
+{
+  "id": "xbl-002",
+  "question": "Compare average yellow cab trip distance for pickups in high-poverty vs low-poverty census tracts in 2023",
+  "category": "comparison", 
+  "difficulty": "hard",
+  "ground_truth_answer":"TBD",
+  "expected_sql_pattern":""
+},
+{
+  "id": "agg-009",
+  "question": "What is the average tip amount for yellow cab trips by payment type in 2025?",
+  "category": "aggregation",
+  "difficulty": "medium",
+  "ground_truth_answer":"TBD",
+  "expected_sql_pattern":""
+}
+]
