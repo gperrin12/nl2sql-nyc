@@ -12,7 +12,7 @@
  *   --version   — app_version tag (default: lib/golden-eval-version.ts, currently v3.1)
  *   --dry-run   — print plan only
  *   --no-judge  — run agent + Athena + DB only
- *   --force     — re-judge even when eval exists for same question+sql
+ *   --force     — re-judge even when this query_runs row already has judge_overall
  *   --replace   — evals file contains only this run's results (not merged)
  *
  * Env:
@@ -52,6 +52,7 @@ import { generateSqlWithAgent } from "../lib/sql-agent/run";
 import { resolveGoldenAppVersion } from "../lib/golden-eval-version";
 import {
   getQueryRunIdByExecutionId,
+  getQueryRunJudgeOverall,
   upsertQueryRun,
 } from "../lib/query-runs-store";
 
@@ -424,9 +425,6 @@ async function main(): Promise<void> {
   }
 
   const existing = NO_JUDGE ? [] : await loadEvals();
-  const judgedKeys = new Set(
-    existing.map((e) => evalMatchKey(e.question, e.sql))
-  );
   const newResults: FullJudgeResult[] = [];
 
   for (let i = 0; i < questions.length; i++) {
@@ -447,9 +445,14 @@ async function main(): Promise<void> {
       continue;
     }
 
-    const key = evalMatchKey(outcome.question, outcome.sql);
-    if (!FORCE_JUDGE && judgedKeys.has(key)) {
-      console.log("  → eval exists for this question+sql, skipping judge");
+    if (
+      !FORCE_JUDGE &&
+      outcome.queryRunId &&
+      (await getQueryRunJudgeOverall(outcome.queryRunId)) != null
+    ) {
+      console.log(
+        "  → judge_overall already set on this query_runs row, skipping judge"
+      );
       if (i < questions.length - 1) await sleep(JUDGE_DELAY_MS);
       continue;
     }
@@ -465,7 +468,6 @@ async function main(): Promise<void> {
     console.log(`  → judge: ${result.overall}/5 (${result.verdict})`);
 
     newResults.push(result);
-    judgedKeys.add(key);
 
     if (i < questions.length - 1) {
       await sleep(RUN_DELAY_MS);
