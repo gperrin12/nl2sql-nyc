@@ -8,5 +8,6 @@ export function getAnthropicClient(): Anthropic {
       "ANTHROPIC_API_KEY is not set. Add it to .env.local or export it in your shell."
     );
   }
-  return new Anthropic({ apiKey });
+  // Retry transient connection errors (ETIMEDOUT, resets) with backoff before failing.
+  return new Anthropic({ apiKey, maxRetries: 4, timeout: 60_000 });
 }

@@ -56,6 +56,7 @@ import { generateSqlViaP8k8 } from "../lib/p8k8";
 import { loadPromptVersion } from "../lib/prompt-versions";
 import {
   recordQueryRunFinalize,
+  recordQueryRunJudge,
   recordQueryRunStart,
   recordQueryRunTokens,
 } from "../lib/record-query-run";
@@ -63,7 +64,10 @@ import type { ReplayResult } from "../lib/replay";
 import { replayQuestion } from "../lib/replay";
 import { pickBackend } from "../lib/route";
 import { generateSqlWithAgent } from "../lib/sql-agent/run";
-import { upsertQueryRun } from "../lib/query-runs-store";
+import {
+  getQueryRunIdByExecutionId,
+  upsertQueryRun,
+} from "../lib/query-runs-store";
 
 const FULL_EVAL = process.argv.includes("--full");
 const DRY_RUN = process.argv.includes("--dry-run");
@@ -244,6 +248,8 @@ type RunOutcome = {
   model: string;
   backend: string;
   replay: ReplayResult;
+  /** nl2sql.query_runs row id, for persisting judge_overall after judging. */
+  queryRunId: string | null;
 };
 
 function schemaHallucinationPatch(sql: string): {
@@ -278,7 +284,7 @@ async function runQuestionDirect(q: QuestionBankEntry): Promise<RunOutcome | nul
   if (!guarded.ok) {
     const h = schemaHallucinationPatch(guarded.sql);
     console.log(`  ✗ guardrails — ${guarded.reason}`);
-    await upsertQueryRun({
+    const queryRunId = await upsertQueryRun({
       question,
       sql: guarded.sql,
       model: generation.model,
@@ -293,6 +299,7 @@ async function runQuestionDirect(q: QuestionBankEntry): Promise<RunOutcome | nul
       sql: guarded.sql,
       model: generation.model,
       backend,
+      queryRunId,
       replay: {
         question,
         sql: guarded.sql,
@@ -320,7 +327,7 @@ async function runQuestionDirect(q: QuestionBankEntry): Promise<RunOutcome | nul
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     console.log(`  ✗ athena start — ${msg}`);
-    await upsertQueryRun({
+    const queryRunId = await upsertQueryRun({
       question,
       sql,
       model: generation.model,
@@ -335,6 +342,7 @@ async function runQuestionDirect(q: QuestionBankEntry): Promise<RunOutcome | nul
       sql,
       model: generation.model,
       backend,
+      queryRunId,
       replay: {
         question,
         sql,
@@ -361,6 +369,8 @@ async function runQuestionDirect(q: QuestionBankEntry): Promise<RunOutcome | nul
     promptVersion: PROMPT_VERSION,
     ...h,
   });
+
+  const queryRunId = await getQueryRunIdByExecutionId(executionId);
 
   // Persist agent token totals / cost (no-op if a repair pass replaced the generation).
   await recordQueryRunTokens(executionId, generation);
@@ -393,6 +403,7 @@ async function runQuestionDirect(q: QuestionBankEntry): Promise<RunOutcome | nul
     sql,
     model: generation.model,
     backend,
+    queryRunId,
     replay,
   };
 }
@@ -413,6 +424,7 @@ async function runQuestionRemote(q: QuestionBankEntry): Promise<RunOutcome | nul
     sql: replay.sql,
     model: "app",
     backend: "remote",
+    queryRunId: null,
     replay,
   };
 }
@@ -554,13 +566,24 @@ async function main(): Promise<void> {
     console.log(
       FULL_EVAL ? "  → judging (SQL + result)…" : "  → judging (SQL only)…"
     );
-    const result = FULL_EVAL
-      ? await judgeFullResult(
-          outcome.question,
-          outcome.sql,
-          outcome.replay
-        )
-      : await judgeQueryPair(outcome.question, outcome.sql);
+    let result: FullJudgeResult;
+    try {
+      result = FULL_EVAL
+        ? await judgeFullResult(outcome.question, outcome.sql, outcome.replay)
+        : await judgeQueryPair(outcome.question, outcome.sql);
+    } catch (e) {
+      // A transient judge failure (e.g. Anthropic timeout) must not abort the whole run.
+      // The query_runs row is already persisted; skip this eval and continue.
+      console.log(
+        `  ✗ judge failed — ${e instanceof Error ? e.message : e} (skipping eval, run row already logged)`
+      );
+      if (i < questions.length - 1) await sleep(JUDGE_DELAY_MS);
+      continue;
+    }
+
+    // Persist judge score onto the nl2sql.query_runs row (no-op for remote / no row).
+    await recordQueryRunJudge(outcome.queryRunId, result.overall);
+    console.log(`  → judge: ${result.overall}/5 (${result.verdict})`);
 
     newResults.push(result);
     judgedKeys.add(key);
