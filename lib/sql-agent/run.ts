@@ -12,6 +12,7 @@ import {
   type SqlGenerationResult,
 } from "@/lib/claude";
 import { listWarehouseTableNames, renderTablesForPrompt } from "@/lib/schemas";
+import { getProductionPromptVersion } from "@/lib/prompt-versions";
 import type { AgentStreamPayload } from "./types";
 
 const DEFAULT_MODEL = "claude-sonnet-4-5";
@@ -159,7 +160,13 @@ export async function runSqlAgentWithEvents(
   options?: RunSqlAgentOptions
 ): Promise<SqlGenerationResult> {
   const model = process.env.CLAUDE_MODEL ?? DEFAULT_MODEL;
-  const systemPrompt = options?.systemPrompt ?? AGENT_SYSTEM;
+  // Explicit override (eval --prompt-version) wins; otherwise use the production
+  // prompt from nl2sql.prompt_versions, falling back to the in-repo AGENT_SYSTEM.
+  let systemPrompt = options?.systemPrompt;
+  if (systemPrompt == null) {
+    const prod = await getProductionPromptVersion();
+    systemPrompt = prod?.systemPrompt ?? AGENT_SYSTEM;
+  }
   const tokenAcc = createAccumulator();
 
   const messages: Anthropic.MessageParam[] = [{ role: "user", content: question }];
