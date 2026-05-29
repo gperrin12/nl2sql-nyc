@@ -5,11 +5,14 @@
  * Usage (reads .env / .env.local):
  *   npm run eval:golden
  *   npm run eval:golden -- --version v3.1
+ *   npm run eval:golden -- --prompt-version v2-chain-of-thought
  *   GOLDEN_APP_VERSION=v3.1 npm run eval:golden
  *   npm run eval:golden:dry
  *
  * Flags:
- *   --version   — app_version tag (default: lib/golden-eval-version.ts, currently v3.1)
+ *   --version          — app_version tag (default: lib/golden-eval-version.ts, currently v3.1)
+ *   --prompt-version   — prompt variant from nl2sql.prompt_versions injected into the agent
+ *                        (default: v1-baseline); tags nl2sql.query_runs.prompt_version
  *   --dry-run   — print plan only
  *   --no-judge  — run agent + Athena + DB only
  *   --force     — re-judge even when this query_runs row already has judge_overall
@@ -41,6 +44,7 @@ import {
   type GoldenDatasetEntry,
 } from "../lib/golden-dataset";
 import { judgeFullResult, type FullJudgeResult } from "../lib/judge";
+import { loadPromptVersion } from "../lib/prompt-versions";
 import { applyQuestionFilters } from "../lib/questions-bank";
 import {
   recordQueryRunFinalize,
@@ -62,6 +66,23 @@ const DRY_RUN = process.argv.includes("--dry-run");
 const FORCE_JUDGE = process.argv.includes("--force");
 const REPLACE_EVALS = process.argv.includes("--replace");
 const NO_JUDGE = process.argv.includes("--no-judge");
+
+/** Read --flag=value or --flag value from argv. */
+function parseFlagValue(name: string): string | undefined {
+  const eq = process.argv.find((a) => a.startsWith(`${name}=`));
+  if (eq) return eq.slice(name.length + 1).trim() || undefined;
+  const idx = process.argv.indexOf(name);
+  if (idx >= 0 && idx + 1 < process.argv.length) {
+    return process.argv[idx + 1].trim() || undefined;
+  }
+  return undefined;
+}
+
+/** Prompt variant (nl2sql.prompt_versions.version_name) injected into the agent for A/B testing. */
+const PROMPT_VERSION = parseFlagValue("--prompt-version") ?? "v1-baseline";
+
+/** System prompt text loaded from nl2sql.prompt_versions in main(); injected into the agent. */
+let promptSystem: string | null = null;
 
 const RUN_DELAY_MS =
   Number.parseInt(process.env.RUN_DELAY_MS ?? "4000", 10) || 4000;
@@ -217,11 +238,13 @@ async function runGoldenQuestion(
   q: GoldenDatasetEntry
 ): Promise<RunOutcome | null> {
   const question = q.question.trim();
-  console.log("  → generating (agent)…");
+  console.log(`  → generating (agent, prompt "${PROMPT_VERSION}")…`);
 
   let generation: SqlGenerationResult;
   try {
-    generation = await generateSqlWithAgent(question);
+    generation = await generateSqlWithAgent(question, {
+      systemPrompt: promptSystem ?? undefined,
+    });
   } catch (e) {
     console.log(`  ✗ generation failed — ${e instanceof Error ? e.message : e}`);
     return null;
@@ -241,6 +264,7 @@ async function runGoldenQuestion(
       athenaState: "FAILED",
       errorReason: guarded.reason,
       appVersion: GOLDEN_APP_VERSION,
+      promptVersion: PROMPT_VERSION,
       ...h,
     });
     return {
@@ -283,6 +307,7 @@ async function runGoldenQuestion(
       athenaState: "FAILED",
       errorReason: msg,
       appVersion: GOLDEN_APP_VERSION,
+      promptVersion: PROMPT_VERSION,
       ...h,
     });
     return {
@@ -314,6 +339,7 @@ async function runGoldenQuestion(
     backend: BACKEND,
     executionId,
     appVersion: GOLDEN_APP_VERSION,
+    promptVersion: PROMPT_VERSION,
     ...h,
   });
 
@@ -334,6 +360,7 @@ async function runGoldenQuestion(
     scannedBytes: poll.scannedBytes ?? null,
     runtimeMs: poll.runtimeMs ?? null,
     rowCount,
+    promptVersion: PROMPT_VERSION,
   });
 
   queryRunId =
@@ -368,6 +395,7 @@ function printPlan(questions: GoldenDatasetEntry[]): void {
   console.log(`Golden eval plan: ${questions.length} question(s)`);
   console.log(`  Source:   data/golden-dataset.json`);
   console.log(`  Backend:  agent (generateSqlWithAgent)`);
+  console.log(`  Prompt:   ${PROMPT_VERSION} (nl2sql.query_runs.prompt_version)`);
   console.log(`  Version:  ${GOLDEN_APP_VERSION} (nl2sql.query_runs.app_version)`);
   console.log(`  DB log:   ${isDatabaseConfigured() ? "yes" : "no (DATABASE_URL unset)"}`);
   console.log(`  Judge:    ${NO_JUDGE ? "skipped" : "full (SQL + Athena result)"}`);
@@ -400,6 +428,19 @@ async function main(): Promise<void> {
     console.warn(
       "Warning: DATABASE_URL unset — runs will not be logged to query_runs."
     );
+  }
+
+  // Load the prompt variant injected into the agent (A/B testing). Skipped on --dry-run.
+  if (!DRY_RUN) {
+    const promptRow = await loadPromptVersion(PROMPT_VERSION);
+    if (!promptRow) {
+      console.error(
+        `Error: prompt version "${PROMPT_VERSION}" not found in nl2sql.prompt_versions ` +
+          "(check the name, or that DATABASE_URL points at the right DB)."
+      );
+      process.exit(1);
+    }
+    promptSystem = promptRow.systemPrompt;
   }
 
   let questions = applyQuestionFilters(loadGoldenDataset());
