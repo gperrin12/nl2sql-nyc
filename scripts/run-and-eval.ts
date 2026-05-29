@@ -53,12 +53,21 @@ import {
   type QuestionBankEntry,
 } from "../lib/questions-bank";
 import { generateSqlViaP8k8 } from "../lib/p8k8";
-import { recordQueryRunFinalize, recordQueryRunStart } from "../lib/record-query-run";
+import { loadPromptVersion } from "../lib/prompt-versions";
+import {
+  recordQueryRunFinalize,
+  recordQueryRunJudge,
+  recordQueryRunStart,
+  recordQueryRunTokens,
+} from "../lib/record-query-run";
 import type { ReplayResult } from "../lib/replay";
 import { replayQuestion } from "../lib/replay";
 import { pickBackend } from "../lib/route";
 import { generateSqlWithAgent } from "../lib/sql-agent/run";
-import { upsertQueryRun } from "../lib/query-runs-store";
+import {
+  getQueryRunIdByExecutionId,
+  upsertQueryRun,
+} from "../lib/query-runs-store";
 
 const FULL_EVAL = process.argv.includes("--full");
 const DRY_RUN = process.argv.includes("--dry-run");
@@ -66,6 +75,28 @@ const REMOTE = process.argv.includes("--remote");
 const FORCE_JUDGE = process.argv.includes("--force");
 const REPLACE_EVALS = process.argv.includes("--replace");
 const NO_JUDGE = process.argv.includes("--no-judge");
+
+/** Read --flag=value or --flag value from argv. */
+function parseFlagValue(name: string): string | undefined {
+  const eq = process.argv.find((a) => a.startsWith(`${name}=`));
+  if (eq) return eq.slice(name.length + 1).trim() || undefined;
+  const idx = process.argv.indexOf(name);
+  if (idx >= 0 && idx + 1 < process.argv.length) {
+    return process.argv[idx + 1].trim() || undefined;
+  }
+  return undefined;
+}
+
+/** Prompt variant (nl2sql.prompt_versions.version_name) to A/B test; forces the agent backend. */
+const PROMPT_VERSION = parseFlagValue("--prompt-version") ?? "v1-baseline";
+
+/** Whether --prompt-version was passed explicitly (vs. the default). */
+const PROMPT_VERSION_EXPLICIT = process.argv.some(
+  (a) => a === "--prompt-version" || a.startsWith("--prompt-version=")
+);
+
+/** System prompt text loaded from nl2sql.prompt_versions in main(); injected into the agent. */
+let promptSystem: string | null = null;
 
 const RUN_DELAY_MS =
   Number.parseInt(process.env.RUN_DELAY_MS ?? "4000", 10) || 4000;
@@ -91,28 +122,16 @@ function requireEnv(name: string, value: string | undefined): string {
 }
 
 function backendLabel(): string {
-  const parts: string[] = [];
-  if (process.env.CLAUDE_SQL_AGENT === "true") parts.push("CLAUDE_SQL_AGENT");
-  if (process.env.USE_P8K8 === "true") parts.push("USE_P8K8");
-  if (parts.length === 0) {
-    parts.push("default (spatial→agent, else claude)");
-  }
-  return parts.join(", ");
+  return `agent (forced; prompt "${PROMPT_VERSION}")`;
 }
 
 async function generateForQuestion(
   question: string
-): Promise<{ backend: ReturnType<typeof pickBackend>; generation: SqlGenerationResult }> {
-  const backend = pickBackend(question);
-  let generation: SqlGenerationResult;
-  if (backend === "agent") {
-    generation = await generateSqlWithAgent(question);
-  } else if (backend === "p8k8") {
-    generation = await generateSqlViaP8k8(question);
-  } else {
-    generation = await generateSql(question);
-  }
-  return { backend, generation };
+): Promise<{ backend: string; generation: SqlGenerationResult }> {
+  const generation = await generateSqlWithAgent(question, {
+    systemPrompt: promptSystem ?? undefined,
+  });
+  return { backend: "agent", generation };
 }
 
 type AthenaPoll = {
@@ -229,6 +248,8 @@ type RunOutcome = {
   model: string;
   backend: string;
   replay: ReplayResult;
+  /** nl2sql.query_runs row id, for persisting judge_overall after judging. */
+  queryRunId: string | null;
 };
 
 function schemaHallucinationPatch(sql: string): {
@@ -246,9 +267,9 @@ function schemaHallucinationPatch(sql: string): {
 
 async function runQuestionDirect(q: QuestionBankEntry): Promise<RunOutcome | null> {
   const question = q.question.trim();
-  console.log(`  → generating (${pickBackend(question)})…`);
+  console.log(`  → generating (agent, prompt "${PROMPT_VERSION}")…`);
 
-  let backend: ReturnType<typeof pickBackend>;
+  let backend: string;
   let generation: SqlGenerationResult;
   try {
     ({ backend, generation } = await generateForQuestion(question));
@@ -263,13 +284,14 @@ async function runQuestionDirect(q: QuestionBankEntry): Promise<RunOutcome | nul
   if (!guarded.ok) {
     const h = schemaHallucinationPatch(guarded.sql);
     console.log(`  ✗ guardrails — ${guarded.reason}`);
-    await upsertQueryRun({
+    const queryRunId = await upsertQueryRun({
       question,
       sql: guarded.sql,
       model: generation.model,
       backend,
       athenaState: "FAILED",
       errorReason: guarded.reason,
+      promptVersion: PROMPT_VERSION,
       ...h,
     });
     return {
@@ -277,6 +299,7 @@ async function runQuestionDirect(q: QuestionBankEntry): Promise<RunOutcome | nul
       sql: guarded.sql,
       model: generation.model,
       backend,
+      queryRunId,
       replay: {
         question,
         sql: guarded.sql,
@@ -304,13 +327,14 @@ async function runQuestionDirect(q: QuestionBankEntry): Promise<RunOutcome | nul
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     console.log(`  ✗ athena start — ${msg}`);
-    await upsertQueryRun({
+    const queryRunId = await upsertQueryRun({
       question,
       sql,
       model: generation.model,
       backend,
       athenaState: "FAILED",
       errorReason: msg,
+      promptVersion: PROMPT_VERSION,
       ...h,
     });
     return {
@@ -318,6 +342,7 @@ async function runQuestionDirect(q: QuestionBankEntry): Promise<RunOutcome | nul
       sql,
       model: generation.model,
       backend,
+      queryRunId,
       replay: {
         question,
         sql,
@@ -341,8 +366,14 @@ async function runQuestionDirect(q: QuestionBankEntry): Promise<RunOutcome | nul
     model: generation.model,
     backend,
     executionId,
+    promptVersion: PROMPT_VERSION,
     ...h,
   });
+
+  const queryRunId = await getQueryRunIdByExecutionId(executionId);
+
+  // Persist agent token totals / cost (no-op if a repair pass replaced the generation).
+  await recordQueryRunTokens(executionId, generation);
 
   console.log("  → polling athena…");
   const poll = await pollAthenaLocal(executionId);
@@ -359,6 +390,7 @@ async function runQuestionDirect(q: QuestionBankEntry): Promise<RunOutcome | nul
     scannedBytes: poll.scannedBytes ?? null,
     runtimeMs: poll.runtimeMs ?? null,
     rowCount,
+    promptVersion: PROMPT_VERSION,
   });
 
   const replay = toReplayResult(question, sql, poll);
@@ -371,6 +403,7 @@ async function runQuestionDirect(q: QuestionBankEntry): Promise<RunOutcome | nul
     sql,
     model: generation.model,
     backend,
+    queryRunId,
     replay,
   };
 }
@@ -391,6 +424,7 @@ async function runQuestionRemote(q: QuestionBankEntry): Promise<RunOutcome | nul
     sql: replay.sql,
     model: "app",
     backend: "remote",
+    queryRunId: null,
     replay,
   };
 }
@@ -411,6 +445,7 @@ function printPlan(questions: QuestionBankEntry[]): void {
   console.log(`  File:     ${QUESTIONS_FILE}`);
   console.log(`  Mode:     ${REMOTE ? "remote (APP_URL)" : "direct (local .env)"}`);
   console.log(`  Backend:  ${backendLabel()}`);
+  console.log(`  Prompt:   ${PROMPT_VERSION} (nl2sql.query_runs.prompt_version)`);
   console.log(`  Version:  ${getAppVersion()} (nl2sql.query_runs.app_version)`);
   console.log(`  DB log:   ${isDatabaseConfigured() ? "yes" : "no (DATABASE_URL unset)"}`);
   console.log(`  Judge:    ${NO_JUDGE ? "skipped" : FULL_EVAL ? "full (SQL+result)" : "SQL only"}`);
@@ -446,11 +481,31 @@ async function main(): Promise<void> {
       console.error("Error: APP_URL is required for --remote");
       process.exit(1);
     }
+    if (PROMPT_VERSION_EXPLICIT) {
+      console.error(
+        "Error: --prompt-version is not supported with --remote (the deployed app controls its own prompt). Run in direct mode."
+      );
+      process.exit(1);
+    }
     console.log(`Remote mode: ${appUrl.replace(/\/$/, "")}`);
   }
 
   if (!NO_JUDGE) {
     requireEnv("ANTHROPIC_API_KEY", process.env.ANTHROPIC_API_KEY);
+  }
+
+  // Direct mode forces the agent backend with a DB-stored prompt variant (A/B testing).
+  // Skipped on --dry-run, which only prints the plan.
+  if (!REMOTE && !DRY_RUN) {
+    const promptRow = await loadPromptVersion(PROMPT_VERSION);
+    if (!promptRow) {
+      console.error(
+        `Error: prompt version "${PROMPT_VERSION}" not found in nl2sql.prompt_versions ` +
+          "(check the name, or that DATABASE_URL points at the right DB)."
+      );
+      process.exit(1);
+    }
+    promptSystem = promptRow.systemPrompt;
   }
 
   let questions = applyQuestionFilters(loadQuestionsFromFile(QUESTIONS_FILE));
@@ -511,13 +566,24 @@ async function main(): Promise<void> {
     console.log(
       FULL_EVAL ? "  → judging (SQL + result)…" : "  → judging (SQL only)…"
     );
-    const result = FULL_EVAL
-      ? await judgeFullResult(
-          outcome.question,
-          outcome.sql,
-          outcome.replay
-        )
-      : await judgeQueryPair(outcome.question, outcome.sql);
+    let result: FullJudgeResult;
+    try {
+      result = FULL_EVAL
+        ? await judgeFullResult(outcome.question, outcome.sql, outcome.replay)
+        : await judgeQueryPair(outcome.question, outcome.sql);
+    } catch (e) {
+      // A transient judge failure (e.g. Anthropic timeout) must not abort the whole run.
+      // The query_runs row is already persisted; skip this eval and continue.
+      console.log(
+        `  ✗ judge failed — ${e instanceof Error ? e.message : e} (skipping eval, run row already logged)`
+      );
+      if (i < questions.length - 1) await sleep(JUDGE_DELAY_MS);
+      continue;
+    }
+
+    // Persist judge score onto the nl2sql.query_runs row (no-op for remote / no row).
+    await recordQueryRunJudge(outcome.queryRunId, result.overall);
+    console.log(`  → judge: ${result.overall}/5 (${result.verdict})`);
 
     newResults.push(result);
     judgedKeys.add(key);

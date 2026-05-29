@@ -12,6 +12,7 @@ import {
   type SqlGenerationResult,
 } from "@/lib/claude";
 import { listWarehouseTableNames, renderTablesForPrompt } from "@/lib/schemas";
+import { getProductionPromptVersion } from "@/lib/prompt-versions";
 import type { AgentStreamPayload } from "./types";
 
 const DEFAULT_MODEL = "claude-sonnet-4-5";
@@ -79,10 +80,16 @@ function stripCodeFences(text: string): string {
   return fenced ? fenced[1] : text;
 }
 
-/** Accept SQL when model wraps it in ``` or puts one sentence before the query. */
+/** Accept SQL when model wraps it in <sql> tags, ``` fences, or puts one sentence before the query. */
 function extractSqlFromText(text: string): string | null {
   const raw = text.trim();
   if (!raw) return null;
+
+  const tagged = raw.match(/<sql>\s*([\s\S]*?)\s*<\/sql>/i);
+  if (tagged) {
+    const inner = tagged[1].trim();
+    if (/^\s*(WITH|SELECT)\b/i.test(inner)) return inner;
+  }
 
   const unfenced = stripCodeFences(raw).trim();
   if (/^\s*(WITH|SELECT)\b/i.test(unfenced)) return unfenced;
@@ -143,6 +150,8 @@ function runTool(name: string, input: unknown): string {
 export type RunSqlAgentOptions = {
   /** When set, tokens/cost are written to nl2sql.query_runs on successful SQL generation. */
   queryRunId?: string;
+  /** Override the agent system prompt (prompt-version A/B testing). Defaults to AGENT_SYSTEM. */
+  systemPrompt?: string;
 };
 
 export async function runSqlAgentWithEvents(
@@ -151,6 +160,13 @@ export async function runSqlAgentWithEvents(
   options?: RunSqlAgentOptions
 ): Promise<SqlGenerationResult> {
   const model = process.env.CLAUDE_MODEL ?? DEFAULT_MODEL;
+  // Explicit override (eval --prompt-version) wins; otherwise use the production
+  // prompt from nl2sql.prompt_versions, falling back to the in-repo AGENT_SYSTEM.
+  let systemPrompt = options?.systemPrompt;
+  if (systemPrompt == null) {
+    const prod = await getProductionPromptVersion();
+    systemPrompt = prod?.systemPrompt ?? AGENT_SYSTEM;
+  }
   const tokenAcc = createAccumulator();
 
   const messages: Anthropic.MessageParam[] = [{ role: "user", content: question }];
@@ -162,7 +178,7 @@ export async function runSqlAgentWithEvents(
       model,
       max_tokens: 4096,
       ...CLAUDE_DETERMINISTIC_SAMPLING,
-      system: AGENT_SYSTEM,
+      system: systemPrompt,
       tools: TOOLS,
       messages,
     });
@@ -259,6 +275,9 @@ export async function runSqlAgentWithEvents(
   throw new Error(`Agent exceeded ${MAX_AGENT_TURNS} turns without returning SQL`);
 }
 
-export async function generateSqlWithAgent(question: string): Promise<SqlGenerationResult> {
-  return runSqlAgentWithEvents(question, () => undefined);
+export async function generateSqlWithAgent(
+  question: string,
+  options?: { systemPrompt?: string }
+): Promise<SqlGenerationResult> {
+  return runSqlAgentWithEvents(question, () => undefined, options);
 }
