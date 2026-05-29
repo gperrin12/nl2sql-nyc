@@ -117,6 +117,7 @@ export async function recordQueryRunFinalize(
     runtimeMs?: number | null;
     rowCount?: number | null;
     trace?: QueryRunInsert["trace"];
+    promptVersion?: string | null;
   }
 ): Promise<void> {
   try {
@@ -127,6 +128,7 @@ export async function recordQueryRunFinalize(
       runtimeMs: input.runtimeMs,
       rowCount: input.rowCount,
       trace: input.trace,
+      promptVersion: input.promptVersion,
     });
     if (!updated && input.question?.trim() && input.sql?.trim()) {
       await upsertQueryRun({
@@ -141,6 +143,7 @@ export async function recordQueryRunFinalize(
         runtimeMs: input.runtimeMs,
         rowCount: input.rowCount,
         trace: input.trace,
+        promptVersion: input.promptVersion,
       });
     }
   } catch (e) {

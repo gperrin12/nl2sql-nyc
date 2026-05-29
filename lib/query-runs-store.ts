@@ -1,3 +1,16 @@
+/**
+ * lib/query-runs-store.ts
+ *
+ * Canonical read/write layer for the nl2sql.query_runs audit table.
+ *
+ * Writes: begin / insert / start (RUNNING) / update / finalize / upsert, plus
+ * judge-score and prompt-version persistence. Reads: dashboard list queries
+ * (latest-per-question and recent runs, optionally filtered by app_version).
+ *
+ * Every function is a no-op (returns null/false/[]) when DATABASE_URL is unset,
+ * so callers can log unconditionally without guarding on DB availability.
+ */
+
 import type { AgentStreamPayload } from "@/lib/sql-agent/types";
 import { getAppVersion } from "@/lib/app-version";
 import { getPgPool, isDatabaseConfigured } from "@/lib/db";
@@ -35,6 +48,8 @@ export type QueryRunInsert = {
   trace?: AgentStreamPayload[] | null;
   /** Defaults to getAppVersion() when omitted. */
   appVersion?: string | null;
+  /** Prompt variant (nl2sql.prompt_versions.version_name) used for generation. */
+  promptVersion?: string | null;
 };
 
 export type QueryRunUpdate = {
@@ -51,6 +66,7 @@ export type QueryRunUpdate = {
   rowCount?: number | null;
   trace?: AgentStreamPayload[] | null;
   judgeOverall?: number | null;
+  promptVersion?: string | null;
 };
 
 export type QueryRunRow = {
@@ -68,6 +84,7 @@ export type QueryRunRow = {
   row_count: number | null;
   judge_overall: string | null;
   app_version: string | null;
+  prompt_version: string | null;
 };
 
 function normalizeSql(sql: string | null | undefined): string | null {
@@ -155,6 +172,9 @@ export async function updateQueryRun(
       patch.judgeOverall == null ? null : String(patch.judgeOverall)
     );
   }
+  if (patch.promptVersion !== undefined) {
+    add("prompt_version", patch.promptVersion);
+  }
 
   if (sets.length === 0) return false;
 
@@ -190,8 +210,9 @@ export async function insertQueryRun(input: QueryRunInsert): Promise<string | nu
     `INSERT INTO nl2sql.query_runs (
       question, sql, model, backend, execution_id, athena_state,
       error_reason, hallucination_type, hallucinations,
-      scanned_bytes, runtime_ms, row_count, trace_json, app_version
-    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11, $12, $13::jsonb, $14)
+      scanned_bytes, runtime_ms, row_count, trace_json, app_version,
+      prompt_version
+    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11, $12, $13::jsonb, $14, $15)
     RETURNING id`,
     [
       input.question.trim(),
@@ -208,6 +229,7 @@ export async function insertQueryRun(input: QueryRunInsert): Promise<string | nu
       input.rowCount ?? null,
       traceJson,
       appVersion,
+      input.promptVersion ?? null,
     ]
   );
 
@@ -238,6 +260,7 @@ export async function finalizeQueryRun(
     runtimeMs?: number | null;
     rowCount?: number | null;
     trace?: AgentStreamPayload[] | null;
+    promptVersion?: string | null;
   }
 ): Promise<boolean> {
   if (!isDatabaseConfigured()) return false;
@@ -256,6 +279,7 @@ export async function finalizeQueryRun(
       runtime_ms = $5,
       row_count = COALESCE($6, row_count),
       trace_json = COALESCE($7::jsonb, trace_json),
+      prompt_version = COALESCE($8, prompt_version),
       hallucination_type = CASE
         WHEN $2 = 'SUCCEEDED'
           AND hallucination_type IS DISTINCT FROM 'schema_hallucination'
@@ -271,6 +295,7 @@ export async function finalizeQueryRun(
       input.runtimeMs ?? null,
       input.rowCount ?? null,
       traceJson,
+      input.promptVersion ?? null,
     ]
   );
 
@@ -319,6 +344,7 @@ export async function upsertQueryRun(input: QueryRunInsert): Promise<string | nu
       runtimeMs: input.runtimeMs,
       rowCount: input.rowCount,
       trace: input.trace,
+      promptVersion: input.promptVersion,
     });
     if (updated) {
       return (await getQueryRunIdByExecutionId(execId)) ?? null;
@@ -336,6 +362,7 @@ export async function upsertQueryRun(input: QueryRunInsert): Promise<string | nu
         runtimeMs: input.runtimeMs,
         rowCount: input.rowCount,
         trace: input.trace,
+        promptVersion: input.promptVersion,
       });
       return getQueryRunIdByExecutionId(execId);
     }
@@ -357,7 +384,8 @@ const QUERY_RUN_SELECT = `
   runtime_ms,
   row_count,
   judge_overall::text,
-  app_version`;
+  app_version,
+  prompt_version`;
 
 /**
  * One row per question: the run with the latest created_at (optionally within one deploy).
