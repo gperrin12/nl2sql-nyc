@@ -50,6 +50,7 @@ import {
   recordQueryRunFinalize,
   recordQueryRunJudge,
   recordQueryRunStart,
+  recordQueryRunTokens,
 } from "../lib/record-query-run";
 import type { ReplayResult } from "../lib/replay";
 import { generateSqlWithAgent } from "../lib/sql-agent/run";
@@ -344,6 +345,9 @@ async function runGoldenQuestion(
   });
 
   let queryRunId = await getQueryRunIdByExecutionId(executionId);
+
+  // Persist agent token totals / cost (no-op if a repair pass replaced the generation).
+  await recordQueryRunTokens(executionId, generation);
 
   console.log("  → polling athena…");
   const poll = await pollAthenaLocal(executionId);
