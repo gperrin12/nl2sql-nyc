@@ -65,6 +65,45 @@ In the web UI, when a query ends in **`FAILED`**, a **Repair with AI** prompt ap
 
 This baseline represents the starting point for optimization work.
 
+### Prompt engineering (A/B)
+
+System prompts for the tool-using SQL agent live in **`nl2sql.prompt_versions`** (`version_name`, `system_prompt`, `is_production`). Eval runs tag each row in **`nl2sql.query_runs.prompt_version`**; production uses the row where **`is_production = TRUE`** (cached ~60s via `PROMPT_PRODUCTION_TTL_MS`).
+
+| Variant | Approach |
+|---------|----------|
+| **v1-baseline** | Direct agent instructions: tool loop, then plain-English summary + SQL (no explicit reasoning scaffold). |
+| **v2-chain-of-thought** | Same tool loop, but the model must reason step-by-step before emitting SQL (often wrapped in `<sql>…</sql>` tags). |
+
+**Golden A/B comparison** (2026-05-29, 12-question golden dataset, full judge SQL + Athena result, agent backend):
+
+| prompt_version | runs | Athena success | avg judge (1–5) | avg cost / query |
+|----------------|------|----------------|-----------------|------------------|
+| v1-baseline | 12 | 100% | 4.25 | $0.030 |
+| v2-chain-of-thought | 12 | 100% | 4.08 | $0.035 |
+
+Both variants achieved perfect Athena execution on the golden set. **v1-baseline** scored slightly higher on judge quality (+0.17 avg) at ~18% lower token cost. Chain-of-thought added latency and cost without a measurable quality gain on this benchmark — **v1-baseline** is the production prompt (`is_production = TRUE`).
+
+Run an A/B yourself:
+
+```bash
+npm run eval:golden -- --prompt-version v1-baseline
+npm run eval:golden -- --prompt-version v2-chain-of-thought
+```
+
+Compare in Postgres:
+
+```sql
+SELECT prompt_version,
+       COUNT(*) AS runs,
+       ROUND(100.0 * COUNT(*) FILTER (WHERE athena_state = 'SUCCEEDED')
+             / NULLIF(COUNT(*), 0), 1) AS success_pct,
+       ROUND(AVG(judge_overall), 2) AS avg_judge,
+       ROUND(AVG(cost_usd)::numeric, 5) AS avg_cost_usd
+FROM nl2sql.query_runs
+WHERE prompt_version IN ('v1-baseline', 'v2-chain-of-thought')
+GROUP BY prompt_version ORDER BY prompt_version;
+```
+
 ## Local setup
 
 ```bash
@@ -80,7 +119,7 @@ Open http://localhost:3000. When logged in, **`/dashboard`** lists **one row per
 
 **Run + eval** (`npm run run:eval`) reads `data/questions.json`, generates SQL with your local env (`USE_P8K8` / `CLAUDE_SQL_AGENT`), logs to Postgres, judges, and writes `evals.json`. Use `npm run run:eval:full` for Athena+viz judging. No browser required.
 
-**Golden eval** (`npm run eval:golden`) reads `data/golden-dataset.json` (12 curated questions), runs the **tool-using SQL agent**, executes on Athena, judges, and logs to `nl2sql.query_runs` with a **version tag** (`app_version`, default `v3.1` in `lib/golden-eval-version.ts`) plus `judge_overall`. Change the tag without editing code: `GOLDEN_APP_VERSION=v3.2 npm run eval:golden`, `npm run eval:golden -- --version v3.2`, or bump `DEFAULT_GOLDEN_APP_VERSION`. Convenience scripts: `npm run eval:golden:v3.1`, `npm run eval:golden:v3-baseline`. Requires `DATABASE_URL`, `ANTHROPIC_API_KEY`, `ATHENA_OUTPUT_LOCATION`. Dry run: `npm run eval:golden:dry`. Filter: `RUN_LIMIT=1 SEED_IDS=agg-003 npm run eval:golden`. Re-judge logged rows: `EVAL_APP_VERSION=v3.1 npm run eval`.
+**Golden eval** (`npm run eval:golden`) reads `data/golden-dataset.json` (12 curated questions), runs the **tool-using SQL agent**, executes on Athena, judges, and logs to `nl2sql.query_runs` with **`app_version`** (default in `lib/golden-eval-version.ts`) and **`prompt_version`** (from `--prompt-version`, default `v1-baseline`). A/B prompts: `npm run eval:golden -- --prompt-version v2-chain-of-thought`. Change deploy tag: `GOLDEN_APP_VERSION=v3.2 npm run eval:golden` or `--version v3.2`. Requires `DATABASE_URL`, `ANTHROPIC_API_KEY`, `ATHENA_OUTPUT_LOCATION`. Dry run: `npm run eval:golden:dry`. Filter: `RUN_LIMIT=1 SEED_IDS=agg-003 npm run eval:golden`. Re-judge logged rows: `EVAL_APP_VERSION=v3.1 npm run eval`.
 
 ### Dashboard evals on Vercel
 
