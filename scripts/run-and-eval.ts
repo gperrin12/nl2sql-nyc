@@ -54,7 +54,11 @@ import {
 } from "../lib/questions-bank";
 import { generateSqlViaP8k8 } from "../lib/p8k8";
 import { loadPromptVersion } from "../lib/prompt-versions";
-import { recordQueryRunFinalize, recordQueryRunStart } from "../lib/record-query-run";
+import {
+  recordQueryRunFinalize,
+  recordQueryRunStart,
+  recordQueryRunTokens,
+} from "../lib/record-query-run";
 import type { ReplayResult } from "../lib/replay";
 import { replayQuestion } from "../lib/replay";
 import { pickBackend } from "../lib/route";
@@ -357,6 +361,9 @@ async function runQuestionDirect(q: QuestionBankEntry): Promise<RunOutcome | nul
     promptVersion: PROMPT_VERSION,
     ...h,
   });
+
+  // Persist agent token totals / cost (no-op if a repair pass replaced the generation).
+  await recordQueryRunTokens(executionId, generation);
 
   console.log("  → polling athena…");
   const poll = await pollAthenaLocal(executionId);
