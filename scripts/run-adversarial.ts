@@ -1,6 +1,15 @@
 /**
  * Adversarial NL→SQL eval: agent generation + ensureGuardedSqlV2 + repair_attempts stats.
  *
+ * Scope (important):
+ *   - actual = guardrail outcome only (ensureGuardedSqlV2 / checkSql + repair). No Athena.
+ *   - expected in adversarial-questions.json = end-to-end intent (often abstain on schema
+ *     hallucination at execution time). Invalid column names frequently pass checkSql, so
+ *     actual=succeed with expected=abstain is normal and informative — not a script bug.
+ *
+ * Postgres: getPgPool() from lib/db (same as eval-moments / token-report). If
+ * nl2sql.repair_attempts is missing, migration runs automatically; or use --migrate.
+ *
  * Usage (reads .env / .env.local):
  *   tsx scripts/run-adversarial.ts
  *   npm run run:adversarial
@@ -45,12 +54,16 @@ type AdversarialQuestion = {
   notes?: string;
 };
 
+/** actual = guardrail-layer outcome only (not Athena execution). */
 type QuestionRunResult = {
   id: string;
   question: string;
+  /** From adversarial-questions.json (end-to-end intent). */
   expected: ExpectedOutcome;
+  /** From ensureGuardedSqlV2: succeed if guard ok, else abstain. */
   actual: ExpectedOutcome;
-  match: boolean;
+  /** expected === actual; mismatches are often expected (schema checked at Athena). */
+  alignsWithDataset: boolean;
   agentError?: string;
   guarded?: GuardedSqlResult;
   sqlPreview?: string;
@@ -120,12 +133,57 @@ function formatAgentEvent(e: AgentStreamPayload): string | null {
   }
 }
 
-function actualOutcome(
+/** Guardrail-layer outcome only — does not reflect Athena/schema-at-runtime. */
+function guardrailOutcome(
   guarded: GuardedSqlResult | undefined,
   agentFailed: boolean
 ): ExpectedOutcome {
   if (agentFailed || !guarded?.ok) return "abstain";
   return "succeed";
+}
+
+function printScopeBanner(): void {
+  console.log(`
+Scope: guardrails + repair only (ensureGuardedSqlV2). No Athena execution.
+  actual     = guard passed (succeed) or guard/agent abstained
+  expected   = dataset label (often assumes execution-time schema failure)
+  aligns?    = expected === actual — low alignment is OK when checkSql passes
+               hallucinated columns that would fail only at query time.
+`);
+}
+
+function printMismatchNotes(results: QuestionRunResult[]): void {
+  const guardPassedDatasetAbstain = results.filter(
+    (r) => r.expected === "abstain" && r.actual === "succeed"
+  );
+  const guardAbstainedDatasetSucceed = results.filter(
+    (r) => r.expected === "succeed" && r.actual === "abstain"
+  );
+
+  if (
+    guardPassedDatasetAbstain.length === 0 &&
+    guardAbstainedDatasetSucceed.length === 0
+  ) {
+    return;
+  }
+
+  console.log("\n=== Mismatch notes (informational) ===");
+  if (guardPassedDatasetAbstain.length > 0) {
+    console.log(
+      "Expected abstain, guard succeeded (schema likely validated at execution, not checkSql):"
+    );
+    for (const r of guardPassedDatasetAbstain) {
+      console.log(`  ${r.id}  [${r.guarded?.attempts ?? 0} guard attempts]`);
+    }
+  }
+  if (guardAbstainedDatasetSucceed.length > 0) {
+    console.log("Expected succeed, guard abstained:");
+    for (const r of guardAbstainedDatasetSucceed) {
+      const detail =
+        r.guarded?.reason ?? r.agentError ?? "unknown";
+      console.log(`  ${r.id}: ${detail}`);
+    }
+  }
 }
 
 function printRowTable(
@@ -213,7 +271,7 @@ async function printRepairStats(
   }
 
   const abstained = runResults.filter((r) => r.actual === "abstain");
-  console.log("\n=== Questions that abstained (actual) ===");
+  console.log("\n=== Questions that abstained at guard layer (guard_actual) ===");
   if (abstained.length === 0) {
     console.log("(none)");
   } else {
@@ -246,14 +304,16 @@ async function main(): Promise<void> {
   }
 
   if (DRY_RUN) {
-    console.log("\nDry run — would execute:");
+    printScopeBanner();
+    console.log("Dry run — would execute:");
     for (const q of questions) {
       console.log(
-        `  ${q.id}  expected=${q.expected_outcome}  target=${q.target_failure ?? "-"}`
+        `  ${q.id}  dataset_expected=${q.expected_outcome}  target=${q.target_failure ?? "-"}`
       );
       console.log(`    ${truncate(q.question, 90)}`);
     }
     console.log("\nRequires: DATABASE_URL, ANTHROPIC_API_KEY");
+    console.log("Postgres: getPgPool(); auto-migrate repair_attempts if missing");
     return;
   }
 
@@ -275,12 +335,15 @@ async function main(): Promise<void> {
   const questionTexts = questions.map((q) => q.question);
   const runResults: QuestionRunResult[] = [];
 
-  console.log(`\nStarting adversarial run at ${sessionStart.toISOString()}\n`);
+  printScopeBanner();
+  console.log(`Starting adversarial run at ${sessionStart.toISOString()}\n`);
 
   for (let i = 0; i < questions.length; i++) {
     const q = questions[i];
     console.log(`[${i + 1}/${questions.length}] ${q.id} — ${truncate(q.question, 70)}`);
-    console.log(`  expected: ${q.expected_outcome} (${q.target_failure ?? "—"})`);
+    console.log(
+      `  dataset expected: ${q.expected_outcome} (${q.target_failure ?? "—"})`
+    );
 
     let generation: { sql: string } | undefined;
     let agentError: string | undefined;
@@ -300,37 +363,41 @@ async function main(): Promise<void> {
       console.log(`  [error] ${agentError}`);
     }
 
-    const actual = actualOutcome(guarded, Boolean(agentError));
-    const match = actual === q.expected_outcome;
-    const icon = match ? "✓" : "✗";
+    const actual = guardrailOutcome(guarded, Boolean(agentError));
+    const alignsWithDataset = actual === q.expected_outcome;
 
     if (guarded) {
       if (guarded.ok) {
         console.log(
-          `  [guard] ok (attempts=${guarded.attempts}) ${icon} actual=succeed`
+          `  [guard] ok (attempts=${guarded.attempts}) → actual=succeed`
         );
       } else {
         console.log(
-          `  [guard] abstain: ${guarded.reason ?? "unknown"}${guarded.error_type ? ` (${guarded.error_type})` : ""} ${icon} actual=abstain`
+          `  [guard] abstain: ${guarded.reason ?? "unknown"}${guarded.error_type ? ` (${guarded.error_type})` : ""} → actual=abstain`
         );
         if (guarded.suggestion) {
           console.log(`  [hint] ${truncate(guarded.suggestion, 120)}`);
         }
       }
     } else {
-      console.log(`  [outcome] abstain (agent failed) ${icon}`);
+      console.log(`  [outcome] abstain (agent failed) → actual=abstain`);
     }
 
     console.log(
-      `  result: expected=${q.expected_outcome} actual=${actual} ${match ? "MATCH" : "MISMATCH"}`
+      `  compare: dataset_expected=${q.expected_outcome} guard_actual=${actual} aligns=${alignsWithDataset ? "yes" : "no"}`
     );
+    if (!alignsWithDataset && q.expected_outcome === "abstain" && actual === "succeed") {
+      console.log(
+        `  note: guard passed; dataset expected abstain (schema check is at execution time)`
+      );
+    }
 
     runResults.push({
       id: q.id,
       question: q.question,
       expected: q.expected_outcome,
       actual,
-      match,
+      alignsWithDataset,
       agentError,
       guarded,
       sqlPreview: generation?.sql
@@ -346,23 +413,27 @@ async function main(): Promise<void> {
     console.log("");
   }
 
-  const matched = runResults.filter((r) => r.match).length;
-  console.log("=== Per-question summary ===");
+  const aligned = runResults.filter((r) => r.alignsWithDataset).length;
+  console.log("=== Per-question summary (guard_actual vs dataset_expected) ===");
   printRowTable(
-    ["id", "expected", "actual", "ok?", "detail"],
+    ["id", "dataset_exp", "guard_actual", "aligns", "detail"],
     runResults.map((r) => [
       r.id,
       r.expected,
       r.actual,
-      r.match ? "yes" : "no",
+      r.alignsWithDataset ? "yes" : "no",
       r.guarded?.reason ?? r.agentError ?? (r.guarded?.ok ? "guard ok" : "—"),
     ])
   );
 
   console.log(
-    `\nExpectation match: ${matched}/${runResults.length} (${runResults.length ? ((100 * matched) / runResults.length).toFixed(0) : 0}%)`
+    `\nAligns with dataset label: ${aligned}/${runResults.length} (${runResults.length ? ((100 * aligned) / runResults.length).toFixed(0) : 0}%)`
+  );
+  console.log(
+    "Low alignment is expected when checkSql passes SQL that would fail at Athena (schema hallucination)."
   );
 
+  printMismatchNotes(runResults);
   await printRepairStats(pool, sessionStart, questionTexts, runResults);
   await pool.end();
 }
