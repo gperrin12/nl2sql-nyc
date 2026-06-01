@@ -1,0 +1,72 @@
+[
+  {
+    "id": "aq-001",
+    "question": "How many 311 complaints mentioned the word 'rodent' in the complaint_description field last year?",
+    "target_failure": "schema_hallucination",
+    "expected_outcome": "abstain",
+    "notes": "nyc_311 has no 'complaint_description' column — the text field is 'descriptor'. Model may hallucinate a plausible-sounding column name. Expect column_not_found error on first attempt, and likely the same on repair since the schema doesn't contain this column under any name."
+  },
+  {
+    "id": "aq-002",
+    "question": "What is the average trip_revenue for TLC yellow cab trips in 2023, broken down by shift_type?",
+    "target_failure": "schema_hallucination",
+    "expected_outcome": "abstain",
+    "notes": "gtp_tlc_data has no 'shift_type' column and no 'trip_revenue' column (revenue is 'total_amount'). Two hallucinated columns in one query — model may fix one and not the other on repair."
+  },
+  {
+    "id": "aq-003",
+    "question": "Show me the top 5 census tracts by median_household_income where the poverty_rate exceeds 20%.",
+    "target_failure": "schema_hallucination",
+    "expected_outcome": "abstain",
+    "notes": "census_tract_demographics has income data but column naming may differ from what the model expects. 'median_household_income' and 'poverty_rate' may be named differently in the actual schema. Designed to test whether the agent correctly checks get_schema before writing SQL."
+  },
+  {
+    "id": "aq-004",
+    "question": "How many NYPD collisions involved pedestrians in school zones last month?",
+    "target_failure": "schema_hallucination",
+    "expected_outcome": "abstain",
+    "notes": "nypd_collisions has no 'school_zone' flag or join target. 'School zone' is a concept that would require spatial intersection with a school zone dataset that doesn't exist in the schema. Model likely invents a 'is_school_zone' boolean or similar."
+  },
+  {
+    "id": "aq-005",
+    "question": "What percentage of taxi trips in 2023 had a surge_multiplier greater than 1.5?",
+    "target_failure": "schema_hallucination",
+    "expected_outcome": "abstain",
+    "notes": "TLC data does not include surge pricing information — surge multipliers are not in the public TLC dataset. This is a plausible-sounding column that could easily be confused with 'rate_code_id' (a real column with different semantics). Tests whether model recognizes the absence or hallucinates."
+  },
+  {
+    "id": "aq-006",
+    "question": "Which taxi zones had the highest number of 311 complaints for illegal parking?",
+    "target_failure": "join_confusion",
+    "expected_outcome": "abstain",
+    "notes": "Joining nyc_311 (with lat/lon) to taxi_zones requires spatial intersection. Model may attempt borough-level matching (imprecise) or hallucinate a direct zone_id column in nyc_311. Correct answer requires ST_Point + spatial join logic."
+  },
+  {
+    "id": "aq-007",
+    "question": "Compare the distribution of 311 complaints in 2014 versus 2024.",
+    "target_failure": "date_edge_case",
+    "expected_outcome": "abstain",
+    "notes": "311 data only exists from 2024 onwards. Model may generate valid SQL filtering on a non-existent year partition, returning 0 rows or hitting a partition error. Repeated partition errors should trigger circuit breaker."
+  },
+  {
+    "id": "aq-008",
+    "question": "What fraction of Brooklyn census tracts had above-median household income?",
+    "target_failure": "nested_aggregation",
+    "expected_outcome": "succeed",
+    "notes": "Requires calculating the median income across all Brooklyn tracts, then counting how many exceed that median, then computing the fraction. Tests whether the model correctly structures nested aggregation with CTEs or subqueries. Should succeed if SQL logic is sound."
+  },
+  {
+    "id": "aq-009",
+    "question": "How many incidents happened in Brooklyn last year?",
+    "target_failure": "ambiguous_reference",
+    "expected_outcome": "succeed",
+    "notes": "The term 'incidents' is ambiguous — could mean nypd_collisions (crashes) or nyc_311 complaints. Model will likely pick one (probably collisions) and generate valid SQL, but doesn't clarify the ambiguity with the user. Tests whether the agent recognizes and surfaces ambiguity or silently makes an assumption."
+  },
+  {
+    "id": "aq-010",
+    "question": "Help me understand New York.",
+    "target_failure": "off_topic",
+    "expected_outcome": "abstain",
+    "notes": "Vague, non-specific question with no clear data correlate. Tests whether the agent recognizes out-of-scope queries and refuses to hallucinate SQL rather than guessing at intent. Should return a structured abstention explaining that the question needs more specificity."
+  }
+]
