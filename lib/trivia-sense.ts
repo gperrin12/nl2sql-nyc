@@ -6,7 +6,7 @@ export type TriviaSenseResult =
   | { ok: true }
   | { ok: false; reason: string };
 
-type Dataset = "311" | "collisions" | "taxi" | "census";
+type Dataset = "311" | "collisions" | "taxi" | "census" | "transit";
 
 const RATE_LIKE =
   /\b(per|ratio|rate|rates|for every|divided by|quotient|proportion|relative to|compared to|versus|vs\.?)\b/i;
@@ -16,6 +16,7 @@ const DATASET_PATTERNS: { id: Dataset; re: RegExp }[] = [
   { id: "collisions", re: /\bcollision|crash|motor vehicle|injur(y|ies)|nypd/i },
   { id: "taxi", re: /\btaxi|tlc|trip|fare|pickup|dropoff|yellow cab|gtp_/i },
   { id: "census", re: /\bcensus|acs|demographic|population|median income|household|tract/i },
+  { id: "transit", re: /\bmta|turnstile|subway|ridership|omny|metrocard|fare class\b/i },
 ];
 
 /** Explicitly nonsensical question templates seen in the wild. */
@@ -43,6 +44,16 @@ const BANNED_QUESTION_PATTERNS: { re: RegExp; reason: string }[] = [
   {
     re: /taxi\s+trips?\s+per\s+collision/i,
     reason: "Taxi trips per collision is not a meaningful question.",
+  },
+  {
+    re: /ridership\s+per\s+(?:collision|crash|complaint|311|taxi\s+trip|trip)/i,
+    reason:
+      "Subway ridership per collision / complaint / taxi trip mixes unrelated datasets. Ask a single-dataset ridership ranking instead.",
+  },
+  {
+    re: /(?:collisions?|crashes|complaints?|taxi\s+trips?)\s+per\s+(?:rider|ridership|subway\s+station)/i,
+    reason:
+      "Do not divide collisions / complaints / taxi trips by subway ridership — pick one dataset.",
   },
 ];
 
@@ -100,6 +111,16 @@ function checkCrossDatasetRate(question: string): TriviaSenseResult {
       ok: false,
       reason:
         "Do not combine collisions with taxi trips in one rate. Pick one dataset.",
+    };
+  }
+  if (
+    ids.includes("transit") &&
+    (ids.includes("311") || ids.includes("collisions") || ids.includes("taxi"))
+  ) {
+    return {
+      ok: false,
+      reason:
+        "Do not combine MTA subway ridership with 311, collisions, or taxi data in one rate. Ask a single-dataset ridership question instead.",
     };
   }
   if (datasets.size >= 3) {

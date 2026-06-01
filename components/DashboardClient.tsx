@@ -60,6 +60,7 @@ const DATASET_OPTIONS: QueryDataset[] = [
   "collisions",
   "taxi",
   "census",
+  "transit",
   "multi",
   "other",
 ];
