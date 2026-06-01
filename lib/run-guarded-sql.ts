@@ -101,6 +101,22 @@ export function guardrailAbstentionMessage(failure: {
   return failure.reason;
 }
 
+const POOL_REQUIRED_MSG =
+  "DATABASE_URL is not configured — circuit-breaker guardrails require Postgres (nl2sql.repair_attempts)";
+
+/** 503 when the app pipeline runs without DATABASE_URL. */
+export function guardrailPoolMissingFailure(
+  sql: string
+): Record<string, unknown> {
+  return {
+    error: "SQL rejected by guardrails",
+    reason: "configuration_error",
+    sql,
+    error_type: "configuration_error",
+    message: POOL_REQUIRED_MSG,
+  };
+}
+
 export function buildGuardrailFailureBody(
   failure: Extract<GuardedPipelineResult, { ok: false }>
 ): Record<string, unknown> {

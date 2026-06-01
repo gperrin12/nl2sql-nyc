@@ -1,14 +1,11 @@
 /**
- * ensure-guarded-sql.ts
+ * Circuit-breaker guardrails for the query pipeline (replaces ensureGuardedSql there).
  *
- * Enhanced guardrail + repair loop with:
- *   - Error type classification (column_not_found, table_not_found, etc.)
- *   - Repair attempt logging to nl2sql.repair_attempts
- *   - Same-error detection: if the same error_type appears 3+ times in the
- *     current session window, return structured abstention instead of retrying
+ * - Error type classification
+ * - Repair attempt logging to nl2sql.repair_attempts
+ * - Same-error detection: 3+ identical error_type in window → structured abstention
  *
- * Replaces: lib/sql-agent/ensure-guarded-sql.ts
- * Drop-in compatible: same function signature as ensureGuardedSql
+ * App entry: guardGenerationWithV2() in lib/run-guarded-sql.ts
  */
 
 import { Pool } from "pg";
@@ -106,26 +103,6 @@ export function buildSuggestion(errorType: string): string {
 }
 
 // ─── Repair Attempt Logging ───────────────────────────────────────────────────
-
-/**
- * TODO #2: Implement repair attempt logging.
- *
- * Insert a row into nl2sql.repair_attempts for each repair attempt.
- * This is how we make the repair loop observable.
- *
- * Schema (from exercise Step 2):
- *   id, query_run_id, question, attempt_number, error_type,
- *   error_message, sql_attempted, repair_succeeded, created_at
- *
- * Call this function:
- *   - Before each repair attempt (repair_succeeded = false initially)
- *   - Update repair_succeeded = true if the repaired SQL passes validation
- *
- * Hint: You can either:
- *   a) Insert with repair_succeeded = false, then UPDATE the row on success
- *   b) Insert only after you know the outcome (simpler but loses data on crash)
- * Option (a) gives you more complete data.
- */
 
 export async function logRepairAttempt(
     pool: Pool,
