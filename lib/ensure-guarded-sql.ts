@@ -23,7 +23,10 @@ export type GuardRepairHook = (info: {
   sql: string;
 }) => void | Promise<void>;
 
-/** Run guardrails; on failure, auto-repair via Claude using the rejection reason. */
+/**
+ * Legacy guardrails + repair (no Postgres / circuit breaker).
+ * Used by eval scripts (run-and-eval, run-golden-eval). App pipeline uses ensureGuardedSqlV2.
+ */
 export async function ensureGuardedSql(
   question: string,
   initial: SqlGenerationResult,

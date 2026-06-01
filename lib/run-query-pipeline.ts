@@ -1,8 +1,11 @@
 import type { SqlGenerationResult } from "@/lib/claude";
+import type { GuardRepairHook } from "@/lib/ensure-guarded-sql";
 import {
-  ensureGuardedSql,
-  type GuardRepairHook,
-} from "@/lib/ensure-guarded-sql";
+  buildGuardrailFailureBody,
+  guardGenerationWithV2,
+  guardrailAbstentionMessage,
+  guardrailPoolMissingFailure,
+} from "@/lib/run-guarded-sql";
 import { ensureSchemaValidSql } from "@/lib/ensure-schema-sql";
 import { startQuery } from "@/lib/athena";
 import {
@@ -128,9 +131,26 @@ export async function runQueryPipeline(
 
   await onSqlGenerated?.(generation.sql);
 
-  const guarded = await ensureGuardedSql(question, generation, guardOptions);
+  const guardedResult = await guardGenerationWithV2(question, generation, {
+    ...guardOptions,
+    queryRunId,
+  });
+  if (!guardedResult.ok && "poolMissing" in guardedResult) {
+    const body = guardrailPoolMissingFailure(generation.sql);
+    const outcome = outcomeForGuardrailBlocked(String(body.message));
+    await applyOutcome(queryRunId, outcome);
+    return {
+      ok: false,
+      queryRunId,
+      httpStatus: 503,
+      body,
+    };
+  }
+
+  const guarded = guardedResult;
   if (!guarded.ok) {
-    const outcome = outcomeForGuardrailBlocked(guarded.reason);
+    const displayReason = guardrailAbstentionMessage(guarded);
+    const outcome = outcomeForGuardrailBlocked(displayReason);
     await applyOutcome(queryRunId, {
       ...outcome,
       sql: guarded.sql,
@@ -140,11 +160,7 @@ export async function runQueryPipeline(
       ok: false,
       queryRunId,
       httpStatus: 400,
-      body: {
-        error: "SQL rejected by guardrails",
-        reason: guarded.reason,
-        sql: guarded.sql,
-      },
+      body: buildGuardrailFailureBody(guarded),
     };
   }
   generation = guarded.generation;
@@ -159,21 +175,19 @@ export async function runQueryPipeline(
     guardOptions,
   });
   if (schemaChecked.guardFailure) {
-    const outcome = outcomeForGuardrailBlocked(schemaChecked.guardFailure.reason);
+    const gf = schemaChecked.guardFailure;
+    const displayReason = guardrailAbstentionMessage(gf);
+    const outcome = outcomeForGuardrailBlocked(displayReason);
     await applyOutcome(queryRunId, {
       ...outcome,
-      sql: schemaChecked.guardFailure.sql,
-      model: schemaChecked.guardFailure.generation.model,
+      sql: gf.sql,
+      model: gf.generation.model,
     });
     return {
       ok: false,
       queryRunId,
       httpStatus: 400,
-      body: {
-        error: "SQL rejected by guardrails",
-        reason: schemaChecked.guardFailure.reason,
-        sql: schemaChecked.guardFailure.sql,
-      },
+      body: buildGuardrailFailureBody({ ok: false, ...gf }),
     };
   }
   generation = schemaChecked.generation;

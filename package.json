@@ -30,7 +30,10 @@
     "seed:dry": "SEED_DRY_RUN=true tsx scripts/seed-questions.ts",
     "seed:easy": "SEED_DIFFICULTY=easy tsx scripts/seed-questions.ts",
     "seed:spatial": "SEED_CATEGORY=spatial tsx scripts/seed-questions.ts",
-    "token:report": "tsx scripts/token-report.ts"
+    "token:report": "tsx scripts/token-report.ts",
+    "run:adversarial": "tsx scripts/run-adversarial.ts",
+    "run:adversarial:dry": "tsx scripts/run-adversarial.ts --dry-run",
+    "run:adversarial:migrate": "tsx scripts/run-adversarial.ts --migrate"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.32.0",

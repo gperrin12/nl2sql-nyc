@@ -4,11 +4,8 @@ import {
   detectWarehouseHallucinations,
   getWarehouseSchemaMap,
 } from "@/lib/hallucination-schema";
-import {
-  ensureGuardedSql,
-  mergeGenerations,
-  type GuardRepairHook,
-} from "@/lib/ensure-guarded-sql";
+import { mergeGenerations, type GuardRepairHook } from "@/lib/ensure-guarded-sql";
+import { guardGenerationWithV2 } from "@/lib/run-guarded-sql";
 
 const DEFAULT_MAX_SCHEMA_REPAIRS = 1;
 
@@ -17,7 +14,13 @@ export type EnsureSchemaSqlResult = {
   sql: string;
   schemaRepairCount: number;
   hallucination: ReturnType<typeof detectWarehouseHallucinations>;
-  guardFailure?: { reason: string; sql: string; generation: SqlGenerationResult };
+  guardFailure?: {
+    reason: string;
+    sql: string;
+    generation: SqlGenerationResult;
+    error_type?: string;
+    suggestion?: string;
+  };
 };
 
 export async function ensureSchemaValidSql(
@@ -47,18 +50,34 @@ export async function ensureSchemaValidSql(
       sql: generation.sql,
     });
 
-    const guarded = await ensureGuardedSql(question, generation, options?.guardOptions);
+    const guarded = await guardGenerationWithV2(
+      question,
+      generation,
+      options?.guardOptions
+    );
+    if (!guarded.ok && "poolMissing" in guarded) {
+      return {
+        generation,
+        sql: generation.sql,
+        schemaRepairCount,
+        hallucination,
+        guardFailure: {
+          reason: "configuration_error",
+          sql: generation.sql,
+          generation,
+          error_type: "configuration_error",
+          suggestion:
+            "DATABASE_URL is not configured — circuit-breaker guardrails require Postgres",
+        },
+      };
+    }
     if (!guarded.ok) {
       return {
         generation: guarded.generation,
         sql: guarded.sql,
         schemaRepairCount,
         hallucination,
-        guardFailure: {
-          reason: guarded.reason,
-          sql: guarded.sql,
-          generation: guarded.generation,
-        },
+        guardFailure: guarded,
       };
     }
     generation = guarded.generation;
