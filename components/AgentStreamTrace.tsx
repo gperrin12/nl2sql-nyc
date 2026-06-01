@@ -107,6 +107,14 @@ function StreamStepRow({ step }: { step: AgentStreamPayload }) {
         <>
           <span className="text-[var(--error)]">{chip}</span>
           <p className="text-[var(--error)]">{step.reason}</p>
+          {step.abstention?.error_type && (
+            <p className="text-[10px] text-[var(--muted)]">
+              {step.abstention.reason}
+              {step.abstention.error_type
+                ? ` · ${step.abstention.error_type}`
+                : ""}
+            </p>
+          )}
         </>
       );
     case "athena_started":

@@ -32,12 +32,12 @@ import { loadEnvFile } from "../lib/load-env-file";
 loadEnvFile();
 
 import { getPgPool, isDatabaseConfigured } from "../lib/db";
+import { ensureRepairAttemptsTable } from "../lib/repair-attempts";
 import { ensureGuardedSqlV2, type GuardedSqlResult } from "../lib/sql-agent/ensure-guarded-sql";
 import { runSqlAgentWithEvents } from "../lib/sql-agent/run";
 import type { AgentStreamPayload } from "../lib/sql-agent/types";
 
 const QUESTIONS_PATH = path.join(process.cwd(), "data/adversarial-questions.json");
-const MIGRATION_PATH = path.join(process.cwd(), "scripts/sql/add-repair-attempts.sql");
 
 const DRY_RUN = process.argv.includes("--dry-run");
 const MIGRATE_ONLY = process.argv.includes("--migrate");
@@ -93,24 +93,6 @@ function loadAdversarialQuestions(): AdversarialQuestion[] {
     process.exit(1);
   }
   return subset;
-}
-
-async function runMigration(pool: Pool): Promise<void> {
-  const sql = readFileSync(MIGRATION_PATH, "utf8");
-  await pool.query(sql);
-  console.log("Migration applied: nl2sql.repair_attempts");
-}
-
-async function ensureRepairAttemptsTable(pool: Pool): Promise<void> {
-  const probe = await pool.query(`
-    SELECT 1
-    FROM information_schema.tables
-    WHERE table_schema = 'nl2sql' AND table_name = 'repair_attempts'
-    LIMIT 1
-  `);
-  if (probe.rowCount && probe.rowCount > 0) return;
-  console.log("Table nl2sql.repair_attempts not found — applying migration…");
-  await runMigration(pool);
 }
 
 function truncate(s: string, max: number): string {
@@ -298,7 +280,8 @@ async function main(): Promise<void> {
       console.error("Error: could not create Postgres pool");
       process.exit(1);
     }
-    await runMigration(pool);
+    await ensureRepairAttemptsTable(pool);
+    console.log("Migration applied: nl2sql.repair_attempts");
     await pool.end();
     return;
   }

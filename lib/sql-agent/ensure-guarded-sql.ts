@@ -12,8 +12,20 @@
  */
 
 import { Pool } from "pg";
-import { generateSqlWithRepair } from "@/lib/claude";
+import { generateSqlWithRepair, type SqlGenerationResult } from "@/lib/claude";
+import {
+  mergeGenerations,
+  type GuardRepairHook,
+} from "@/lib/ensure-guarded-sql";
 import { checkSql, type GuardrailResult } from "@/lib/guardrails";
+
+export type EnsureGuardedSqlV2Options = {
+  maxRepairs?: number;
+  queryRunId?: string;
+  onRepair?: GuardRepairHook;
+  /** When set, repair calls merge token usage into this object. */
+  initialGeneration?: SqlGenerationResult;
+};
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -186,15 +198,17 @@ export async function hasSameErrorRepeated(
  * @param pool     - Postgres pool (for repair_attempts logging)
  * @param question - Original natural language question
  * @param sql      - Initial generated SQL to validate
- * @param maxRepairs - Max repair attempts (default: 2)
+ * @param options - maxRepairs, queryRunId, onRepair, initialGeneration (token merge)
  */
 export async function ensureGuardedSqlV2(
   pool: Pool,
   question: string,
   sql: string,
-  maxRepairs: number = DEFAULT_MAX_REPAIRS
+  options?: EnsureGuardedSqlV2Options
 ): Promise<GuardedSqlResult> {
+  const maxRepairs = options?.maxRepairs ?? DEFAULT_MAX_REPAIRS;
   let currentSql = sql;
+  let generation = options?.initialGeneration;
   let attemptNumber = 0;
   let pendingRepairRowId: number | null = null;
 
@@ -214,14 +228,18 @@ export async function ensureGuardedSqlV2(
 
     const errorType = classifyError(check.reason ?? "unknown error");
 
-    const rowId = await logRepairAttempt(pool, {
-      question,
-      attempt_number: attemptNumber,
-      error_type: errorType,
-      error_message: check.reason ?? "unknown error",
-      sql_attempted: currentSql,
-      repair_succeeded: false,
-    });
+    const rowId = await logRepairAttempt(
+      pool,
+      {
+        question,
+        attempt_number: attemptNumber,
+        error_type: errorType,
+        error_message: check.reason ?? "unknown error",
+        sql_attempted: currentSql,
+        repair_succeeded: false,
+      },
+      options?.queryRunId
+    );
 
     const shouldTrip = await hasSameErrorRepeated(pool, errorType);
     if (shouldTrip) {
@@ -252,7 +270,17 @@ export async function ensureGuardedSqlV2(
       currentSql,
       check.reason ?? ""
     );
-    currentSql = repaired.sql;
+    if (generation) {
+      generation = mergeGenerations(generation, repaired);
+      currentSql = generation.sql;
+    } else {
+      currentSql = repaired.sql;
+    }
+    await options?.onRepair?.({
+      attempt: attemptNumber,
+      reason: check.reason ?? "unknown error",
+      sql: currentSql,
+    });
     pendingRepairRowId = rowId;
   }
 

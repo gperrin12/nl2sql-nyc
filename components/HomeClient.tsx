@@ -146,7 +146,11 @@ export function HomeClient() {
         );
         break;
       case "guardrails_failed":
-        setStreamError(`Guardrails rejected SQL: ${p.reason}`);
+        setStreamError(
+          p.abstention?.suggestion
+            ? p.reason
+            : `Guardrails rejected SQL: ${p.reason}`
+        );
         break;
       case "athena_failed":
         setStreamError(`Athena rejected query: ${p.detail}`);

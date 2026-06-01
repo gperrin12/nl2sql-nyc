@@ -6,6 +6,7 @@ import { pickBackend } from "@/lib/route";
 import { runSqlAgentWithEvents } from "@/lib/sql-agent/run";
 import type { AgentStreamPayload } from "@/lib/sql-agent/types";
 import { isAuthenticated } from "@/lib/auth";
+import { guardrailsFailedPayload } from "@/lib/agent-stream-guardrails";
 import { runQueryPipeline } from "@/lib/run-query-pipeline";
 
 export const dynamic = "force-dynamic";
@@ -81,11 +82,7 @@ export async function POST(req: NextRequest) {
       if (!result.ok) {
         const err = String(result.body.error ?? "");
         if (err === "SQL rejected by guardrails") {
-          await push({
-            type: "guardrails_failed",
-            reason: String(result.body.reason ?? "Guardrails rejected SQL"),
-            sql: String(result.body.sql ?? ""),
-          });
+          await push(guardrailsFailedPayload(result.body));
         } else if (err === "Athena rejected the query") {
           await push({
             type: "athena_failed",

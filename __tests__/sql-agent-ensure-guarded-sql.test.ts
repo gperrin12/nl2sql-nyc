@@ -70,7 +70,9 @@ describe("ensureGuardedSqlV2", () => {
 
     const pool = mockPool();
     const badSql = "INSERT INTO foo VALUES (1)";
-    const result = await ensureGuardedSqlV2(pool, "how many trips?", badSql, 1);
+    const result = await ensureGuardedSqlV2(pool, "how many trips?", badSql, {
+      maxRepairs: 1,
+    });
 
     expect(result.ok).toBe(true);
     expect(generateSqlWithRepair).toHaveBeenCalledTimes(1);
@@ -93,7 +95,7 @@ describe("ensureGuardedSqlV2", () => {
       pool,
       "how many trips?",
       "INSERT INTO foo VALUES (1)",
-      1
+      { maxRepairs: 1 }
     );
 
     expect(result.ok).toBe(false);

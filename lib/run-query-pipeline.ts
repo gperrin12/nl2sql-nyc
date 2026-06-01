@@ -1,8 +1,9 @@
 import type { SqlGenerationResult } from "@/lib/claude";
+import type { GuardRepairHook } from "@/lib/ensure-guarded-sql";
 import {
-  ensureGuardedSql,
-  type GuardRepairHook,
-} from "@/lib/ensure-guarded-sql";
+  ensureGuardedForPipeline,
+  guardrailAbstentionMessage,
+} from "@/lib/run-guarded-sql";
 import { ensureSchemaValidSql } from "@/lib/ensure-schema-sql";
 import { startQuery } from "@/lib/athena";
 import {
@@ -128,9 +129,13 @@ export async function runQueryPipeline(
 
   await onSqlGenerated?.(generation.sql);
 
-  const guarded = await ensureGuardedSql(question, generation, guardOptions);
+  const guarded = await ensureGuardedForPipeline(question, generation, {
+    ...guardOptions,
+    queryRunId: queryRunId ?? undefined,
+  });
   if (!guarded.ok) {
-    const outcome = outcomeForGuardrailBlocked(guarded.reason);
+    const displayReason = guardrailAbstentionMessage(guarded);
+    const outcome = outcomeForGuardrailBlocked(displayReason);
     await applyOutcome(queryRunId, {
       ...outcome,
       sql: guarded.sql,
@@ -144,6 +149,10 @@ export async function runQueryPipeline(
         error: "SQL rejected by guardrails",
         reason: guarded.reason,
         sql: guarded.sql,
+        error_type: guarded.error_type,
+        suggestion: guarded.suggestion,
+        abstention_reason: guarded.reason,
+        message: displayReason,
       },
     };
   }
@@ -159,11 +168,13 @@ export async function runQueryPipeline(
     guardOptions,
   });
   if (schemaChecked.guardFailure) {
-    const outcome = outcomeForGuardrailBlocked(schemaChecked.guardFailure.reason);
+    const gf = schemaChecked.guardFailure;
+    const displayReason = guardrailAbstentionMessage(gf);
+    const outcome = outcomeForGuardrailBlocked(displayReason);
     await applyOutcome(queryRunId, {
       ...outcome,
-      sql: schemaChecked.guardFailure.sql,
-      model: schemaChecked.guardFailure.generation.model,
+      sql: gf.sql,
+      model: gf.generation.model,
     });
     return {
       ok: false,
@@ -171,8 +182,12 @@ export async function runQueryPipeline(
       httpStatus: 400,
       body: {
         error: "SQL rejected by guardrails",
-        reason: schemaChecked.guardFailure.reason,
-        sql: schemaChecked.guardFailure.sql,
+        reason: gf.reason,
+        sql: gf.sql,
+        error_type: gf.error_type,
+        suggestion: gf.suggestion,
+        abstention_reason: gf.reason,
+        message: displayReason,
       },
     };
   }
