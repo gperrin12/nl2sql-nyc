@@ -3,6 +3,7 @@ export type QueryDataset =
   | "collisions"
   | "taxi"
   | "census"
+  | "transit"
   | "multi"
   | "other";
 
@@ -11,6 +12,7 @@ export const DATASET_LABELS: Record<QueryDataset, string> = {
   collisions: "NYPD Collisions",
   taxi: "Taxi",
   census: "ACS / Census",
+  transit: "MTA / Transit",
   multi: "Multi-table",
   other: "Other",
 };
@@ -20,6 +22,7 @@ const ALL_DATASETS: QueryDataset[] = [
   "collisions",
   "taxi",
   "census",
+  "transit",
   "multi",
   "other",
 ];
@@ -36,6 +39,7 @@ function datasetGroupsInSql(sql: string): QueryDataset[] {
   ) {
     groups.push("census");
   }
+  if (s.includes("mta_turnstile")) groups.push("transit");
   return groups;
 }
 

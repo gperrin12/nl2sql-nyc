@@ -80,6 +80,22 @@ export const DATA_CATALOG: DataCatalogEntry[] = [
     ],
     relatedTables: ["census_tracts"],
   },
+  {
+    id: "transit",
+    title: "MTA Subway Hourly Ridership",
+    table: "mta_turnstile",
+    tag: "MTA / Transit",
+    summary:
+      "Hourly subway ridership and transfers by station complex, broken out by payment method " +
+      "(OMNY vs MetroCard) and fare class (Full Fare, Fair Fare, Students, Seniors & Disability).",
+    coverage: "2025 · hourly · partitioned by year & month",
+    highlights: [
+      "ridership is a pre-aggregated rider count — SUM it, never COUNT(*) rows",
+      "Borough is Title Case (Manhattan, Brooklyn…), unlike 311",
+      "Native lat/lon + H3 cells (h3_r8–h3_r10) — hex maps with no join",
+    ],
+    relatedTables: ["census_tracts", "census_tract_demographics"],
+  },
 ];
 
 export const DATA_CATALOG_SUPPORTING: {

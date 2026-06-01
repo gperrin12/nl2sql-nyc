@@ -106,6 +106,22 @@ export const TRIVIA_CATEGORY_DEFS: TriviaCategoryDef[] = [
     family: "census",
     label: "311 complaints per capita by borough (census population denominator; say per capita clearly)",
   },
+  // MTA / Transit — subway ridership
+  {
+    id: "transit-busiest-station",
+    family: "transit",
+    label: "busiest subway station complexes by total ridership in 2025 (SUM(ridership), not row counts)",
+  },
+  {
+    id: "transit-omny-share",
+    family: "transit",
+    label: "OMNY vs MetroCard ridership share by borough in 2025 (payment_method)",
+  },
+  {
+    id: "transit-fair-fare",
+    family: "transit",
+    label: "Fair Fare ridership share across boroughs in 2025 (fare_class_category LIKE '%Fair Fare%')",
+  },
   // Cross-dataset angles
   {
     id: "compare-boroughs",
@@ -161,6 +177,15 @@ export function getCategoryGenerationHint(categoryId: string): string | undefine
       "Only per-capita / per-1,000-residents 311 rates with census population — never 311 per collision or per taxi trip.",
     "compare-boroughs":
       "Compare boroughs on ONE metric from ONE table (e.g. total 311 count, total collisions) — no cross-dataset ratios.",
+    "transit-busiest-station":
+      "mta_turnstile: rank by SUM(TRY_CAST(ridership AS DOUBLE)) — NEVER COUNT(*) (rows are fare-class buckets). " +
+      "answer_label = station_complex (GROUP BY station_complex_id). Filter year = '2025'.",
+    "transit-omny-share":
+      "mta_turnstile: payment_method is lowercase 'omny'/'metrocard'; SUM(TRY_CAST(ridership AS DOUBLE)) per borough. " +
+      "borough is Title Case ('Manhattan') — never UPPER(). Filter year = '2025'.",
+    "transit-fair-fare":
+      "mta_turnstile: Fair Fare share = SUM(ridership) WHERE fare_class_category LIKE '%Fair Fare%' over SUM(ridership) all classes, by borough. " +
+      "TRY_CAST(ridership AS DOUBLE); borough Title Case; year = '2025'.",
   };
   return hints[categoryId];
 }

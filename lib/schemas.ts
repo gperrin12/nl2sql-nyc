@@ -200,6 +200,38 @@ export const TABLE_SCHEMAS: Record<string, TableSchema> = {
       "year", "month",
     ],
   },
+  mta_turnstile: {
+    description:
+      "MTA subway hourly ridership (NYC Open Data). GRAIN: one row per station_complex per hour " +
+      "per payment_method per fare_class_category — NOT one row per rider. " +
+      "ridership is an ALREADY-AGGREGATED rider count for that slice: for 'busiest station', " +
+      "ridership totals, or any volume question use SUM(ridership) — NEVER COUNT(*) (counting rows " +
+      "counts fare-class buckets, not riders). transfers is a separate aggregated count, also SUM(). " +
+      "transit_timestamp is hour-bucketed ('2025-02-28 17:00:00.000'). If VARCHAR, parse with " +
+      "TRY_CAST(transit_timestamp AS TIMESTAMP) — do NOT use FROM_ISO8601_TIMESTAMP (no 'T' separator, fails). " +
+      "Hour of day: HOUR(TRY_CAST(transit_timestamp AS TIMESTAMP)); weekday/weekend: day_of_week(...) IN (6,7) = weekend. " +
+      "ridership and transfers may be VARCHAR — TRY_CAST(... AS DOUBLE) before SUM/AVG/ORDER BY. " +
+      "borough is Title Case ('Manhattan','Brooklyn','Bronx','Queens','Staten Island') — like census_tracts.boroname, " +
+      "NOT UPPERCASE like nyc_311. Compare with exact Title Case, never UPPER(). " +
+      "payment_method is lowercase 'omny' or 'metrocard' — use for OMNY-vs-Metrocard adoption questions. " +
+      "fare_class_category is the equity dimension, e.g. 'OMNY - Full Fare', 'OMNY - Students', 'OMNY - Fair Fare', " +
+      "'OMNY - Seniors & Disability', 'Metrocard - Full Fare', 'Metrocard - Fair Fare', 'Metrocard - Unlimited 7-Day', " +
+      "'Metrocard - Unlimited 30-Day', 'Metrocard - Other' (sample values; use LIKE 'OMNY%' / 'Metrocard%' for family splits). " +
+      "station_complex is the display name; station_complex_id is the stable key — GROUP BY id, label with station_complex. " +
+      "Native latitude/longitude (DOUBLE) present — use ST_Point(longitude, latitude) directly, no zone join needed. " +
+      "Precomputed STRING H3 cells h3_r8/h3_r9/h3_r10 for hex maps: GROUP BY the matching column, filter TRIM(h3_rN) <> ''. " +
+      "georeference is a GeoJSON Point string — prefer the latitude/longitude columns over parsing it. " +
+      "transit_mode is 'subway' (currently subway-only). Partitioned by year (VARCHAR, '2025') and month " +
+      "(VARCHAR, zero-padded '02'); 2025 data only so far — filter year = '2025'.",
+    columns: [
+      "transit_timestamp", "ridership", "transfers",
+      "latitude", "longitude",
+      "h3_r8", "h3_r9", "h3_r10",
+      "borough", "fare_class_category", "georeference",
+      "payment_method", "station_complex", "station_complex_id",
+      "transit_mode", "year", "month",
+    ],
+  },
 };
 
 /** Render schema entries for a subset of tables (for agent tool responses). */
@@ -245,6 +277,7 @@ const TRIVIA_TABLES = [
   "taxi_zones",
   "census_tracts",
   "census_tract_demographics",
+  "mta_turnstile",
 ] as const;
 
 /** Smaller schema block for trivia generation (faster Claude turn). */
