@@ -1,9 +1,14 @@
 import type { SqlGenerationResult } from "@/lib/claude";
+import { getPgPool } from "@/lib/db";
 import type { GuardRepairHook } from "@/lib/ensure-guarded-sql";
+import { ensureRepairAttemptsTable } from "@/lib/repair-attempts";
 import {
-  ensureGuardedForPipeline,
+  buildGuardrailFailureBody,
   guardrailAbstentionMessage,
+  mapV2Failure,
+  type GuardedPipelineResult,
 } from "@/lib/run-guarded-sql";
+import { ensureGuardedSqlV2 } from "@/lib/sql-agent/ensure-guarded-sql";
 import { ensureSchemaValidSql } from "@/lib/ensure-schema-sql";
 import { startQuery } from "@/lib/athena";
 import {
@@ -129,10 +134,48 @@ export async function runQueryPipeline(
 
   await onSqlGenerated?.(generation.sql);
 
-  const guarded = await ensureGuardedForPipeline(question, generation, {
+  if (!getPgPool()) {
+    const msg =
+      "DATABASE_URL is not configured — circuit-breaker guardrails require Postgres (nl2sql.repair_attempts)";
+    const outcome = outcomeForGuardrailBlocked(msg);
+    await applyOutcome(queryRunId, outcome);
+    return {
+      ok: false,
+      queryRunId,
+      httpStatus: 503,
+      body: {
+        error: "SQL rejected by guardrails",
+        reason: "configuration_error",
+        sql: generation.sql,
+        error_type: "configuration_error",
+        message: msg,
+      },
+    };
+  }
+
+  const pool = getPgPool()!;
+  await ensureRepairAttemptsTable(pool);
+
+  const v2Opts = {
     ...guardOptions,
     queryRunId: queryRunId ?? undefined,
-  });
+    initialGeneration: generation,
+  };
+  const v2 = await ensureGuardedSqlV2(pool, question, generation.sql, v2Opts);
+
+  let guarded: GuardedPipelineResult;
+  if (v2.ok) {
+    const gen = v2Opts.initialGeneration ?? generation;
+    guarded = {
+      ok: true,
+      sql: v2.sql,
+      generation: { ...gen, sql: v2.sql },
+      repairCount: v2.attempts,
+    };
+  } else {
+    guarded = mapV2Failure(v2Opts.initialGeneration ?? generation, v2);
+  }
+
   if (!guarded.ok) {
     const displayReason = guardrailAbstentionMessage(guarded);
     const outcome = outcomeForGuardrailBlocked(displayReason);
@@ -145,15 +188,7 @@ export async function runQueryPipeline(
       ok: false,
       queryRunId,
       httpStatus: 400,
-      body: {
-        error: "SQL rejected by guardrails",
-        reason: guarded.reason,
-        sql: guarded.sql,
-        error_type: guarded.error_type,
-        suggestion: guarded.suggestion,
-        abstention_reason: guarded.reason,
-        message: displayReason,
-      },
+      body: buildGuardrailFailureBody(guarded),
     };
   }
   generation = guarded.generation;
@@ -180,15 +215,7 @@ export async function runQueryPipeline(
       ok: false,
       queryRunId,
       httpStatus: 400,
-      body: {
-        error: "SQL rejected by guardrails",
-        reason: gf.reason,
-        sql: gf.sql,
-        error_type: gf.error_type,
-        suggestion: gf.suggestion,
-        abstention_reason: gf.reason,
-        message: displayReason,
-      },
+      body: buildGuardrailFailureBody({ ok: false, ...gf }),
     };
   }
   generation = schemaChecked.generation;

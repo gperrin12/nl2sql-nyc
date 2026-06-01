@@ -9,24 +9,17 @@ vi.mock("@/lib/repair-attempts", () => ({
   ensureRepairAttemptsTable: vi.fn().mockResolvedValue(undefined),
 }));
 
-vi.mock("@/lib/ensure-guarded-sql", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/lib/ensure-guarded-sql")>();
-  return {
-    ...actual,
-    ensureGuardedSql: vi.fn(),
-  };
-});
-
 vi.mock("@/lib/sql-agent/ensure-guarded-sql", () => ({
   ensureGuardedSqlV2: vi.fn(),
 }));
 
 import { getPgPool } from "@/lib/db";
-import { ensureGuardedSql } from "@/lib/ensure-guarded-sql";
 import { ensureGuardedSqlV2 } from "@/lib/sql-agent/ensure-guarded-sql";
 import {
-  ensureGuardedForPipeline,
+  guardGenerationWithV2,
   guardrailAbstentionMessage,
+  buildGuardrailFailureBody,
+  mapV2Failure,
 } from "@/lib/run-guarded-sql";
 
 const BASE_GEN: SqlGenerationResult = {
@@ -47,31 +40,9 @@ describe("guardrailAbstentionMessage", () => {
   });
 });
 
-describe("ensureGuardedForPipeline", () => {
-  beforeEach(() => {
-    vi.mocked(getPgPool).mockReset();
-    vi.mocked(ensureGuardedSql).mockReset();
-    vi.mocked(ensureGuardedSqlV2).mockReset();
-  });
-
-  it("uses legacy guard when no pool", async () => {
-    vi.mocked(getPgPool).mockReturnValue(null);
-    vi.mocked(ensureGuardedSql).mockResolvedValue({
-      ok: true,
-      sql: "SELECT 1",
-      generation: BASE_GEN,
-      repairCount: 0,
-    });
-
-    const result = await ensureGuardedForPipeline("q", BASE_GEN);
-    expect(result.ok).toBe(true);
-    expect(ensureGuardedSql).toHaveBeenCalled();
-    expect(ensureGuardedSqlV2).not.toHaveBeenCalled();
-  });
-
-  it("uses V2 when pool is configured", async () => {
-    vi.mocked(getPgPool).mockReturnValue({} as never);
-    vi.mocked(ensureGuardedSqlV2).mockResolvedValue({
+describe("mapV2Failure", () => {
+  it("maps V2 abstention to pipeline shape", () => {
+    const failure = mapV2Failure(BASE_GEN, {
       ok: false,
       sql: "bad",
       attempts: 2,
@@ -79,13 +50,55 @@ describe("ensureGuardedForPipeline", () => {
       error_type: "unknown",
       suggestion: "Try again.",
     });
+    expect(failure.reason).toBe("schema_mismatch_repeated");
+    expect(failure.suggestion).toBe("Try again.");
+    expect(failure.generation.sql).toBe("bad");
+  });
+});
 
-    const result = await ensureGuardedForPipeline("q", BASE_GEN);
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect(result.reason).toBe("schema_mismatch_repeated");
-      expect(result.suggestion).toBe("Try again.");
-    }
+describe("buildGuardrailFailureBody", () => {
+  it("includes structured abstention fields", () => {
+    const body = buildGuardrailFailureBody({
+      ok: false,
+      sql: "x",
+      generation: BASE_GEN,
+      reason: "max_repairs_exceeded",
+      error_type: "unknown",
+      suggestion: "Simplify the question.",
+    });
+    expect(body.error).toBe("SQL rejected by guardrails");
+    expect(body.message).toBe("Simplify the question.");
+    expect(body.abstention_reason).toBe("max_repairs_exceeded");
+  });
+});
+
+describe("guardGenerationWithV2", () => {
+  beforeEach(() => {
+    vi.mocked(getPgPool).mockReset();
+    vi.mocked(ensureGuardedSqlV2).mockReset();
+  });
+
+  it("returns poolMissing when DATABASE_URL is not configured", async () => {
+    vi.mocked(getPgPool).mockReturnValue(null);
+    const result = await guardGenerationWithV2("q", BASE_GEN);
+    expect(result).toEqual({ ok: false, poolMissing: true });
+    expect(ensureGuardedSqlV2).not.toHaveBeenCalled();
+  });
+
+  it("calls ensureGuardedSqlV2 and maps success", async () => {
+    vi.mocked(getPgPool).mockReturnValue({} as never);
+    vi.mocked(ensureGuardedSqlV2).mockResolvedValue({
+      ok: true,
+      sql: "SELECT 2",
+      attempts: 1,
+    });
+
+    const result = await guardGenerationWithV2("q", BASE_GEN);
+    expect(result).toMatchObject({
+      ok: true,
+      sql: "SELECT 2",
+      repairCount: 1,
+    });
     expect(ensureGuardedSqlV2).toHaveBeenCalled();
   });
 });

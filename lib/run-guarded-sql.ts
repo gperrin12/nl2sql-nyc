@@ -1,13 +1,10 @@
 import type { SqlGenerationResult } from "@/lib/claude";
 import { getPgPool } from "@/lib/db";
-import {
-  ensureGuardedSql,
-  type GuardRepairHook,
-} from "@/lib/ensure-guarded-sql";
+import type { GuardRepairHook } from "@/lib/ensure-guarded-sql";
 import { ensureRepairAttemptsTable } from "@/lib/repair-attempts";
 import {
   ensureGuardedSqlV2,
-  type EnsureGuardedSqlV2Options,
+  type GuardedSqlResult,
 } from "@/lib/sql-agent/ensure-guarded-sql";
 
 export type GuardedPipelineResult =
@@ -21,51 +18,35 @@ export type GuardedPipelineResult =
       ok: false;
       sql: string;
       generation: SqlGenerationResult;
-      /** Machine reason: max_repairs_exceeded | schema_mismatch_repeated | guardrail text */
       reason: string;
       error_type?: string;
       suggestion?: string;
     };
 
-export type EnsureGuardedPipelineOptions = {
+export type GuardGenerationV2Options = {
   onRepair?: GuardRepairHook;
-  queryRunId?: string;
+  queryRunId?: string | null;
   maxRepairs?: number;
 };
 
-/** Guardrails + repair: V2 when Postgres is configured, else legacy ensureGuardedSql. */
-export async function ensureGuardedForPipeline(
+/**
+ * Circuit-breaker guardrails (ensureGuardedSqlV2). Requires DATABASE_URL / getPgPool().
+ */
+export async function guardGenerationWithV2(
   question: string,
   generation: SqlGenerationResult,
-  options?: EnsureGuardedPipelineOptions
-): Promise<GuardedPipelineResult> {
+  options?: GuardGenerationV2Options
+): Promise<GuardedPipelineResult | { ok: false; poolMissing: true }> {
   const pool = getPgPool();
   if (!pool) {
-    const legacy = await ensureGuardedSql(question, generation, {
-      maxRepairs: options?.maxRepairs,
-      onRepair: options?.onRepair,
-    });
-    if (legacy.ok) {
-      return {
-        ok: true,
-        sql: legacy.sql,
-        generation: legacy.generation,
-        repairCount: legacy.repairCount,
-      };
-    }
-    return {
-      ok: false,
-      sql: legacy.sql,
-      generation: legacy.generation,
-      reason: legacy.reason,
-    };
+    return { ok: false, poolMissing: true };
   }
 
   await ensureRepairAttemptsTable(pool);
 
-  const v2Opts: EnsureGuardedSqlV2Options = {
+  const v2Opts = {
     maxRepairs: options?.maxRepairs,
-    queryRunId: options?.queryRunId,
+    queryRunId: options?.queryRunId ?? undefined,
     onRepair: options?.onRepair,
     initialGeneration: generation,
   };
@@ -77,8 +58,7 @@ export async function ensureGuardedForPipeline(
     v2Opts
   );
 
-  const gen =
-    v2Opts.initialGeneration ?? { ...generation, sql: guarded.sql };
+  const gen = v2Opts.initialGeneration ?? generation;
 
   if (guarded.ok) {
     return {
@@ -89,10 +69,17 @@ export async function ensureGuardedForPipeline(
     };
   }
 
+  return mapV2Failure(gen, guarded);
+}
+
+export function mapV2Failure(
+  generation: SqlGenerationResult,
+  guarded: GuardedSqlResult
+): Extract<GuardedPipelineResult, { ok: false }> {
   return {
     ok: false,
     sql: guarded.sql,
-    generation: { ...gen, sql: guarded.sql },
+    generation: { ...generation, sql: guarded.sql },
     reason: guarded.reason ?? "max_repairs_exceeded",
     error_type: guarded.error_type,
     suggestion: guarded.suggestion,
@@ -112,4 +99,19 @@ export function guardrailAbstentionMessage(failure: {
     return "The query could not be fixed after multiple repair attempts. Try simplifying your question.";
   }
   return failure.reason;
+}
+
+export function buildGuardrailFailureBody(
+  failure: Extract<GuardedPipelineResult, { ok: false }>
+): Record<string, unknown> {
+  const displayReason = guardrailAbstentionMessage(failure);
+  return {
+    error: "SQL rejected by guardrails",
+    reason: failure.reason,
+    sql: failure.sql,
+    error_type: failure.error_type,
+    suggestion: failure.suggestion,
+    abstention_reason: failure.reason,
+    message: displayReason,
+  };
 }
