@@ -33,7 +33,8 @@ loadEnvFile();
 
 import { getPgPool, isDatabaseConfigured } from "../lib/db";
 import { ensureRepairAttemptsTable } from "../lib/repair-attempts";
-import { ensureGuardedSqlV2, type GuardedSqlResult } from "../lib/sql-agent/ensure-guarded-sql";
+import { guardSqlForEval } from "../lib/run-guarded-sql";
+import type { GuardedSqlResult } from "../lib/sql-agent/ensure-guarded-sql";
 import { runSqlAgentWithEvents } from "../lib/sql-agent/run";
 import type { AgentStreamPayload } from "../lib/sql-agent/types";
 
@@ -117,11 +118,30 @@ function formatAgentEvent(e: AgentStreamPayload): string | null {
 
 /** Guardrail-layer outcome only — does not reflect Athena/schema-at-runtime. */
 function guardrailOutcome(
-  guarded: GuardedSqlResult | undefined,
+  guarded:
+    | GuardedSqlResult
+    | { ok: true; sql: string; attempts: number }
+    | undefined,
   agentFailed: boolean
 ): ExpectedOutcome {
   if (agentFailed || !guarded?.ok) return "abstain";
   return "succeed";
+}
+
+function toGuardedSqlResult(
+  guarded: Awaited<ReturnType<typeof guardSqlForEval>>
+): GuardedSqlResult {
+  if (guarded.ok) {
+    return { ok: true, sql: guarded.sql, attempts: guarded.repairCount };
+  }
+  return {
+    ok: false,
+    sql: guarded.sql,
+    attempts: 0,
+    reason: guarded.reason,
+    error_type: guarded.error_type,
+    suggestion: guarded.suggestion,
+  };
 }
 
 function printScopeBanner(): void {
@@ -340,7 +360,8 @@ async function main(): Promise<void> {
       generation = gen;
       console.log(`  [agent] SQL generated (${gen.sql.length} chars)`);
 
-      guarded = await ensureGuardedSqlV2(pool, q.question, gen.sql);
+      const pipelineGuarded = await guardSqlForEval(q.question, gen);
+      guarded = toGuardedSqlResult(pipelineGuarded);
     } catch (e) {
       agentError = e instanceof Error ? e.message : String(e);
       console.log(`  [error] ${agentError}`);

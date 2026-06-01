@@ -29,7 +29,10 @@ loadEnvFile();
 
 import { startQuery, getStatus, getResults } from "../lib/athena";
 import type { SqlGenerationResult } from "../lib/claude";
-import { ensureGuardedSql } from "../lib/ensure-guarded-sql";
+import {
+  guardrailAbstentionMessage,
+  guardSqlForEval,
+} from "../lib/run-guarded-sql";
 import { isDatabaseConfigured } from "../lib/db";
 import { evalMatchKey } from "../lib/eval-match";
 import {
@@ -253,17 +256,30 @@ async function runGoldenQuestion(
 
   console.log(`  → model: ${generation.model}, backend: ${BACKEND}`);
 
-  const guarded = await ensureGuardedSql(question, generation);
+  let guarded;
+  try {
+    guarded = await guardSqlForEval(question, generation);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.log(`  ✗ guardrails — ${msg}`);
+    return null;
+  }
   if (!guarded.ok) {
     const h = schemaHallucinationPatch(guarded.sql);
-    console.log(`  ✗ guardrails — ${guarded.reason}`);
+    const errorReason = guardrailAbstentionMessage(guarded);
+    console.log(
+      `  ✗ guardrails — ${guarded.reason}${guarded.error_type ? ` [${guarded.error_type}]` : ""}`
+    );
+    if (guarded.suggestion && guarded.suggestion !== errorReason) {
+      console.log(`    ${guarded.suggestion}`);
+    }
     const queryRunId = await upsertQueryRun({
       question,
       sql: guarded.sql,
-      model: generation.model,
+      model: guarded.generation.model,
       backend: BACKEND,
       athenaState: "FAILED",
-      errorReason: guarded.reason,
+      errorReason,
       appVersion: GOLDEN_APP_VERSION,
       promptVersion: PROMPT_VERSION,
       ...h,
@@ -271,13 +287,13 @@ async function runGoldenQuestion(
     return {
       question,
       sql: guarded.sql,
-      model: generation.model,
+      model: guarded.generation.model,
       queryRunId,
       replay: {
         question,
         sql: guarded.sql,
         athenaStatus: "FAILED",
-        errorReason: guarded.reason,
+        errorReason,
         rowCount: null,
         columns: null,
         sampleRows: null,
@@ -401,7 +417,9 @@ function printPlan(questions: GoldenDatasetEntry[]): void {
   console.log(`  Backend:  agent (generateSqlWithAgent)`);
   console.log(`  Prompt:   ${PROMPT_VERSION} (nl2sql.query_runs.prompt_version)`);
   console.log(`  Version:  ${GOLDEN_APP_VERSION} (nl2sql.query_runs.app_version)`);
-  console.log(`  DB log:   ${isDatabaseConfigured() ? "yes" : "no (DATABASE_URL unset)"}`);
+  console.log(
+    `  DB:       ${isDatabaseConfigured() ? "yes (query_runs + V2 guardrails)" : "required — DATABASE_URL unset"}`
+  );
   console.log(`  Judge:    ${NO_JUDGE ? "skipped" : "full (SQL + Athena result)"}`);
   console.log(`  Delay:    ${RUN_DELAY_MS}ms between questions`);
   console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
@@ -428,10 +446,11 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  if (!isDatabaseConfigured()) {
-    console.warn(
-      "Warning: DATABASE_URL unset — runs will not be logged to query_runs."
+  if (!DRY_RUN && !isDatabaseConfigured()) {
+    console.error(
+      "Error: DATABASE_URL is required (prompt versions, query_runs, V2 guardrails)"
     );
+    process.exit(1);
   }
 
   // Load the prompt variant injected into the agent (A/B testing). Skipped on --dry-run.

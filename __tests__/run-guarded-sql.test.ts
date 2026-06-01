@@ -17,6 +17,7 @@ import { getPgPool } from "@/lib/db";
 import { ensureGuardedSqlV2 } from "@/lib/sql-agent/ensure-guarded-sql";
 import {
   guardGenerationWithV2,
+  guardSqlForEval,
   guardrailAbstentionMessage,
   buildGuardrailFailureBody,
   mapV2Failure,
@@ -100,5 +101,19 @@ describe("guardGenerationWithV2", () => {
       repairCount: 1,
     });
     expect(ensureGuardedSqlV2).toHaveBeenCalled();
+  });
+});
+
+describe("guardSqlForEval", () => {
+  beforeEach(() => {
+    vi.mocked(getPgPool).mockReset();
+    vi.mocked(ensureGuardedSqlV2).mockReset();
+  });
+
+  it("throws when pool is missing", async () => {
+    vi.mocked(getPgPool).mockReturnValue(null);
+    await expect(guardSqlForEval("q", BASE_GEN)).rejects.toThrow(
+      /DATABASE_URL is required/
+    );
   });
 });

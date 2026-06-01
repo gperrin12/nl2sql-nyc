@@ -72,6 +72,23 @@ export async function guardGenerationWithV2(
   return mapV2Failure(gen, guarded);
 }
 
+/**
+ * Eval scripts: V2 guardrails; throws if DATABASE_URL is unset.
+ */
+export async function guardSqlForEval(
+  question: string,
+  generation: SqlGenerationResult,
+  options?: GuardGenerationV2Options
+): Promise<GuardedPipelineResult> {
+  const result = await guardGenerationWithV2(question, generation, options);
+  if (!result.ok && "poolMissing" in result) {
+    throw new Error(
+      "DATABASE_URL is required for circuit-breaker guardrails (nl2sql.repair_attempts)"
+    );
+  }
+  return result;
+}
+
 export function mapV2Failure(
   generation: SqlGenerationResult,
   guarded: GuardedSqlResult

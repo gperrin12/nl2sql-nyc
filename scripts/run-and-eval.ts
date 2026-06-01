@@ -31,7 +31,10 @@ loadEnvFile();
 import path from "path";
 import { getAppVersion } from "../lib/app-version";
 import { generateSql, type SqlGenerationResult } from "../lib/claude";
-import { ensureGuardedSql } from "../lib/ensure-guarded-sql";
+import {
+  guardrailAbstentionMessage,
+  guardSqlForEval,
+} from "../lib/run-guarded-sql";
 import { detectWarehouseHallucinations } from "../lib/hallucination-schema";
 import { evalMatchKey } from "../lib/eval-match";
 import {
@@ -280,31 +283,44 @@ async function runQuestionDirect(q: QuestionBankEntry): Promise<RunOutcome | nul
 
   console.log(`  → model: ${generation.model}, backend: ${backend}`);
 
-  const guarded = await ensureGuardedSql(question, generation);
+  let guarded;
+  try {
+    guarded = await guardSqlForEval(question, generation);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.log(`  ✗ guardrails — ${msg}`);
+    return null;
+  }
   if (!guarded.ok) {
     const h = schemaHallucinationPatch(guarded.sql);
-    console.log(`  ✗ guardrails — ${guarded.reason}`);
+    const errorReason = guardrailAbstentionMessage(guarded);
+    console.log(
+      `  ✗ guardrails — ${guarded.reason}${guarded.error_type ? ` [${guarded.error_type}]` : ""}`
+    );
+    if (guarded.suggestion && guarded.suggestion !== errorReason) {
+      console.log(`    ${guarded.suggestion}`);
+    }
     const queryRunId = await upsertQueryRun({
       question,
       sql: guarded.sql,
-      model: generation.model,
+      model: guarded.generation.model,
       backend,
       athenaState: "FAILED",
-      errorReason: guarded.reason,
+      errorReason,
       promptVersion: PROMPT_VERSION,
       ...h,
     });
     return {
       question,
       sql: guarded.sql,
-      model: generation.model,
+      model: guarded.generation.model,
       backend,
       queryRunId,
       replay: {
         question,
         sql: guarded.sql,
         athenaStatus: "FAILED",
-        errorReason: guarded.reason,
+        errorReason,
         rowCount: null,
         columns: null,
         sampleRows: null,
@@ -447,7 +463,9 @@ function printPlan(questions: QuestionBankEntry[]): void {
   console.log(`  Backend:  ${backendLabel()}`);
   console.log(`  Prompt:   ${PROMPT_VERSION} (nl2sql.query_runs.prompt_version)`);
   console.log(`  Version:  ${getAppVersion()} (nl2sql.query_runs.app_version)`);
-  console.log(`  DB log:   ${isDatabaseConfigured() ? "yes" : "no (DATABASE_URL unset)"}`);
+  console.log(
+    `  DB:       ${isDatabaseConfigured() ? "yes (query_runs + V2 guardrails)" : "required — DATABASE_URL unset"}`
+  );
   console.log(`  Judge:    ${NO_JUDGE ? "skipped" : FULL_EVAL ? "full (SQL+result)" : "SQL only"}`);
   console.log(`  Delay:    ${RUN_DELAY_MS}ms between questions`);
   console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
@@ -492,6 +510,13 @@ async function main(): Promise<void> {
 
   if (!NO_JUDGE) {
     requireEnv("ANTHROPIC_API_KEY", process.env.ANTHROPIC_API_KEY);
+  }
+
+  if (!REMOTE && !DRY_RUN && !isDatabaseConfigured()) {
+    console.error(
+      "Error: DATABASE_URL is required for direct mode (prompt versions, query_runs, V2 guardrails)"
+    );
+    process.exit(1);
   }
 
   // Direct mode forces the agent backend with a DB-stored prompt variant (A/B testing).
