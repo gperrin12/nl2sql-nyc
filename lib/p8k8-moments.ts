@@ -3,6 +3,13 @@
  */
 
 import { extractSqlFromAssistantText } from "@/lib/p8k8";
+import type { CorrectnessVerdict } from "@/lib/judge";
+import type { QueryCategory } from "@/lib/query-category";
+import type { QueryDataset } from "@/lib/query-dataset";
+import type { QueryDifficulty } from "@/lib/query-difficulty";
+import type { HallucinationType } from "@/lib/query-runs-store";
+import type { QuestionSource } from "@/lib/question-source";
+import type { TokenSummary } from "@/lib/query-run-tokens";
 import type { QuestionMetrics, SqlComplexity } from "@/lib/sql-metrics";
 
 export type DashboardMoment = {
@@ -26,6 +33,16 @@ export type DashboardMoment = {
   scannedBytes?: number | null;
   /** Raw runtime_ms from DB when source is postgres */
   runtimeMsFromDb?: number | null;
+  /** From query_runs when judged (eval dashboard). */
+  judgeOverall?: number | null;
+  judgeVerdict?: CorrectnessVerdict | null;
+  judgeCategory?: QueryCategory | null;
+  judgeDataset?: QueryDataset | null;
+  judgeDifficulty?: QueryDifficulty | null;
+  tokensUsed?: TokenSummary | null;
+  costUsd?: number | null;
+  hallucinationType?: HallucinationType | null;
+  questionSource?: QuestionSource | null;
 };
 
 type P8k8TimelineEvent = {

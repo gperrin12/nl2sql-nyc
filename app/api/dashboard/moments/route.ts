@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isAuthenticated } from "@/lib/auth";
-import { loadDashboardMoments } from "@/lib/load-dashboard-moments";
+import {
+  loadDashboardMoments,
+  parseQuestionSource,
+  parseSinceDays,
+} from "@/lib/load-dashboard-moments";
 
-const FETCH_LIMIT = 200;
+const FETCH_LIMIT = 500;
 
 export const dynamic = "force-dynamic";
 
@@ -21,6 +25,8 @@ export async function GET(req: NextRequest) {
     Number.parseInt(searchParams.get("offset") ?? "0", 10) || 0
   );
   const appVersion = searchParams.get("appVersion") ?? undefined;
+  const sinceDays = parseSinceDays(searchParams.get("sinceDays"));
+  const questionSource = parseQuestionSource(searchParams.get("questionSource"));
 
   try {
     const payload = await loadDashboardMoments({
@@ -28,6 +34,8 @@ export async function GET(req: NextRequest) {
       offset,
       pageLimit: limit,
       appVersion,
+      sinceDays,
+      questionSource,
     });
     return NextResponse.json(payload);
   } catch (e) {

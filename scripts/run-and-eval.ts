@@ -1,6 +1,6 @@
 /**
  * Run questions from data/questions.json: generate SQL (local backends), log to Postgres,
- * judge, and write data/evals.json (+ S3 when EVALS_S3_URI is set).
+ * judge, and persist judge_overall on nl2sql.query_runs.
  *
  * Usage (reads .env / .env.local):
  *   npm run run:eval
@@ -15,7 +15,7 @@
  *   --full      — judge SQL + Athena result + viz (like eval:full)
  *   --dry-run   — print plan only
  *   --force     — re-judge even when eval exists for same question+sql
- *   --replace   — evals file contains only this run's results (not merged)
+ *   --replace   — (legacy flag, no-op; scores live on query_runs only)
  *   --no-judge  — run queries + log only
  *
  * Env (same filters as seed):
@@ -36,12 +36,7 @@ import {
   guardSqlForEval,
 } from "../lib/run-guarded-sql";
 import { detectWarehouseHallucinations } from "../lib/hallucination-schema";
-import { evalMatchKey } from "../lib/eval-match";
-import {
-  evalsStorageDescription,
-  loadEvals,
-  saveEvals,
-} from "../lib/evals-store";
+import { getQueryRunJudgeOverall } from "../lib/query-runs-store";
 import { startQuery, getStatus, getResults } from "../lib/athena";
 import { inferUiViz } from "../lib/infer-ui-viz";
 import {
@@ -445,16 +440,6 @@ async function runQuestionRemote(q: QuestionBankEntry): Promise<RunOutcome | nul
   };
 }
 
-function mergeByPairKey(
-  existing: FullJudgeResult[],
-  added: FullJudgeResult[]
-): FullJudgeResult[] {
-  const map = new Map<string, FullJudgeResult>();
-  for (const e of existing) map.set(evalMatchKey(e.question, e.sql), e);
-  for (const e of added) map.set(evalMatchKey(e.question, e.sql), e);
-  return Array.from(map.values());
-}
-
 function printPlan(questions: QuestionBankEntry[]): void {
   console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
   console.log(`Run + eval plan: ${questions.length} question(s)`);
@@ -471,16 +456,13 @@ function printPlan(questions: QuestionBankEntry[]): void {
   console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 }
 
-function printSummary(newResults: FullJudgeResult[], all: FullJudgeResult[]): void {
+function printSummary(newResults: FullJudgeResult[]): void {
   const n = newResults.length;
   const avg =
     n > 0 ? newResults.reduce((s, r) => s + r.overall, 0) / n : 0;
   console.log("");
   console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-  console.log(`Judged: ${n} pair(s), avg ${avg.toFixed(1)}/10`);
-  if (!NO_JUDGE) {
-    console.log(`Written to ${evalsStorageDescription()} (${all.length} total)`);
-  }
+  console.log(`Judged: ${n} pair(s), avg ${avg.toFixed(1)}/5 → nl2sql.query_runs`);
   console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 }
 
@@ -555,10 +537,6 @@ async function main(): Promise<void> {
     return;
   }
 
-  const existing = NO_JUDGE ? [] : await loadEvals();
-  const judgedKeys = new Set(
-    existing.map((e) => evalMatchKey(e.question, e.sql))
-  );
   const newResults: FullJudgeResult[] = [];
 
   for (let i = 0; i < questions.length; i++) {
@@ -581,9 +559,12 @@ async function main(): Promise<void> {
       continue;
     }
 
-    const key = evalMatchKey(outcome.question, outcome.sql);
-    if (!FORCE_JUDGE && judgedKeys.has(key)) {
-      console.log("  → eval exists for this question+sql, skipping judge");
+    if (
+      !FORCE_JUDGE &&
+      outcome.queryRunId &&
+      (await getQueryRunJudgeOverall(outcome.queryRunId)) != null
+    ) {
+      console.log("  → judge_overall already set on query_runs row, skipping judge");
       if (i < questions.length - 1) await sleep(JUDGE_DELAY_MS);
       continue;
     }
@@ -611,7 +592,6 @@ async function main(): Promise<void> {
     console.log(`  → judge: ${result.overall}/5 (${result.verdict})`);
 
     newResults.push(result);
-    judgedKeys.add(key);
 
     if (i < questions.length - 1) {
       await sleep(FULL_EVAL ? RUN_DELAY_MS : JUDGE_DELAY_MS);
@@ -623,22 +603,7 @@ async function main(): Promise<void> {
     return;
   }
 
-  const merged = REPLACE_EVALS
-    ? newResults
-    : mergeByPairKey(existing, newResults);
-  merged.sort(
-    (a, b) =>
-      new Date(b.judgedAt).getTime() - new Date(a.judgedAt).getTime()
-  );
-
-  await saveEvals(merged);
-  printSummary(newResults, merged);
-
-  if (!process.env.EVALS_S3_URI?.trim()) {
-    console.warn(
-      "\nNote: EVALS_S3_URI is not set — evals saved locally only. Use npm run eval:upload or set EVALS_S3_URI."
-    );
-  }
+  printSummary(newResults);
 }
 
 main().catch((e) => {

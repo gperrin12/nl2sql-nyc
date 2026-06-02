@@ -113,26 +113,17 @@ cp .env.example .env.local
 npm run dev
 ```
 
-Open http://localhost:3000. When logged in, **`/dashboard`** lists **one row per question** — the **most recent** run in **`nl2sql.query_runs`** (any deploy). Each row shows that run’s `app_version` in the agent column. Requires **`DATABASE_URL`**. API: `?appVersion=8ad5499` limits to a deploy; `?appVersion=current` is this instance’s SHA. Set **`DASHBOARD_SOURCE=p8k8`** for the legacy p8k8 timeline.
+Open http://localhost:3000. When logged in, **`/dashboard`** shows **judged** runs only from **`nl2sql.query_runs`** — **latest judged run per question** in the selected time range. Filters: last 1d / 7d / 30d, golden vs question bank vs ad-hoc. Surfaces `judge_overall`, tokens, cost, and hallucination type. Requires **`DATABASE_URL`**. API: `?sinceDays=7`, `?questionSource=golden`, `?appVersion=…` for deploy filter.
 
-**Eval script** (`npm run eval`) uses the same Postgres source and defaults to the current deploy; **`EVAL_APP_VERSION=all`** includes all rows. Legacy: `npm run eval:p8k8`.
+**Eval script** (`npm run eval`) judges rows in Postgres and writes **`judge_overall`** on each `query_runs` row; defaults to current deploy (`EVAL_APP_VERSION=all` for all deploys).
 
-**Run + eval** (`npm run run:eval`) reads `data/questions.json`, generates SQL with your local env (`USE_P8K8` / `CLAUDE_SQL_AGENT`), logs to Postgres, judges, and writes `evals.json`. Use `npm run run:eval:full` for Athena+viz judging. No browser required.
+**Run + eval** (`npm run run:eval`) reads `data/questions.json`, generates SQL with your local env (`USE_P8K8` / `CLAUDE_SQL_AGENT`), logs to Postgres, judges, and persists scores on `query_runs`. Use `npm run run:eval:full` for Athena+viz judging. No browser required.
 
 **Golden eval** (`npm run eval:golden`) reads `data/golden-dataset.json` (12 curated questions), runs the **tool-using SQL agent**, executes on Athena, judges, and logs to `nl2sql.query_runs` with **`app_version`** (default in `lib/golden-eval-version.ts`) and **`prompt_version`** (from `--prompt-version`, default `v1-baseline`). A/B prompts: `npm run eval:golden -- --prompt-version v2-chain-of-thought`. Change deploy tag: `GOLDEN_APP_VERSION=v3.2 npm run eval:golden` or `--version v3.2`. Requires `DATABASE_URL`, `ANTHROPIC_API_KEY`, `ATHENA_OUTPUT_LOCATION`. Dry run: `npm run eval:golden:dry`. Filter: `RUN_LIMIT=1 SEED_IDS=agg-003 npm run eval:golden`. Re-judge logged rows: `EVAL_APP_VERSION=v3.1 npm run eval`.
 
-### Dashboard evals on Vercel
+### Dashboard on Vercel
 
-Vercel has no persistent disk, so judge results from `npm run eval` must live in **S3** (same AWS creds as Athena):
-
-1. Create an object path, e.g. `s3://your-athena-bucket/nl2sql-nyc/evals.json`
-2. Set **`EVALS_S3_URI`** on Vercel (and in local `.env` when running eval)
-3. IAM needs `s3:GetObject` on that key (Vercel) and `s3:PutObject` (your laptop when running eval)
-4. Run locally: `npm run eval` — uploads to S3 and writes `data/evals.json` (requires `EVALS_S3_URI` in `.env` when you run the command)
-5. One-off upload of an existing file: `npm run eval:upload`
-6. Redeploy is **not** required after eval; refresh `/dashboard` on production
-
-Without `EVALS_S3_URI`, the API reads `data/evals.json` only (works for `npm run dev` on your machine).
+Set **`DATABASE_URL`** on Vercel so `/dashboard` reads judged rows from Postgres. Run `npm run eval` (or `run:eval` / `eval:golden`) against the same database, then refresh `/dashboard` — no redeploy needed.
 
 ## Required AWS setup
 

@@ -1,18 +1,11 @@
 "use client";
 
 import type { ReactNode } from "react";
-import type { FullJudgeResult } from "@/lib/judge";
+import type { DashboardJudgeView } from "@/lib/dashboard-judge";
+import type { CorrectnessVerdict } from "@/lib/judge";
 import type { QueryCategory } from "@/lib/query-category";
-import {
-  DATASET_LABELS,
-  detectDatasets,
-  type QueryDataset,
-} from "@/lib/query-dataset";
-import {
-  DIFFICULTY_LABELS,
-  difficultyFromSql,
-  type QueryDifficulty,
-} from "@/lib/query-difficulty";
+import { DATASET_LABELS, type QueryDataset } from "@/lib/query-dataset";
+import { DIFFICULTY_LABELS, type QueryDifficulty } from "@/lib/query-difficulty";
 
 type BreakdownRow = {
   key: string;
@@ -36,13 +29,17 @@ const CATEGORY_LABELS: Record<QueryCategory, string> = {
   other: "Other",
 };
 
-function evalDisplayScore(e: FullJudgeResult): number {
-  return e.overall;
-}
+const HALLUCINATION_LABELS: Record<string, string> = {
+  none: "None",
+  off_topic: "Off topic",
+  guardrail_blocked: "Guardrail blocked",
+  no_sql_produced: "No SQL",
+  schema_hallucination: "Schema hallucination",
+};
 
 function buildBreakdown(
-  evals: FullJudgeResult[],
-  keyFn: (e: FullJudgeResult) => string | null,
+  rows: DashboardJudgeView[],
+  keyFn: (e: DashboardJudgeView) => string | null,
   labelFn: (key: string) => string
 ): BreakdownRow[] {
   const buckets = new Map<
@@ -50,7 +47,7 @@ function buildBreakdown(
     { scores: number[]; correct: number; partial: number; incorrect: number }
   >();
 
-  for (const e of evals) {
+  for (const e of rows) {
     let key: string | null;
     try {
       key = keyFn(e);
@@ -64,18 +61,18 @@ function buildBreakdown(
       b = { scores: [], correct: 0, partial: 0, incorrect: 0 };
       buckets.set(key, b);
     }
-    b.scores.push(evalDisplayScore(e));
+    b.scores.push(e.overall);
     if (e.verdict === "correct") b.correct += 1;
     else if (e.verdict === "partial") b.partial += 1;
     else if (e.verdict === "incorrect") b.incorrect += 1;
   }
 
-  const rows: BreakdownRow[] = [];
+  const out: BreakdownRow[] = [];
   for (const [key, b] of buckets) {
     const count = b.scores.length;
     if (count === 0) continue;
     const avgScore = b.scores.reduce((a, n) => a + n, 0) / count;
-    rows.push({
+    out.push({
       key,
       label: labelFn(key),
       count,
@@ -87,7 +84,25 @@ function buildBreakdown(
     });
   }
 
-  return rows.sort((a, b) => a.avgScore - b.avgScore);
+  return out.sort((a, b) => a.avgScore - b.avgScore);
+}
+
+function buildHallucinationBreakdown(
+  counts: Record<string, number>
+): BreakdownRow[] {
+  return Object.entries(counts)
+    .map(([key, count]) => ({
+      key,
+      label: HALLUCINATION_LABELS[key] ?? key,
+      count,
+      avgScore: 0,
+      correctPct: 0,
+      correct: 0,
+      partial: 0,
+      incorrect: 0,
+    }))
+    .filter((r) => r.count > 0)
+    .sort((a, b) => b.count - a.count);
 }
 
 function VerdictSplitBar({
@@ -127,10 +142,12 @@ function BreakdownTable({
   sectionLabel,
   dimensionLabel,
   rows,
+  showScoreColumns = true,
 }: {
   sectionLabel: string;
   dimensionLabel: string;
   rows: BreakdownRow[];
+  showScoreColumns?: boolean;
 }) {
   if (rows.length === 0) return null;
 
@@ -145,9 +162,19 @@ function BreakdownTable({
             <tr className="text-[var(--muted)] uppercase tracking-wide border-b border-[var(--border)]">
               <th className="px-2.5 py-1.5 font-medium">{dimensionLabel}</th>
               <th className="px-2.5 py-1.5 font-medium text-right w-12">Count</th>
-              <th className="px-2.5 py-1.5 font-medium text-right w-16">Avg Score</th>
-              <th className="px-2.5 py-1.5 font-medium text-right w-14">Correct %</th>
-              <th className="px-2.5 py-1.5 font-medium min-w-[5rem]">Split</th>
+              {showScoreColumns ? (
+                <>
+                  <th className="px-2.5 py-1.5 font-medium text-right w-16">
+                    Avg Score
+                  </th>
+                  <th className="px-2.5 py-1.5 font-medium text-right w-14">
+                    Correct %
+                  </th>
+                  <th className="px-2.5 py-1.5 font-medium min-w-[5rem]">
+                    Split
+                  </th>
+                </>
+              ) : null}
             </tr>
           </thead>
           <tbody>
@@ -160,20 +187,24 @@ function BreakdownTable({
                 <td className="px-2.5 py-1.5 text-right font-mono tabular-nums text-[var(--muted)]">
                   {row.count}
                 </td>
-                <td className="px-2.5 py-1.5 text-right font-mono tabular-nums text-[var(--text)]">
-                  {row.avgScore.toFixed(1)}
-                </td>
-                <td className="px-2.5 py-1.5 text-right font-mono tabular-nums text-[var(--muted)]">
-                  {row.correctPct.toFixed(0)}%
-                </td>
-                <td className="px-2.5 py-1.5">
-                  <VerdictSplitBar
-                    correct={row.correct}
-                    partial={row.partial}
-                    incorrect={row.incorrect}
-                    total={row.count}
-                  />
-                </td>
+                {showScoreColumns ? (
+                  <>
+                    <td className="px-2.5 py-1.5 text-right font-mono tabular-nums text-[var(--text)]">
+                      {row.avgScore.toFixed(1)}
+                    </td>
+                    <td className="px-2.5 py-1.5 text-right font-mono tabular-nums text-[var(--muted)]">
+                      {row.correctPct.toFixed(0)}%
+                    </td>
+                    <td className="px-2.5 py-1.5">
+                      <VerdictSplitBar
+                        correct={row.correct}
+                        partial={row.partial}
+                        incorrect={row.incorrect}
+                        total={row.count}
+                      />
+                    </td>
+                  </>
+                ) : null}
               </tr>
             ))}
           </tbody>
@@ -183,75 +214,88 @@ function BreakdownTable({
   );
 }
 
-type EvalSummaryProps = {
-  evals: FullJudgeResult[];
-  /** Queries on this deploy (for "judged X of Y" hint). */
-  momentCount?: number;
+export type EvalSummaryProps = {
+  rows: DashboardJudgeView[];
+  hallucinationCounts: Record<string, number>;
+  avgCostUsd: number | null;
+  avgTotalTokens: number | null;
 };
 
-export function EvalSummary({ evals, momentCount }: EvalSummaryProps) {
-  if (evals.length === 0) {
-    const pending =
-      momentCount != null && momentCount > 0
-        ? ` (${momentCount} quer${momentCount === 1 ? "y" : "ies"} on this deploy — none judged yet for current SQL)`
-        : "";
+export function EvalSummary({
+  rows,
+  hallucinationCounts,
+  avgCostUsd,
+  avgTotalTokens,
+}: EvalSummaryProps) {
+  if (rows.length === 0) {
     return (
       <p className="text-sm text-[var(--muted)]">
-        No judged queries for this deploy yet{pending} — run{" "}
-        <code className="text-xs font-mono">npm run eval</code> after logging queries,
+        No judged queries in this range — run{" "}
+        <code className="text-xs font-mono">npm run eval</code> or{" "}
+        <code className="text-xs font-mono">npm run eval:golden</code> to persist
+        scores to <code className="text-xs font-mono">nl2sql.query_runs</code>,
         then refresh.
       </p>
     );
   }
 
-  const scores = evals.map(evalDisplayScore);
   const avgScore =
-    scores.length > 0
-      ? scores.reduce((a, n) => a + n, 0) / scores.length
-      : 0;
+    rows.reduce((a, e) => a + e.overall, 0) / rows.length;
 
-  const correct = evals.filter((e) => e.verdict === "correct").length;
-  const partial = evals.filter((e) => e.verdict === "partial").length;
-  const incorrect = evals.filter((e) => e.verdict === "incorrect").length;
+  const correct = rows.filter((e) => e.verdict === "correct").length;
+  const partial = rows.filter((e) => e.verdict === "partial").length;
+  const incorrect = rows.filter((e) => e.verdict === "incorrect").length;
 
   const categoryRows = buildBreakdown(
-    evals,
-    (e) => (e.category ? String(e.category) : null),
+    rows,
+    (e) => String(e.category),
     (key) => CATEGORY_LABELS[key as QueryCategory] ?? key
   );
 
   const difficultyRows = buildBreakdown(
-    evals,
-    (e) => (e.sql ? difficultyFromSql(e.sql) : null),
+    rows,
+    (e) => String(e.difficulty),
     (key) => DIFFICULTY_LABELS[key as QueryDifficulty] ?? key
   );
 
   const datasetRows = buildBreakdown(
-    evals,
-    (e) => (e.sql ? detectDatasets(e.sql) : null),
+    rows,
+    (e) => String(e.dataset),
     (key) => DATASET_LABELS[key as QueryDataset] ?? key
   );
 
-  const judgedHint =
-    momentCount != null && momentCount > evals.length
-      ? ` · ${evals.length} judged of ${momentCount} on this deploy`
-      : "";
+  const hallucinationRows = buildHallucinationBreakdown(hallucinationCounts);
 
   return (
     <div className="space-y-5">
-      {judgedHint ? (
-        <p className="text-xs text-[var(--muted)]">
-          Eval summary{judgedHint} (exact SQL match; re-run{" "}
-          <code className="font-mono">npm run eval</code> after new queries)
-        </p>
-      ) : null}
+      <p className="text-xs text-[var(--muted)]">
+        Eval summary from judged rows in{" "}
+        <code className="font-mono">nl2sql.query_runs</code> (latest judged run per
+        question in range)
+      </p>
       <div className="flex flex-wrap items-center gap-3">
-        <StatPill label="Total evals" value={String(evals.length)} />
+        <StatPill label="Judged queries" value={String(rows.length)} />
         <StatPill
           label="Avg score"
           value={
             <span className="font-mono tabular-nums">
               {avgScore.toFixed(1)} / 5
+            </span>
+          }
+        />
+        <StatPill
+          label="Avg cost"
+          value={
+            <span className="font-mono tabular-nums">
+              {avgCostUsd != null ? `$${avgCostUsd.toFixed(4)}` : "—"}
+            </span>
+          }
+        />
+        <StatPill
+          label="Avg tokens"
+          value={
+            <span className="font-mono tabular-nums">
+              {avgTotalTokens != null ? String(Math.round(avgTotalTokens)) : "—"}
             </span>
           }
         />
@@ -285,6 +329,12 @@ export function EvalSummary({ evals, momentCount }: EvalSummaryProps) {
         sectionLabel="By Dataset"
         dimensionLabel="Name"
         rows={datasetRows}
+      />
+      <BreakdownTable
+        sectionLabel="By Hallucination"
+        dimensionLabel="Type"
+        rows={hallucinationRows}
+        showScoreColumns={false}
       />
     </div>
   );

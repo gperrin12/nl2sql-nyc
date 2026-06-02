@@ -14,6 +14,7 @@
 import type { AgentStreamPayload } from "@/lib/sql-agent/types";
 import { getAppVersion } from "@/lib/app-version";
 import { getPgPool, isDatabaseConfigured } from "@/lib/db";
+import type { TokenSummary } from "@/lib/query-run-tokens";
 
 function pgErrorCode(e: unknown): string | undefined {
   if (e && typeof e === "object" && "code" in e) {
@@ -85,6 +86,51 @@ export type QueryRunRow = {
   judge_overall: string | null;
   app_version: string | null;
   prompt_version: string | null;
+  tokens_used: unknown;
+  cost_usd: string | null;
+  hallucination_type: string | null;
+  hallucinations: unknown;
+};
+
+export function parseJudgeOverall(raw: string | null | undefined): number | null {
+  if (raw == null || raw.trim() === "") return null;
+  const n = Number(raw);
+  return Number.isFinite(n) ? n : null;
+}
+
+export function parseTokensUsed(raw: unknown): TokenSummary | null {
+  if (raw == null) return null;
+  let obj: unknown = raw;
+  if (typeof raw === "string") {
+    try {
+      obj = JSON.parse(raw) as unknown;
+    } catch {
+      return null;
+    }
+  }
+  if (typeof obj !== "object" || obj === null) return null;
+  const o = obj as Record<string, unknown>;
+  const input = Number(o.input);
+  const output = Number(o.output);
+  const total = Number(o.total);
+  if (!Number.isFinite(input) || !Number.isFinite(output)) return null;
+  return {
+    input,
+    output,
+    total: Number.isFinite(total) ? total : input + output,
+  };
+}
+
+export function parseCostUsd(raw: string | null | undefined): number | null {
+  if (raw == null || raw.trim() === "") return null;
+  const n = Number(raw);
+  return Number.isFinite(n) ? n : null;
+}
+
+export type EvaluatedDashboardRunOptions = {
+  limit?: number;
+  sinceDays?: 1 | 7 | 30;
+  appVersion?: string;
 };
 
 function normalizeSql(sql: string | null | undefined): string | null {
@@ -302,6 +348,46 @@ export async function finalizeQueryRun(
   return (result.rowCount ?? 0) > 0;
 }
 
+/** Latest row id for a question (any SQL). */
+export async function findLatestQueryRunIdByQuestion(
+  question: string
+): Promise<string | null> {
+  if (!isDatabaseConfigured()) return null;
+  const pool = getPgPool();
+  if (!pool) return null;
+
+  const result = await pool.query<{ id: string }>(
+    `SELECT id::text FROM nl2sql.query_runs
+     WHERE trim(question) = trim($1)
+     ORDER BY created_at DESC
+     LIMIT 1`,
+    [question]
+  );
+  return result.rows[0]?.id ?? null;
+}
+
+/** Latest row id matching question + SQL text. */
+export async function findQueryRunIdByQuestionSql(
+  question: string,
+  sql: string
+): Promise<string | null> {
+  if (!isDatabaseConfigured()) return null;
+  const pool = getPgPool();
+  if (!pool) return null;
+
+  const normalized = normalizeSql(sql);
+  if (!normalized) return null;
+
+  const result = await pool.query<{ id: string }>(
+    `SELECT id::text FROM nl2sql.query_runs
+     WHERE trim(question) = trim($1) AND trim(sql) = trim($2)
+     ORDER BY created_at DESC
+     LIMIT 1`,
+    [question, normalized]
+  );
+  return result.rows[0]?.id ?? null;
+}
+
 export async function getQueryRunJudgeOverall(
   id: string
 ): Promise<number | null> {
@@ -385,7 +471,116 @@ const QUERY_RUN_SELECT = `
   row_count,
   judge_overall::text,
   app_version,
-  prompt_version`;
+  prompt_version,
+  tokens_used,
+  cost_usd::text,
+  hallucination_type,
+  hallucinations`;
+
+function hasEvaluableSql(sql: string | null | undefined): boolean {
+  return sql != null && /\b(SELECT|WITH)\b/i.test(sql);
+}
+
+function filterEvaluableRows(rows: QueryRunRow[]): QueryRunRow[] {
+  return rows.filter((r) => hasEvaluableSql(r.sql));
+}
+
+/**
+ * Judged runs for the eval dashboard: latest judged run per question within optional time/deploy filters.
+ */
+export async function listEvaluatedDashboardRuns(
+  options?: EvaluatedDashboardRunOptions
+): Promise<QueryRunRow[]> {
+  if (!isDatabaseConfigured()) return [];
+
+  const pool = getPgPool();
+  if (!pool) return [];
+
+  const safeLimit = Math.min(Math.max(1, options?.limit ?? 500), 500);
+  const versionFilter = options?.appVersion?.trim();
+  const sinceDays = options?.sinceDays;
+
+  if (versionFilter && sinceDays != null) {
+    const result = await pool.query<QueryRunRow>(
+      `WITH filtered AS (
+        SELECT ${QUERY_RUN_SELECT}
+        FROM nl2sql.query_runs
+        WHERE judge_overall IS NOT NULL
+          AND created_at >= NOW() - ($1::int * INTERVAL '1 day')
+          AND app_version = $2
+      ),
+      latest AS (
+        SELECT DISTINCT ON (trim(question)) *
+        FROM filtered
+        ORDER BY trim(question), created_at DESC
+      )
+      SELECT * FROM latest
+      ORDER BY created_at DESC
+      LIMIT $3`,
+      [sinceDays, versionFilter, safeLimit]
+    );
+    return filterEvaluableRows(result.rows);
+  }
+
+  if (versionFilter) {
+    const result = await pool.query<QueryRunRow>(
+      `WITH filtered AS (
+        SELECT ${QUERY_RUN_SELECT}
+        FROM nl2sql.query_runs
+        WHERE judge_overall IS NOT NULL AND app_version = $1
+      ),
+      latest AS (
+        SELECT DISTINCT ON (trim(question)) *
+        FROM filtered
+        ORDER BY trim(question), created_at DESC
+      )
+      SELECT * FROM latest
+      ORDER BY created_at DESC
+      LIMIT $2`,
+      [versionFilter, safeLimit]
+    );
+    return filterEvaluableRows(result.rows);
+  }
+
+  if (sinceDays != null) {
+    const result = await pool.query<QueryRunRow>(
+      `WITH filtered AS (
+        SELECT ${QUERY_RUN_SELECT}
+        FROM nl2sql.query_runs
+        WHERE judge_overall IS NOT NULL
+          AND created_at >= NOW() - ($1::int * INTERVAL '1 day')
+      ),
+      latest AS (
+        SELECT DISTINCT ON (trim(question)) *
+        FROM filtered
+        ORDER BY trim(question), created_at DESC
+      )
+      SELECT * FROM latest
+      ORDER BY created_at DESC
+      LIMIT $2`,
+      [sinceDays, safeLimit]
+    );
+    return filterEvaluableRows(result.rows);
+  }
+
+  const result = await pool.query<QueryRunRow>(
+    `WITH filtered AS (
+      SELECT ${QUERY_RUN_SELECT}
+      FROM nl2sql.query_runs
+      WHERE judge_overall IS NOT NULL
+    ),
+    latest AS (
+      SELECT DISTINCT ON (trim(question)) *
+      FROM filtered
+      ORDER BY trim(question), created_at DESC
+    )
+    SELECT * FROM latest
+    ORDER BY created_at DESC
+    LIMIT $1`,
+    [safeLimit]
+  );
+  return filterEvaluableRows(result.rows);
+}
 
 /**
  * One row per question: the run with the latest created_at (optionally within one deploy).

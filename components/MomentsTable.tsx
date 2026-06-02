@@ -1,22 +1,20 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { evalMatchesMoment } from "@/lib/eval-match";
-import type { FullJudgeResult } from "@/lib/judge";
+import type { CorrectnessVerdict } from "@/lib/judge";
 import type { DashboardMoment } from "@/lib/p8k8-moments";
 import {
   classifyQuestion,
   type QueryCategory,
 } from "@/lib/query-category";
 import {
-  formatJudgeCellTooltip,
   formatJudgeHeaderTooltip,
+  formatJudgeScoreTooltip,
   formatSqlJudgeHeaderTooltip,
-  getSqlOverall,
 } from "@/lib/judge-display";
 import { formatLatencyMs } from "@/lib/sql-metrics";
 
-const COLUMN_STORAGE_KEY = "nl2sql-dashboard-columns-v6";
+const COLUMN_STORAGE_KEY = "nl2sql-dashboard-columns-v7";
 
 export type MomentColumnId =
   | "timestamp"
@@ -30,7 +28,10 @@ export type MomentColumnId =
   | "athena"
   | "tokens"
   | "sqlJudge"
-  | "judge";
+  | "judge"
+  | "cost"
+  | "hallucination"
+  | "source";
 
 type ColumnDef = {
   id: MomentColumnId;
@@ -103,9 +104,30 @@ const COLUMN_DEFS: ColumnDef[] = [
   {
     id: "tokens",
     label: "Tokens",
-    defaultVisible: false,
+    defaultVisible: true,
     headerClass: "w-[4.5rem] text-right",
     cellClass: "text-right tabular-nums text-[var(--muted)]",
+  },
+  {
+    id: "cost",
+    label: "Cost",
+    defaultVisible: true,
+    headerClass: "w-[5rem] text-right",
+    cellClass: "text-right tabular-nums text-[var(--muted)] whitespace-nowrap",
+  },
+  {
+    id: "hallucination",
+    label: "Halluc.",
+    defaultVisible: false,
+    headerClass: "w-[7rem]",
+    cellClass: "text-xs text-[var(--muted)]",
+  },
+  {
+    id: "source",
+    label: "Set",
+    defaultVisible: false,
+    headerClass: "w-[5rem]",
+    cellClass: "text-xs text-[var(--muted)] capitalize",
   },
   {
     id: "sqlJudge",
@@ -152,7 +174,6 @@ function saveVisibleColumns(visible: Set<MomentColumnId>): void {
 
 type Props = {
   moments: DashboardMoment[];
-  evalByMomentId: Map<string, FullJudgeResult>;
   loading: boolean;
   error: string | null;
   onRefresh: () => void;
@@ -200,7 +221,7 @@ function judgeScoreColor(overall: number): string {
   return "text-amber-400";
 }
 
-function verdictBadgeClass(verdict: FullJudgeResult["verdict"]): string {
+function verdictBadgeClass(verdict: CorrectnessVerdict): string {
   if (verdict === "correct") return "bg-green-500/20 text-green-400 border-green-500/30";
   if (verdict === "incorrect") return "bg-red-500/20 text-red-400 border-red-500/30";
   return "bg-amber-500/20 text-amber-400 border-amber-500/30";
@@ -317,9 +338,23 @@ function ExpandedSqlToolbar({
   );
 }
 
+function formatHallucinationLabel(
+  type: DashboardMoment["hallucinationType"]
+): string {
+  if (!type) return "—";
+  return type.replace(/_/g, " ");
+}
+
+function formatQuestionSourceLabel(
+  source: DashboardMoment["questionSource"]
+): string {
+  if (!source) return "—";
+  if (source === "bank") return "bank";
+  return source;
+}
+
 function MomentRow({
   moment: m,
-  evalResult,
   expanded,
   onToggle,
   copied,
@@ -328,7 +363,6 @@ function MomentRow({
   colCount,
 }: {
   moment: DashboardMoment;
-  evalResult: FullJudgeResult | undefined;
   expanded: boolean;
   onToggle: () => void;
   copied: boolean;
@@ -336,7 +370,9 @@ function MomentRow({
   visibleColumns: ColumnDef[];
   colCount: number;
 }) {
-  const category = evalResult?.category ?? classifyQuestion(m.question);
+  const category = m.judgeCategory ?? classifyQuestion(m.question);
+  const judgeOverall = m.judgeOverall;
+  const judgeVerdict = m.judgeVerdict;
   const visible = new Set(visibleColumns.map((c) => c.id));
 
   const renderCell = (id: MomentColumnId) => {
@@ -405,24 +441,36 @@ function MomentRow({
           "—"
         );
       case "tokens":
-        return m.tokenCount ?? "—";
+        return m.tokensUsed?.total ?? m.tokenCount ?? "—";
+      case "cost":
+        return m.costUsd != null ? (
+          <span title={`$${m.costUsd.toFixed(6)}`}>
+            ${m.costUsd.toFixed(4)}
+          </span>
+        ) : (
+          "—"
+        );
+      case "hallucination":
+        return formatHallucinationLabel(m.hallucinationType);
+      case "source":
+        return formatQuestionSourceLabel(m.questionSource);
       case "sqlJudge":
-        return evalResult ? (
-          <span className={judgeScoreColor(getSqlOverall(evalResult))}>
-            {getSqlOverall(evalResult).toFixed(0)}/5
+        return judgeOverall != null ? (
+          <span className={judgeScoreColor(judgeOverall)}>
+            {judgeOverall.toFixed(0)}/5
           </span>
         ) : (
           <span className="text-[var(--muted)]">—</span>
         );
       case "judge":
-        return evalResult ? (
+        return judgeOverall != null ? (
           <HoverTooltip
-            tooltip={formatJudgeCellTooltip(evalResult)}
+            tooltip={formatJudgeScoreTooltip(judgeOverall)}
             align="right"
             className="cursor-help border-b border-dotted border-[var(--muted)]"
           >
-            <span className={judgeScoreColor(evalResult.overall)}>
-              {evalResult.overall.toFixed(0)}/5
+            <span className={judgeScoreColor(judgeOverall)}>
+              {judgeOverall.toFixed(0)}/5
             </span>
           </HoverTooltip>
         ) : (
@@ -499,44 +547,30 @@ function MomentRow({
               )}
             </p>
 
-            {evalResult && (
+            {judgeOverall != null && judgeVerdict && (
               <div className="space-y-2">
                 <div>
                   <span
-                    className={`inline-block px-2 py-0.5 rounded border text-xs capitalize ${verdictBadgeClass(evalResult.verdict)}`}
+                    className={`inline-block px-2 py-0.5 rounded border text-xs capitalize ${verdictBadgeClass(judgeVerdict)}`}
                   >
-                    {evalResult.verdict}
+                    {judgeVerdict}
                   </span>
+                  {m.questionSource ? (
+                    <span className="ml-2 text-xs text-[var(--muted)]">
+                      · {formatQuestionSourceLabel(m.questionSource)}
+                    </span>
+                  ) : null}
                 </div>
                 <p className="text-xs text-[var(--muted)] font-mono">
-                  SQL judge: {getSqlOverall(evalResult).toFixed(0)}/5
-                  {" · "}
-                  Overall: {evalResult.overall.toFixed(0)}/5
+                  Judge score: {judgeOverall.toFixed(0)}/5
+                  {m.costUsd != null ? ` · $${m.costUsd.toFixed(4)}` : ""}
+                  {m.tokensUsed?.total != null
+                    ? ` · ${m.tokensUsed.total} tokens`
+                    : ""}
+                  {m.hallucinationType
+                    ? ` · ${formatHallucinationLabel(m.hallucinationType)}`
+                    : ""}
                 </p>
-                <div className="grid grid-cols-1 gap-2 text-xs">
-                  <div className="rounded border border-[var(--border)] px-2 py-1.5">
-                    <span className="text-[var(--muted)]">Overall SQL score</span>
-                    <p className="font-mono text-[var(--text)]">
-                      {getSqlOverall(evalResult).toFixed(0)}/5
-                    </p>
-                  </div>
-                </div>
-                {evalResult.issues.length > 0 && (
-                  <ul className="text-xs space-y-1">
-                    {evalResult.issues.map((issue, i) => (
-                      <li
-                        key={i}
-                        className={
-                          evalResult.verdict === "incorrect"
-                            ? "text-red-400"
-                            : "text-amber-400"
-                        }
-                      >
-                        • {issue}
-                      </li>
-                    ))}
-                  </ul>
-                )}
               </div>
             )}
 
@@ -627,7 +661,6 @@ function ColumnPicker({
 
 export function MomentsTable({
   moments,
-  evalByMomentId,
   loading,
   error,
   onRefresh,
@@ -758,12 +791,10 @@ export function MomentsTable({
           <tbody>
             {moments.map((m) => {
               const expanded = expandedId === m.id;
-              const evalResult = evalByMomentId.get(m.id);
               return (
                 <MomentRow
                   key={m.id}
                   moment={m}
-                  evalResult={evalResult}
                   expanded={expanded}
                   onToggle={() => setExpandedId(expanded ? null : m.id)}
                   copied={copiedId === m.id}

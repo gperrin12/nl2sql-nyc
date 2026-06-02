@@ -4,37 +4,38 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { AppNav } from "@/components/AppNav";
 import { EvalSummary } from "@/components/EvalSummary";
 import { MomentsTable } from "@/components/MomentsTable";
-import { buildEvalByMomentId, evalsForMoments } from "@/lib/eval-match";
-import type { FullJudgeResult } from "@/lib/judge";
+import { momentToJudgeView } from "@/lib/dashboard-judge";
+import type { CorrectnessVerdict } from "@/lib/judge";
 import type { DashboardMoment } from "@/lib/p8k8-moments";
 import type { QueryCategory } from "@/lib/query-category";
 import {
   DIFFICULTY_LABELS,
-  difficultyFromComplexityScore,
   type QueryDifficulty,
 } from "@/lib/query-difficulty";
-import {
-  DATASET_LABELS,
-  detectDatasets,
-  type QueryDataset,
-} from "@/lib/query-dataset";
+import { DATASET_LABELS, type QueryDataset } from "@/lib/query-dataset";
+import type { QuestionSource } from "@/lib/question-source";
 import { formatLatencyMs } from "@/lib/sql-metrics";
 
 const PAGE_SIZE = 20;
-/** API caps at 200; load all moments once, then filter/paginate client-side. */
-const MOMENTS_FETCH_LIMIT = 200;
+const MOMENTS_FETCH_LIMIT = 500;
+
+type SinceDaysFilter = "all" | "1" | "7" | "30";
+type QuestionSourceFilter = "all" | QuestionSource;
 
 type MomentsResponse = {
   moments: DashboardMoment[];
   total: number;
-  source?: "postgres" | "p8k8";
+  source?: "postgres";
   currentAppVersion?: string;
   deployFilter?: string | null;
   dedupeByQuestion?: boolean;
+  judgedOnly?: boolean;
+  sinceDays?: 1 | 7 | 30 | null;
+  questionSourceFilter?: QuestionSourceFilter;
 };
 
 type CategoryFilter = "all" | QueryCategory;
-type VerdictFilter = "all" | FullJudgeResult["verdict"];
+type VerdictFilter = "all" | CorrectnessVerdict;
 type DatasetFilter = "all" | QueryDataset;
 type DifficultyFilter = "all" | QueryDifficulty;
 
@@ -49,7 +50,7 @@ const CATEGORY_OPTIONS: QueryCategory[] = [
   "other",
 ];
 
-const VERDICT_OPTIONS: FullJudgeResult["verdict"][] = [
+const VERDICT_OPTIONS: CorrectnessVerdict[] = [
   "correct",
   "partial",
   "incorrect",
@@ -67,6 +68,14 @@ const DATASET_OPTIONS: QueryDataset[] = [
 
 const DIFFICULTY_OPTIONS: QueryDifficulty[] = ["easy", "medium", "hard"];
 
+const SINCE_OPTIONS: SinceDaysFilter[] = ["all", "1", "7", "30"];
+const SOURCE_OPTIONS: QuestionSourceFilter[] = [
+  "all",
+  "golden",
+  "bank",
+  "adhoc",
+];
+
 function FilterPills<T extends string>({
   label,
   value,
@@ -82,7 +91,7 @@ function FilterPills<T extends string>({
 }) {
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <span className="text-xs uppercase tracking-wide text-[var(--muted)] shrink-0 w-16">
+      <span className="text-xs uppercase tracking-wide text-[var(--muted)] shrink-0 w-20">
         {label}
       </span>
       {options.map((opt) => {
@@ -106,17 +115,24 @@ function FilterPills<T extends string>({
   );
 }
 
+function sinceLabel(v: SinceDaysFilter): string {
+  if (v === "all") return "All time";
+  return `Last ${v}d`;
+}
+
+function sourceLabel(v: QuestionSourceFilter): string {
+  if (v === "all") return "All";
+  if (v === "golden") return "Golden";
+  if (v === "bank") return "Question bank";
+  return "Ad-hoc";
+}
+
 export function DashboardClient() {
   const [moments, setMoments] = useState<DashboardMoment[]>([]);
-  const [total, setTotal] = useState(0);
-  const [dataSource, setDataSource] = useState<"postgres" | "p8k8" | null>(
-    null
-  );
-  const [currentAppVersion, setCurrentAppVersion] = useState<string | null>(
-    null
-  );
   const [deployFilter, setDeployFilter] = useState<string | null>(null);
-  const [dedupeByQuestion, setDedupeByQuestion] = useState(true);
+  const [sinceDaysFilter, setSinceDaysFilter] = useState<SinceDaysFilter>("all");
+  const [questionSourceFilter, setQuestionSourceFilter] =
+    useState<QuestionSourceFilter>("all");
   const [pageOffset, setPageOffset] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -126,22 +142,26 @@ export function DashboardClient() {
   const [datasetFilter, setDatasetFilter] = useState<DatasetFilter>("all");
   const [difficultyFilter, setDifficultyFilter] =
     useState<DifficultyFilter>("all");
-  const [evals, setEvals] = useState<FullJudgeResult[]>([]);
-  const [evalByMomentId, setEvalByMomentId] = useState<
-    Map<string, FullJudgeResult>
-  >(new Map());
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const [momentsRes, evalsRes] = await Promise.all([
-        fetch(
-          `/api/dashboard/moments?limit=${MOMENTS_FETCH_LIMIT}&offset=0`,
-          { cache: "no-store" }
-        ),
-        fetch("/api/dashboard/evals", { cache: "no-store" }),
-      ]);
+      const params = new URLSearchParams({
+        limit: String(MOMENTS_FETCH_LIMIT),
+        offset: "0",
+      });
+      if (sinceDaysFilter !== "all") {
+        params.set("sinceDays", sinceDaysFilter);
+      }
+      if (questionSourceFilter !== "all") {
+        params.set("questionSource", questionSourceFilter);
+      }
+
+      const momentsRes = await fetch(
+        `/api/dashboard/moments?${params.toString()}`,
+        { cache: "no-store" }
+      );
 
       const data = (await momentsRes.json()) as MomentsResponse & {
         error?: string;
@@ -155,42 +175,35 @@ export function DashboardClient() {
         );
       }
 
-      let loadedEvals: FullJudgeResult[] = [];
-      if (evalsRes.ok) {
-        const raw = (await evalsRes.json()) as unknown;
-        if (Array.isArray(raw)) loadedEvals = raw as FullJudgeResult[];
-      }
       setMoments(data.moments);
-      setEvals(loadedEvals);
-      setTotal(data.total);
-      setDataSource(data.source ?? null);
-      setCurrentAppVersion(data.currentAppVersion ?? null);
       setDeployFilter(data.deployFilter ?? null);
-      setDedupeByQuestion(data.dedupeByQuestion !== false);
-      const exactEvalMatch = data.source === "postgres";
-      setEvalByMomentId(
-        buildEvalByMomentId(data.moments, loadedEvals, {
-          exactMatchOnly: exactEvalMatch,
-        })
-      );
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load dashboard");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [sinceDaysFilter, questionSourceFilter]);
 
   useEffect(() => {
     void load();
   }, [load]);
 
-  const evalByMomentIdStable = evalByMomentId;
-
-  /** Summary charts: only judges for queries on this page (current deploy), exact SQL match. */
-  const summaryEvals = useMemo(
-    () => evalsForMoments(moments, evalByMomentIdStable),
-    [moments, evalByMomentIdStable]
+  const summaryRows = useMemo(
+    () =>
+      moments
+        .map((m) => momentToJudgeView(m))
+        .filter((v): v is NonNullable<typeof v> => v != null),
+    [moments]
   );
+
+  const hallucinationCounts = useMemo(() => {
+    const counts: Record<string, number> = { none: 0 };
+    for (const m of moments) {
+      const key = m.hallucinationType ?? "none";
+      counts[key] = (counts[key] ?? 0) + 1;
+    }
+    return counts;
+  }, [moments]);
 
   const filtersActive =
     categoryFilter !== "all" ||
@@ -207,34 +220,32 @@ export function DashboardClient() {
     datasetFilter,
     difficultyFilter,
     search,
+    sinceDaysFilter,
+    questionSourceFilter,
   ]);
 
   const filteredMoments = useMemo(() => {
     const q = search.trim().toLowerCase();
     return moments.filter((m) => {
       if (q && !m.question.toLowerCase().includes(q)) return false;
-      const ev = evalByMomentId.get(m.id);
-      if (categoryFilter !== "all" && ev?.category !== categoryFilter) {
+      const view = momentToJudgeView(m);
+      if (!view) return false;
+      if (categoryFilter !== "all" && view.category !== categoryFilter) {
         return false;
       }
-      if (verdictFilter !== "all" && ev?.verdict !== verdictFilter) {
+      if (verdictFilter !== "all" && view.verdict !== verdictFilter) {
         return false;
       }
-      if (
-        datasetFilter !== "all" &&
-        detectDatasets(ev?.sql ?? m.sql) !== datasetFilter
-      ) {
+      if (datasetFilter !== "all" && view.dataset !== datasetFilter) {
         return false;
       }
-      if (difficultyFilter !== "all") {
-        const d = difficultyFromComplexityScore(m.sqlComplexity.score);
-        if (d !== difficultyFilter) return false;
+      if (difficultyFilter !== "all" && view.difficulty !== difficultyFilter) {
+        return false;
       }
       return true;
     });
   }, [
     moments,
-    evalByMomentId,
     categoryFilter,
     verdictFilter,
     datasetFilter,
@@ -245,11 +256,11 @@ export function DashboardClient() {
   const sortedMoments = useMemo(
     () =>
       [...filteredMoments].sort((a, b) => {
-        const sa = evalByMomentId.get(a.id)?.overall ?? -1;
-        const sb = evalByMomentId.get(b.id)?.overall ?? -1;
+        const sa = a.judgeOverall ?? -1;
+        const sb = b.judgeOverall ?? -1;
         return sa - sb;
       }),
-    [filteredMoments, evalByMomentId]
+    [filteredMoments]
   );
 
   const pageMoments = useMemo(
@@ -264,13 +275,20 @@ export function DashboardClient() {
       moments.map((m) => m.model).filter((m): m is string => Boolean(m))
     );
     const tokenValues = moments
-      .map((m) => m.tokenCount)
+      .map((m) => m.tokensUsed?.total ?? m.tokenCount)
       .filter((t): t is number => t != null && Number.isFinite(t));
     const avgTokens =
       tokenValues.length > 0
         ? Math.round(
             tokenValues.reduce((a, b) => a + b, 0) / tokenValues.length
           )
+        : null;
+    const costValues = moments
+      .map((m) => m.costUsd)
+      .filter((c): c is number => c != null && Number.isFinite(c));
+    const avgCostUsd =
+      costValues.length > 0
+        ? costValues.reduce((a, b) => a + b, 0) / costValues.length
         : null;
     const latencyValues = moments
       .map((m) => m.latencyMs)
@@ -282,12 +300,32 @@ export function DashboardClient() {
           )
         : null;
     return {
-      total,
+      total: moments.length,
       uniqueModels: models.size,
       avgTokens,
+      avgCostUsd,
       avgLatencyMs,
     };
-  }, [moments, total]);
+  }, [moments]);
+
+  const summaryCostTokens = useMemo(() => {
+    const costs = moments
+      .map((m) => m.costUsd)
+      .filter((c): c is number => c != null && Number.isFinite(c));
+    const tokens = moments
+      .map((m) => m.tokensUsed?.total ?? m.tokenCount)
+      .filter((t): t is number => t != null && Number.isFinite(t));
+    return {
+      avgCostUsd:
+        costs.length > 0
+          ? costs.reduce((a, b) => a + b, 0) / costs.length
+          : null,
+      avgTotalTokens:
+        tokens.length > 0
+          ? tokens.reduce((a, b) => a + b, 0) / tokens.length
+          : null,
+    };
+  }, [moments]);
 
   const categoryPillOptions: CategoryFilter[] = ["all", ...CATEGORY_OPTIONS];
   const verdictPillOptions: VerdictFilter[] = ["all", ...VERDICT_OPTIONS];
@@ -306,50 +344,68 @@ export function DashboardClient() {
           Query Dashboard
         </h1>
         <p className="text-sm text-[var(--muted)]">
-          Aggregated eval summary · drill down into individual queries below
-          {dataSource && (
+          Judged eval summary from{" "}
+          <span className="font-mono text-[var(--foreground)]">
+            nl2sql.query_runs
+          </span>
+          {" "}
+          · latest judged run per question
+          {deployFilter ? (
             <>
               {" "}
-              · Source:{" "}
-              <span className="font-mono text-[var(--foreground)]">
-                {dataSource === "postgres"
-                  ? "nl2sql.query_runs"
-                  : "p8k8"}
-              </span>
-              {dataSource === "postgres" && dedupeByQuestion && (
-                <>
-                  {" "}
-                  · latest run per question
-                  {deployFilter ? (
-                    <>
-                      {" "}
-                      (deploy{" "}
-                      <span className="font-mono">{deployFilter}</span>)
-                    </>
-                  ) : null}
-                </>
-              )}
+              · deploy{" "}
+              <span className="font-mono">{deployFilter}</span>
             </>
-          )}
+          ) : null}
         </p>
       </header>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard label="Total queries" value={String(stats.total)} />
-        <StatCard label="Unique models (page)" value={String(stats.uniqueModels)} />
+      <div className="rounded-lg border border-[var(--border)] bg-[var(--panel)] px-4 py-3 space-y-2.5">
+        <p className="text-xs uppercase tracking-wide text-[var(--muted)]">
+          Scope
+        </p>
+        <FilterPills
+          label="Time"
+          value={sinceDaysFilter}
+          options={SINCE_OPTIONS}
+          optionLabel={sinceLabel}
+          onChange={setSinceDaysFilter}
+        />
+        <FilterPills
+          label="Questions"
+          value={questionSourceFilter}
+          options={SOURCE_OPTIONS}
+          optionLabel={sourceLabel}
+          onChange={setQuestionSourceFilter}
+        />
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+        <StatCard label="Judged queries" value={String(stats.total)} />
+        <StatCard label="Unique models" value={String(stats.uniqueModels)} />
         <StatCard
-          label="Avg latency (page)"
+          label="Avg latency"
           value={formatLatencyMs(stats.avgLatencyMs)}
         />
         <StatCard
-          label="Avg tokens (page)"
+          label="Avg tokens"
           value={stats.avgTokens != null ? String(stats.avgTokens) : "—"}
+        />
+        <StatCard
+          label="Avg cost"
+          value={
+            stats.avgCostUsd != null
+              ? `$${stats.avgCostUsd.toFixed(4)}`
+              : "—"
+          }
         />
       </div>
 
       <EvalSummary
-        evals={summaryEvals}
-        momentCount={moments.length}
+        rows={summaryRows}
+        hallucinationCounts={hallucinationCounts}
+        avgCostUsd={summaryCostTokens.avgCostUsd}
+        avgTotalTokens={summaryCostTokens.avgTotalTokens}
       />
 
       <div className="rounded-lg border border-[var(--border)] bg-[var(--panel)] px-4 py-3 space-y-2.5">
@@ -388,7 +444,6 @@ export function DashboardClient() {
 
       <MomentsTable
         moments={pageMoments}
-        evalByMomentId={evalByMomentId}
         loading={loading}
         error={error}
         onRefresh={() => load()}
