@@ -7,6 +7,13 @@ import type { QueryCategory } from "@/lib/query-category";
 import { DATASET_LABELS, type QueryDataset } from "@/lib/query-dataset";
 import { DIFFICULTY_LABELS, type QueryDifficulty } from "@/lib/query-difficulty";
 
+export type BreakdownDimension =
+  | "category"
+  | "difficulty"
+  | "dataset"
+  | "hallucination"
+  | "verdict";
+
 type BreakdownRow = {
   key: string;
   label: string;
@@ -141,13 +148,19 @@ function VerdictSplitBar({
 function BreakdownTable({
   sectionLabel,
   dimensionLabel,
+  dimension,
   rows,
   showScoreColumns = true,
+  selectedKey,
+  onRowSelect,
 }: {
   sectionLabel: string;
   dimensionLabel: string;
+  dimension: BreakdownDimension;
   rows: BreakdownRow[];
   showScoreColumns?: boolean;
+  selectedKey?: string | null;
+  onRowSelect?: (dimension: BreakdownDimension, key: string) => void;
 }) {
   if (rows.length === 0) return null;
 
@@ -155,6 +168,11 @@ function BreakdownTable({
     <div>
       <p className="text-[var(--muted)] text-xs uppercase tracking-wider mb-2">
         {sectionLabel}
+        {onRowSelect ? (
+          <span className="normal-case tracking-normal text-[var(--muted)]/80 ml-1">
+            · click to filter
+          </span>
+        ) : null}
       </p>
       <div className="rounded-lg border border-[var(--border)] bg-[var(--panel)] overflow-x-auto">
         <table className="w-full text-xs text-left">
@@ -178,35 +196,43 @@ function BreakdownTable({
             </tr>
           </thead>
           <tbody>
-            {rows.map((row) => (
-              <tr
-                key={row.key}
-                className="border-b border-[var(--border)]/80 last:border-0"
-              >
-                <td className="px-2.5 py-1.5 text-[var(--text)]">{row.label}</td>
-                <td className="px-2.5 py-1.5 text-right font-mono tabular-nums text-[var(--muted)]">
-                  {row.count}
-                </td>
-                {showScoreColumns ? (
-                  <>
-                    <td className="px-2.5 py-1.5 text-right font-mono tabular-nums text-[var(--text)]">
-                      {row.avgScore.toFixed(1)}
-                    </td>
-                    <td className="px-2.5 py-1.5 text-right font-mono tabular-nums text-[var(--muted)]">
-                      {row.correctPct.toFixed(0)}%
-                    </td>
-                    <td className="px-2.5 py-1.5">
-                      <VerdictSplitBar
-                        correct={row.correct}
-                        partial={row.partial}
-                        incorrect={row.incorrect}
-                        total={row.count}
-                      />
-                    </td>
-                  </>
-                ) : null}
-              </tr>
-            ))}
+            {rows.map((row) => {
+              const selected = selectedKey === row.key;
+              return (
+                <tr
+                  key={row.key}
+                  onClick={() => onRowSelect?.(dimension, row.key)}
+                  className={`border-b border-[var(--border)]/80 last:border-0 ${
+                    onRowSelect
+                      ? "cursor-pointer hover:bg-white/[0.04] transition-colors"
+                      : ""
+                  } ${selected ? "bg-[var(--accent)]/15 ring-1 ring-inset ring-[var(--accent)]/40" : ""}`}
+                >
+                  <td className="px-2.5 py-1.5 text-[var(--text)]">{row.label}</td>
+                  <td className="px-2.5 py-1.5 text-right font-mono tabular-nums text-[var(--muted)]">
+                    {row.count}
+                  </td>
+                  {showScoreColumns ? (
+                    <>
+                      <td className="px-2.5 py-1.5 text-right font-mono tabular-nums text-[var(--text)]">
+                        {row.avgScore.toFixed(1)}
+                      </td>
+                      <td className="px-2.5 py-1.5 text-right font-mono tabular-nums text-[var(--muted)]">
+                        {row.correctPct.toFixed(0)}%
+                      </td>
+                      <td className="px-2.5 py-1.5">
+                        <VerdictSplitBar
+                          correct={row.correct}
+                          partial={row.partial}
+                          incorrect={row.incorrect}
+                          total={row.count}
+                        />
+                      </td>
+                    </>
+                  ) : null}
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
@@ -219,6 +245,8 @@ export type EvalSummaryProps = {
   hallucinationCounts: Record<string, number>;
   avgCostUsd: number | null;
   avgTotalTokens: number | null;
+  activeFilters?: Partial<Record<BreakdownDimension, string>>;
+  onBreakdownSelect?: (dimension: BreakdownDimension, key: string) => void;
 };
 
 export function EvalSummary({
@@ -226,21 +254,19 @@ export function EvalSummary({
   hallucinationCounts,
   avgCostUsd,
   avgTotalTokens,
+  activeFilters,
+  onBreakdownSelect,
 }: EvalSummaryProps) {
   if (rows.length === 0) {
     return (
       <p className="text-sm text-[var(--muted)]">
-        No judged queries in this range — run{" "}
-        <code className="text-xs font-mono">npm run eval</code> or{" "}
-        <code className="text-xs font-mono">npm run eval:golden</code> to persist
-        scores to <code className="text-xs font-mono">nl2sql.query_runs</code>,
-        then refresh.
+        No judged queries match the current filters — adjust filters above or run{" "}
+        <code className="text-xs font-mono">npm run eval</code> to backfill scores.
       </p>
     );
   }
 
-  const avgScore =
-    rows.reduce((a, e) => a + e.overall, 0) / rows.length;
+  const avgScore = rows.reduce((a, e) => a + e.overall, 0) / rows.length;
 
   const correct = rows.filter((e) => e.verdict === "correct").length;
   const partial = rows.filter((e) => e.verdict === "partial").length;
@@ -266,12 +292,12 @@ export function EvalSummary({
 
   const hallucinationRows = buildHallucinationBreakdown(hallucinationCounts);
 
+  const verdictKeys: CorrectnessVerdict[] = ["correct", "partial", "incorrect"];
+
   return (
     <div className="space-y-5">
       <p className="text-xs text-[var(--muted)]">
-        Eval summary from judged rows in{" "}
-        <code className="font-mono">nl2sql.query_runs</code> (latest judged run per
-        question in range)
+        Breakdowns for the filtered result set · click a row to drill down
       </p>
       <div className="flex flex-wrap items-center gap-3">
         <StatPill label="Judged queries" value={String(rows.length)} />
@@ -303,38 +329,66 @@ export function EvalSummary({
           <span className="text-xs text-[var(--muted)] uppercase tracking-wide mr-1">
             Verdicts
           </span>
-          <span className="px-2 py-0.5 rounded-full text-xs font-mono bg-[var(--accent)]/20 text-[var(--accent)]">
-            correct {correct}
-          </span>
-          <span className="px-2 py-0.5 rounded-full text-xs font-mono bg-amber-400/20 text-amber-400">
-            partial {partial}
-          </span>
-          <span className="px-2 py-0.5 rounded-full text-xs font-mono bg-red-400/20 text-red-400">
-            incorrect {incorrect}
-          </span>
+          {verdictKeys.map((v) => {
+            const count =
+              v === "correct" ? correct : v === "partial" ? partial : incorrect;
+            const active = activeFilters?.verdict === v;
+            const colorClass =
+              v === "correct"
+                ? "bg-[var(--accent)]/20 text-[var(--accent)]"
+                : v === "partial"
+                  ? "bg-amber-400/20 text-amber-400"
+                  : "bg-red-400/20 text-red-400";
+            return (
+              <button
+                key={v}
+                type="button"
+                onClick={() => onBreakdownSelect?.("verdict", v)}
+                className={`px-2 py-0.5 rounded-full text-xs font-mono transition-colors ${
+                  active
+                    ? `${colorClass} ring-1 ring-inset ring-current`
+                    : `${colorClass} hover:opacity-90`
+                }`}
+              >
+                {v} {count}
+              </button>
+            );
+          })}
         </div>
       </div>
 
       <BreakdownTable
         sectionLabel="By Category"
         dimensionLabel="Name"
+        dimension="category"
         rows={categoryRows}
+        selectedKey={activeFilters?.category}
+        onRowSelect={onBreakdownSelect}
       />
       <BreakdownTable
         sectionLabel="By Difficulty"
         dimensionLabel="Name"
+        dimension="difficulty"
         rows={difficultyRows}
+        selectedKey={activeFilters?.difficulty}
+        onRowSelect={onBreakdownSelect}
       />
       <BreakdownTable
         sectionLabel="By Dataset"
         dimensionLabel="Name"
+        dimension="dataset"
         rows={datasetRows}
+        selectedKey={activeFilters?.dataset}
+        onRowSelect={onBreakdownSelect}
       />
       <BreakdownTable
         sectionLabel="By Hallucination"
         dimensionLabel="Type"
+        dimension="hallucination"
         rows={hallucinationRows}
         showScoreColumns={false}
+        selectedKey={activeFilters?.hallucination}
+        onRowSelect={onBreakdownSelect}
       />
     </div>
   );

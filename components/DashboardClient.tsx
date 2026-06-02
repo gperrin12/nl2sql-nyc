@@ -2,7 +2,10 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AppNav } from "@/components/AppNav";
-import { EvalSummary } from "@/components/EvalSummary";
+import {
+  EvalSummary,
+  type BreakdownDimension,
+} from "@/components/EvalSummary";
 import { MomentsTable } from "@/components/MomentsTable";
 import { momentToJudgeView } from "@/lib/dashboard-judge-view";
 import type { CorrectnessVerdict } from "@/lib/judge";
@@ -21,23 +24,23 @@ const MOMENTS_FETCH_LIMIT = 500;
 
 type SinceDaysFilter = "all" | "1" | "7" | "30";
 type QuestionSourceFilter = "all" | QuestionSource;
+type CategoryFilter = "all" | QueryCategory;
+type VerdictFilter = "all" | CorrectnessVerdict;
+type DatasetFilter = "all" | QueryDataset;
+type DifficultyFilter = "all" | QueryDifficulty;
+type HallucinationFilterValue =
+  | "off_topic"
+  | "guardrail_blocked"
+  | "no_sql_produced"
+  | "schema_hallucination";
+type HallucinationFilter = "all" | "none" | HallucinationFilterValue;
 
 type MomentsResponse = {
   moments: DashboardMoment[];
   total: number;
   source?: "postgres";
-  currentAppVersion?: string;
   deployFilter?: string | null;
-  dedupeByQuestion?: boolean;
-  judgedOnly?: boolean;
-  sinceDays?: 1 | 7 | 30 | null;
-  questionSourceFilter?: QuestionSourceFilter;
 };
-
-type CategoryFilter = "all" | QueryCategory;
-type VerdictFilter = "all" | CorrectnessVerdict;
-type DatasetFilter = "all" | QueryDataset;
-type DifficultyFilter = "all" | QueryDifficulty;
 
 const CATEGORY_OPTIONS: QueryCategory[] = [
   "spatial",
@@ -68,6 +71,15 @@ const DATASET_OPTIONS: QueryDataset[] = [
 
 const DIFFICULTY_OPTIONS: QueryDifficulty[] = ["easy", "medium", "hard"];
 
+const HALLUCINATION_OPTIONS: HallucinationFilter[] = [
+  "all",
+  "none",
+  "off_topic",
+  "guardrail_blocked",
+  "no_sql_produced",
+  "schema_hallucination",
+];
+
 const SINCE_OPTIONS: SinceDaysFilter[] = ["all", "1", "7", "30"];
 const SOURCE_OPTIONS: QuestionSourceFilter[] = [
   "all",
@@ -76,7 +88,10 @@ const SOURCE_OPTIONS: QuestionSourceFilter[] = [
   "adhoc",
 ];
 
-function FilterPills<T extends string>({
+const SELECT_CLASS =
+  "w-full min-w-0 rounded border border-[var(--border)] bg-[var(--bg)] px-2 py-1.5 text-xs text-[var(--text)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)]";
+
+function FilterSelect<T extends string>({
   label,
   value,
   options,
@@ -90,28 +105,22 @@ function FilterPills<T extends string>({
   onChange: (v: T) => void;
 }) {
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      <span className="text-xs uppercase tracking-wide text-[var(--muted)] shrink-0 w-20">
+    <label className="flex flex-col gap-0.5 min-w-0">
+      <span className="text-[10px] uppercase tracking-wide text-[var(--muted)] truncate">
         {label}
       </span>
-      {options.map((opt) => {
-        const active = value === opt;
-        return (
-          <button
-            key={opt}
-            type="button"
-            onClick={() => onChange(opt)}
-            className={`px-2.5 py-1 rounded-full text-xs transition-colors ${
-              active
-                ? "bg-[var(--accent)] text-[var(--bg)]"
-                : "border border-[var(--border)] text-[var(--muted)] hover:text-[var(--text)]"
-            }`}
-          >
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value as T)}
+        className={SELECT_CLASS}
+      >
+        {options.map((opt) => (
+          <option key={opt} value={opt}>
             {optionLabel(opt)}
-          </button>
-        );
-      })}
-    </div>
+          </option>
+        ))}
+      </select>
+    </label>
   );
 }
 
@@ -121,10 +130,20 @@ function sinceLabel(v: SinceDaysFilter): string {
 }
 
 function sourceLabel(v: QuestionSourceFilter): string {
-  if (v === "all") return "All";
+  if (v === "all") return "All sources";
   if (v === "golden") return "Golden";
   if (v === "bank") return "Question bank";
   return "Ad-hoc";
+}
+
+function hallucinationLabel(v: HallucinationFilter): string {
+  if (v === "all") return "All";
+  if (v === "none") return "None";
+  return v.replace(/_/g, " ");
+}
+
+function categoryLabel(v: CategoryFilter): string {
+  return v === "all" ? "All" : v.replace(/-/g, " ");
 }
 
 export function DashboardClient() {
@@ -142,6 +161,8 @@ export function DashboardClient() {
   const [datasetFilter, setDatasetFilter] = useState<DatasetFilter>("all");
   const [difficultyFilter, setDifficultyFilter] =
     useState<DifficultyFilter>("all");
+  const [hallucinationFilter, setHallucinationFilter] =
+    useState<HallucinationFilter>("all");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -188,28 +209,12 @@ export function DashboardClient() {
     void load();
   }, [load]);
 
-  const summaryRows = useMemo(
-    () =>
-      moments
-        .map((m) => momentToJudgeView(m))
-        .filter((v): v is NonNullable<typeof v> => v != null),
-    [moments]
-  );
-
-  const hallucinationCounts = useMemo(() => {
-    const counts: Record<string, number> = { none: 0 };
-    for (const m of moments) {
-      const key = m.hallucinationType ?? "none";
-      counts[key] = (counts[key] ?? 0) + 1;
-    }
-    return counts;
-  }, [moments]);
-
   const filtersActive =
     categoryFilter !== "all" ||
     verdictFilter !== "all" ||
     datasetFilter !== "all" ||
     difficultyFilter !== "all" ||
+    hallucinationFilter !== "all" ||
     search.trim().length > 0;
 
   useEffect(() => {
@@ -219,6 +224,7 @@ export function DashboardClient() {
     verdictFilter,
     datasetFilter,
     difficultyFilter,
+    hallucinationFilter,
     search,
     sinceDaysFilter,
     questionSourceFilter,
@@ -242,6 +248,14 @@ export function DashboardClient() {
       if (difficultyFilter !== "all" && view.difficulty !== difficultyFilter) {
         return false;
       }
+      if (hallucinationFilter !== "all") {
+        const ht = m.hallucinationType ?? null;
+        if (hallucinationFilter === "none") {
+          if (ht != null) return false;
+        } else if (ht !== hallucinationFilter) {
+          return false;
+        }
+      }
       return true;
     });
   }, [
@@ -250,8 +264,26 @@ export function DashboardClient() {
     verdictFilter,
     datasetFilter,
     difficultyFilter,
+    hallucinationFilter,
     search,
   ]);
+
+  const filteredSummaryRows = useMemo(
+    () =>
+      filteredMoments
+        .map((m) => momentToJudgeView(m))
+        .filter((v): v is NonNullable<typeof v> => v != null),
+    [filteredMoments]
+  );
+
+  const filteredHallucinationCounts = useMemo(() => {
+    const counts: Record<string, number> = { none: 0 };
+    for (const m of filteredMoments) {
+      const key = m.hallucinationType ?? "none";
+      counts[key] = (counts[key] ?? 0) + 1;
+    }
+    return counts;
+  }, [filteredMoments]);
 
   const sortedMoments = useMemo(
     () =>
@@ -272,9 +304,9 @@ export function DashboardClient() {
 
   const stats = useMemo(() => {
     const models = new Set(
-      moments.map((m) => m.model).filter((m): m is string => Boolean(m))
+      filteredMoments.map((m) => m.model).filter((m): m is string => Boolean(m))
     );
-    const tokenValues = moments
+    const tokenValues = filteredMoments
       .map((m) => m.tokensUsed?.total ?? m.tokenCount)
       .filter((t): t is number => t != null && Number.isFinite(t));
     const avgTokens =
@@ -283,14 +315,14 @@ export function DashboardClient() {
             tokenValues.reduce((a, b) => a + b, 0) / tokenValues.length
           )
         : null;
-    const costValues = moments
+    const costValues = filteredMoments
       .map((m) => m.costUsd)
       .filter((c): c is number => c != null && Number.isFinite(c));
     const avgCostUsd =
       costValues.length > 0
         ? costValues.reduce((a, b) => a + b, 0) / costValues.length
         : null;
-    const latencyValues = moments
+    const latencyValues = filteredMoments
       .map((m) => m.latencyMs)
       .filter((ms): ms is number => ms != null && Number.isFinite(ms));
     const avgLatencyMs =
@@ -300,40 +332,74 @@ export function DashboardClient() {
           )
         : null;
     return {
-      total: moments.length,
+      total: filteredMoments.length,
       uniqueModels: models.size,
       avgTokens,
       avgCostUsd,
       avgLatencyMs,
     };
-  }, [moments]);
+  }, [filteredMoments]);
 
-  const summaryCostTokens = useMemo(() => {
-    const costs = moments
-      .map((m) => m.costUsd)
-      .filter((c): c is number => c != null && Number.isFinite(c));
-    const tokens = moments
-      .map((m) => m.tokensUsed?.total ?? m.tokenCount)
-      .filter((t): t is number => t != null && Number.isFinite(t));
-    return {
-      avgCostUsd:
-        costs.length > 0
-          ? costs.reduce((a, b) => a + b, 0) / costs.length
-          : null,
-      avgTotalTokens:
-        tokens.length > 0
-          ? tokens.reduce((a, b) => a + b, 0) / tokens.length
-          : null,
-    };
-  }, [moments]);
+  const activeBreakdownFilters = useMemo(
+    (): Partial<Record<BreakdownDimension, string>> => ({
+      ...(categoryFilter !== "all" ? { category: categoryFilter } : {}),
+      ...(verdictFilter !== "all" ? { verdict: verdictFilter } : {}),
+      ...(datasetFilter !== "all" ? { dataset: datasetFilter } : {}),
+      ...(difficultyFilter !== "all" ? { difficulty: difficultyFilter } : {}),
+      ...(hallucinationFilter !== "all"
+        ? { hallucination: hallucinationFilter }
+        : {}),
+    }),
+    [
+      categoryFilter,
+      verdictFilter,
+      datasetFilter,
+      difficultyFilter,
+      hallucinationFilter,
+    ]
+  );
 
-  const categoryPillOptions: CategoryFilter[] = ["all", ...CATEGORY_OPTIONS];
-  const verdictPillOptions: VerdictFilter[] = ["all", ...VERDICT_OPTIONS];
-  const datasetPillOptions: DatasetFilter[] = ["all", ...DATASET_OPTIONS];
-  const difficultyPillOptions: DifficultyFilter[] = [
-    "all",
-    ...DIFFICULTY_OPTIONS,
-  ];
+  const handleBreakdownSelect = useCallback(
+    (dimension: BreakdownDimension, key: string) => {
+      switch (dimension) {
+        case "category":
+          setCategoryFilter((prev) =>
+            prev === key ? "all" : (key as CategoryFilter)
+          );
+          break;
+        case "verdict":
+          setVerdictFilter((prev) =>
+            prev === key ? "all" : (key as VerdictFilter)
+          );
+          break;
+        case "dataset":
+          setDatasetFilter((prev) =>
+            prev === key ? "all" : (key as DatasetFilter)
+          );
+          break;
+        case "difficulty":
+          setDifficultyFilter((prev) =>
+            prev === key ? "all" : (key as DifficultyFilter)
+          );
+          break;
+        case "hallucination":
+          setHallucinationFilter((prev) =>
+            prev === key ? "all" : (key as HallucinationFilter)
+          );
+          break;
+      }
+    },
+    []
+  );
+
+  const clearDrillFilters = () => {
+    setCategoryFilter("all");
+    setVerdictFilter("all");
+    setDatasetFilter("all");
+    setDifficultyFilter("all");
+    setHallucinationFilter("all");
+    setSearch("");
+  };
 
   return (
     <main className="max-w-[min(100%,90rem)] mx-auto p-6 space-y-6">
@@ -360,27 +426,75 @@ export function DashboardClient() {
         </p>
       </header>
 
-      <div className="rounded-lg border border-[var(--border)] bg-[var(--panel)] px-4 py-3 space-y-2.5">
-        <p className="text-xs uppercase tracking-wide text-[var(--muted)]">
-          Scope
-        </p>
-        <FilterPills
-          label="Time"
-          value={sinceDaysFilter}
-          options={SINCE_OPTIONS}
-          optionLabel={sinceLabel}
-          onChange={setSinceDaysFilter}
-        />
-        <FilterPills
-          label="Questions"
-          value={questionSourceFilter}
-          options={SOURCE_OPTIONS}
-          optionLabel={sourceLabel}
-          onChange={setQuestionSourceFilter}
-        />
+      <div className="rounded-lg border border-[var(--border)] bg-[var(--panel)] px-4 py-3">
+        <div className="flex flex-wrap items-end justify-between gap-3 mb-3">
+          <p className="text-xs uppercase tracking-wide text-[var(--muted)]">
+            Filters
+          </p>
+          {filtersActive ? (
+            <button
+              type="button"
+              onClick={clearDrillFilters}
+              className="text-xs text-[var(--accent)] hover:text-[var(--accent-dim)]"
+            >
+              Clear drill-down
+            </button>
+          ) : null}
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-3">
+          <FilterSelect
+            label="Time"
+            value={sinceDaysFilter}
+            options={SINCE_OPTIONS}
+            optionLabel={sinceLabel}
+            onChange={setSinceDaysFilter}
+          />
+          <FilterSelect
+            label="Questions"
+            value={questionSourceFilter}
+            options={SOURCE_OPTIONS}
+            optionLabel={sourceLabel}
+            onChange={setQuestionSourceFilter}
+          />
+          <FilterSelect
+            label="Category"
+            value={categoryFilter}
+            options={["all", ...CATEGORY_OPTIONS] as CategoryFilter[]}
+            optionLabel={categoryLabel}
+            onChange={setCategoryFilter}
+          />
+          <FilterSelect
+            label="Verdict"
+            value={verdictFilter}
+            options={["all", ...VERDICT_OPTIONS] as VerdictFilter[]}
+            optionLabel={(v) => (v === "all" ? "All" : v)}
+            onChange={setVerdictFilter}
+          />
+          <FilterSelect
+            label="Dataset"
+            value={datasetFilter}
+            options={["all", ...DATASET_OPTIONS] as DatasetFilter[]}
+            optionLabel={(v) => (v === "all" ? "All" : DATASET_LABELS[v])}
+            onChange={setDatasetFilter}
+          />
+          <FilterSelect
+            label="Difficulty"
+            value={difficultyFilter}
+            options={["all", ...DIFFICULTY_OPTIONS] as DifficultyFilter[]}
+            optionLabel={(v) => (v === "all" ? "All" : DIFFICULTY_LABELS[v])}
+            onChange={setDifficultyFilter}
+          />
+          <FilterSelect
+            label="Hallucination"
+            value={hallucinationFilter}
+            options={HALLUCINATION_OPTIONS}
+            optionLabel={hallucinationLabel}
+            onChange={setHallucinationFilter}
+          />
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
         <StatCard label="Judged queries" value={String(stats.total)} />
         <StatCard label="Unique models" value={String(stats.uniqueModels)} />
         <StatCard
@@ -401,47 +515,6 @@ export function DashboardClient() {
         />
       </div>
 
-      <EvalSummary
-        rows={summaryRows}
-        hallucinationCounts={hallucinationCounts}
-        avgCostUsd={summaryCostTokens.avgCostUsd}
-        avgTotalTokens={summaryCostTokens.avgTotalTokens}
-      />
-
-      <div className="rounded-lg border border-[var(--border)] bg-[var(--panel)] px-4 py-3 space-y-2.5">
-        <p className="text-xs uppercase tracking-wide text-[var(--muted)]">
-          Filter drill-down
-        </p>
-        <FilterPills
-          label="Category"
-          value={categoryFilter}
-          options={categoryPillOptions}
-          optionLabel={(v) => (v === "all" ? "All" : v.replace(/-/g, " "))}
-          onChange={setCategoryFilter}
-        />
-        <FilterPills
-          label="Verdict"
-          value={verdictFilter}
-          options={verdictPillOptions}
-          optionLabel={(v) => (v === "all" ? "All" : v)}
-          onChange={setVerdictFilter}
-        />
-        <FilterPills
-          label="Dataset"
-          value={datasetFilter}
-          options={datasetPillOptions}
-          optionLabel={(v) => (v === "all" ? "All" : DATASET_LABELS[v])}
-          onChange={setDatasetFilter}
-        />
-        <FilterPills
-          label="Difficulty"
-          value={difficultyFilter}
-          options={difficultyPillOptions}
-          optionLabel={(v) => (v === "all" ? "All" : DIFFICULTY_LABELS[v])}
-          onChange={setDifficultyFilter}
-        />
-      </div>
-
       <MomentsTable
         moments={pageMoments}
         loading={loading}
@@ -459,6 +532,20 @@ export function DashboardClient() {
             : undefined
         }
       />
+
+      <section className="space-y-3 pt-2 border-t border-[var(--border)]">
+        <h2 className="text-sm font-medium text-[var(--text)]">
+          Eval breakdown
+        </h2>
+        <EvalSummary
+          rows={filteredSummaryRows}
+          hallucinationCounts={filteredHallucinationCounts}
+          avgCostUsd={stats.avgCostUsd}
+          avgTotalTokens={stats.avgTokens}
+          activeFilters={activeBreakdownFilters}
+          onBreakdownSelect={handleBreakdownSelect}
+        />
+      </section>
     </main>
   );
 }
