@@ -20,7 +20,7 @@ import {
 async function printLatestQueryRunTokens(): Promise<void> {
   const pool = getPgPool();
   if (!pool) {
-    console.log("DATABASE_URL not set — cannot load query runs.");
+    console.log("NEON_DATABASE_URL not set — cannot load query runs.");
     return;
   }
 
@@ -82,7 +82,7 @@ async function printLatestQueryRunTokens(): Promise<void> {
 async function printCostReport(): Promise<void> {
   const pool = getPgPool();
   if (!pool) {
-    console.log("DATABASE_URL not set — skipping cost report.");
+    console.log("NEON_DATABASE_URL not set — skipping cost report.");
     return;
   }
 

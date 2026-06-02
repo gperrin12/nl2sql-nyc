@@ -19,7 +19,7 @@
  *   --migrate   — create nl2sql.repair_attempts then exit
  *
  * Env:
- *   DATABASE_URL, ANTHROPIC_API_KEY (required unless --dry-run)
+ *   NEON_DATABASE_URL, ANTHROPIC_API_KEY (required unless --dry-run)
  *   RUN_DELAY_MS=4000  — pause between questions
  *   ADVERSARIAL_IDS=aq-001,aq-003  — optional subset
  */
@@ -292,7 +292,7 @@ async function main(): Promise<void> {
 
   if (MIGRATE_ONLY) {
     if (!isDatabaseConfigured()) {
-      console.error("Error: DATABASE_URL is required for --migrate");
+      console.error("Error: NEON_DATABASE_URL is required for --migrate");
       process.exit(1);
     }
     const pool = getPgPool();
@@ -315,14 +315,14 @@ async function main(): Promise<void> {
       );
       console.log(`    ${truncate(q.question, 90)}`);
     }
-    console.log("\nRequires: DATABASE_URL, ANTHROPIC_API_KEY");
+    console.log("\nRequires: NEON_DATABASE_URL, ANTHROPIC_API_KEY");
     console.log("Postgres: getPgPool(); auto-migrate repair_attempts if missing");
     return;
   }
 
   requireEnv("ANTHROPIC_API_KEY", process.env.ANTHROPIC_API_KEY);
   if (!isDatabaseConfigured()) {
-    console.error("Error: DATABASE_URL is required");
+    console.error("Error: NEON_DATABASE_URL is required");
     process.exit(1);
   }
 

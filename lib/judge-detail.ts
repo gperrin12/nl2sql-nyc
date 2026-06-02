@@ -61,10 +61,10 @@ export function parseJudgeDetail(raw: unknown): JudgeDetail | null {
 export async function runJudgeDetailMigration(): Promise<void> {
   const { getPgPool, isDatabaseConfigured } = await import("@/lib/db");
   if (!isDatabaseConfigured()) {
-    throw new Error("DATABASE_URL is required for judge_detail migration");
+    throw new Error("NEON_DATABASE_URL is required for judge_detail migration");
   }
   const pool = getPgPool();
-  if (!pool) throw new Error("DATABASE_URL is required for judge_detail migration");
+  if (!pool) throw new Error("NEON_DATABASE_URL is required for judge_detail migration");
   await pool.query(`
     ALTER TABLE nl2sql.query_runs
       ADD COLUMN IF NOT EXISTS judge_detail JSONB

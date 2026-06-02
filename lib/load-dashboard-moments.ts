@@ -47,7 +47,7 @@ export async function loadDashboardMoments(options: {
 }): Promise<DashboardMomentsResponse> {
   if (!isDatabaseConfigured()) {
     throw new Error(
-      "DATABASE_URL is not set — required for the eval dashboard (nl2sql.query_runs)"
+      "NEON_DATABASE_URL is not set — required for the eval dashboard (nl2sql.query_runs)"
     );
   }
 

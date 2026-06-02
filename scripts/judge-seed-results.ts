@@ -208,7 +208,7 @@ async function main(): Promise<void> {
   requireEnv("ANTHROPIC_API_KEY", process.env.ANTHROPIC_API_KEY);
 
   if (!isDatabaseConfigured()) {
-    console.error("Error: DATABASE_URL is required to persist judge scores");
+    console.error("Error: NEON_DATABASE_URL is required to persist judge scores");
     process.exit(1);
   }
 

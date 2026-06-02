@@ -20,7 +20,7 @@
  *
  * Env:
  *   GOLDEN_APP_VERSION  — same as --version (CLI wins if both set)
- *   DATABASE_URL, ANTHROPIC_API_KEY, ATHENA_OUTPUT_LOCATION
+ *   NEON_DATABASE_URL, ANTHROPIC_API_KEY, ATHENA_OUTPUT_LOCATION
  *   SEED_IDS, SEED_CATEGORY, SEED_DIFFICULTY, RUN_LIMIT, RUN_DELAY_MS
  */
 
@@ -402,7 +402,7 @@ function printPlan(questions: GoldenDatasetEntry[]): void {
   console.log(`  Prompt:   ${PROMPT_VERSION} (nl2sql.query_runs.prompt_version)`);
   console.log(`  Version:  ${GOLDEN_APP_VERSION} (nl2sql.query_runs.app_version)`);
   console.log(
-    `  DB:       ${isDatabaseConfigured() ? "yes (query_runs + V2 guardrails)" : "required — DATABASE_URL unset"}`
+    `  DB:       ${isDatabaseConfigured() ? "yes (query_runs + V2 guardrails)" : "required — NEON_DATABASE_URL unset"}`
   );
   console.log(`  Judge:    ${NO_JUDGE ? "skipped" : "full (SQL + Athena result)"}`);
   console.log(`  Delay:    ${RUN_DELAY_MS}ms between questions`);
@@ -429,7 +429,7 @@ async function main(): Promise<void> {
 
   if (!DRY_RUN && !isDatabaseConfigured()) {
     console.error(
-      "Error: DATABASE_URL is required (prompt versions, query_runs, V2 guardrails)"
+      "Error: NEON_DATABASE_URL is required (prompt versions, query_runs, V2 guardrails)"
     );
     process.exit(1);
   }
@@ -440,7 +440,7 @@ async function main(): Promise<void> {
     if (!promptRow) {
       console.error(
         `Error: prompt version "${PROMPT_VERSION}" not found in nl2sql.prompt_versions ` +
-          "(check the name, or that DATABASE_URL points at the right DB)."
+          "(check the name, or that NEON_DATABASE_URL points at the right DB)."
       );
       process.exit(1);
     }

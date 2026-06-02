@@ -87,7 +87,7 @@ export function projectCost(
 export async function runTokenColumnsMigration(): Promise<void> {
   const pool = getPgPool();
   if (!pool) {
-    throw new Error("DATABASE_URL is required for token column migration");
+    throw new Error("NEON_DATABASE_URL is required for token column migration");
   }
   await pool.query(`
     ALTER TABLE nl2sql.query_runs

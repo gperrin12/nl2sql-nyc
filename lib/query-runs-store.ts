@@ -7,7 +7,7 @@
  * judge-score and prompt-version persistence. Reads: dashboard list queries
  * (latest-per-question and recent runs, optionally filtered by app_version).
  *
- * Every function is a no-op (returns null/false/[]) when DATABASE_URL is unset,
+ * Every function is a no-op (returns null/false/[]) when NEON_DATABASE_URL is unset,
  * so callers can log unconditionally without guarding on DB availability.
  */
 
@@ -150,7 +150,7 @@ function hallucinationsJson(value: unknown | null | undefined): string | null {
   return JSON.stringify(value);
 }
 
-/** Log every chat question at request start. No-op if DATABASE_URL is unset. */
+/** Log every chat question at request start. No-op if NEON_DATABASE_URL is unset. */
 export async function beginQueryRun(input: {
   question: string;
   backend?: string | null;
@@ -257,7 +257,7 @@ export async function updateQueryRunJudge(
   });
 }
 
-/** Persist one completed (or failed) query run. No-op if DATABASE_URL is unset. */
+/** Persist one completed (or failed) query run. No-op if NEON_DATABASE_URL is unset. */
 export async function insertQueryRun(input: QueryRunInsert): Promise<string | null> {
   if (!isDatabaseConfigured()) return null;
 

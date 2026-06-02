@@ -79,7 +79,7 @@ describe("guardGenerationWithV2", () => {
     vi.mocked(ensureGuardedSqlV2).mockReset();
   });
 
-  it("returns poolMissing when DATABASE_URL is not configured", async () => {
+  it("returns poolMissing when NEON_DATABASE_URL is not configured", async () => {
     vi.mocked(getPgPool).mockReturnValue(null);
     const result = await guardGenerationWithV2("q", BASE_GEN);
     expect(result).toEqual({ ok: false, poolMissing: true });
@@ -113,7 +113,7 @@ describe("guardSqlForEval", () => {
   it("throws when pool is missing", async () => {
     vi.mocked(getPgPool).mockReturnValue(null);
     await expect(guardSqlForEval("q", BASE_GEN)).rejects.toThrow(
-      /DATABASE_URL is required/
+      /NEON_DATABASE_URL is required/
     );
   });
 });

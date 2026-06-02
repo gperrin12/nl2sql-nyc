@@ -67,7 +67,7 @@ export async function ensureSchemaValidSql(
           generation,
           error_type: "configuration_error",
           suggestion:
-            "DATABASE_URL is not configured — circuit-breaker guardrails require Postgres",
+            "NEON_DATABASE_URL is not configured — circuit-breaker guardrails require Postgres",
         },
       };
     }
