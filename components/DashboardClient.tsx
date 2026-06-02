@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { AppNav } from "@/components/AppNav";
 import { EvalSummary } from "@/components/EvalSummary";
 import { MomentsTable } from "@/components/MomentsTable";
-import { momentToJudgeView } from "@/lib/dashboard-judge";
+import { momentToJudgeView } from "@/lib/dashboard-judge-view";
 import type { CorrectnessVerdict } from "@/lib/judge";
 import type { DashboardMoment } from "@/lib/p8k8-moments";
 import type { QueryCategory } from "@/lib/query-category";
@@ -13,7 +13,7 @@ import {
   type QueryDifficulty,
 } from "@/lib/query-difficulty";
 import { DATASET_LABELS, type QueryDataset } from "@/lib/query-dataset";
-import type { QuestionSource } from "@/lib/question-source";
+import type { QuestionSource } from "@/lib/question-source-types";
 import { formatLatencyMs } from "@/lib/sql-metrics";
 
 const PAGE_SIZE = 20;

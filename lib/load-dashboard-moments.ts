@@ -8,7 +8,7 @@ import {
 } from "@/lib/app-version";
 import { isDatabaseConfigured } from "@/lib/db";
 import { loadLatencyByKey } from "@/lib/query-metrics-store";
-import type { QuestionSource } from "@/lib/question-source";
+import type { QuestionSource } from "@/lib/question-source-types";
 
 export type DashboardMomentsResponse = {
   moments: DashboardMoment[];

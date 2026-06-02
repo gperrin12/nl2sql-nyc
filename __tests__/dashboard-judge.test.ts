@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildDashboardJudgeView,
   verdictFromJudgeOverall,
-} from "@/lib/dashboard-judge";
+} from "@/lib/dashboard-judge-view";
 
 describe("verdictFromJudgeOverall", () => {
   it("maps rubric scores to verdicts", () => {

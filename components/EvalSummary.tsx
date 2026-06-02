@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import type { DashboardJudgeView } from "@/lib/dashboard-judge";
+import type { DashboardJudgeView } from "@/lib/dashboard-judge-view";
 import type { CorrectnessVerdict } from "@/lib/judge";
 import type { QueryCategory } from "@/lib/query-category";
 import { DATASET_LABELS, type QueryDataset } from "@/lib/query-dataset";

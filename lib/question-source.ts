@@ -1,11 +1,12 @@
 /**
- * Classify judged dashboard rows by question bank membership.
+ * Classify judged dashboard rows by question bank membership (server-only).
  */
 
 import { readFileSync } from "fs";
 import path from "path";
+import type { QuestionSource } from "@/lib/question-source-types";
 
-export type QuestionSource = "golden" | "bank" | "adhoc";
+export type { QuestionSource } from "@/lib/question-source-types";
 
 const GOLDEN_PATH = path.join(process.cwd(), "data", "golden-dataset.json");
 const BANK_PATH = path.join(process.cwd(), "data", "questions.json");

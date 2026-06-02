@@ -8,7 +8,7 @@ import type { QueryCategory } from "@/lib/query-category";
 import type { QueryDataset } from "@/lib/query-dataset";
 import type { QueryDifficulty } from "@/lib/query-difficulty";
 import type { HallucinationType } from "@/lib/query-runs-store";
-import type { QuestionSource } from "@/lib/question-source";
+import type { QuestionSource } from "@/lib/question-source-types";
 import type { TokenSummary } from "@/lib/query-run-tokens";
 import type { QuestionMetrics, SqlComplexity } from "@/lib/sql-metrics";
 
