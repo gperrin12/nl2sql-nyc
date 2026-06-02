@@ -4,6 +4,10 @@
 
 import type { FullJudgeResult } from "@/lib/judge";
 
+export function judgeOverallScore(overall: number): number {
+  return overall;
+}
+
 export function getSqlOverall(evalResult: FullJudgeResult): number {
   return evalResult.overall;
 }
@@ -18,6 +22,10 @@ export function formatJudgeHeaderTooltip(): string {
 
 export function formatJudgeCellTooltip(evalResult: FullJudgeResult): string {
   return `Judge score: ${evalResult.overall.toFixed(0)}/5`;
+}
+
+export function formatJudgeScoreTooltip(overall: number): string {
+  return `Judge score: ${overall.toFixed(0)}/5`;
 }
 
 export function formatSqlJudgeHeaderTooltip(): string {

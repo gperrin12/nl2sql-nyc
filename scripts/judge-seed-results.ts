@@ -1,5 +1,5 @@
 /**
- * Judge seed-results.json with Claude (SQL + Athena outcome) and merge into evals.json.
+ * Judge seed-results.json with Claude (SQL + Athena outcome) and persist judge_overall on query_runs.
  *
  * Usage:
  *   ANTHROPIC_API_KEY=... npm run eval:seed
@@ -15,13 +15,14 @@
 
 import { readFileSync, existsSync } from "fs";
 import path from "path";
-import { evalMatchKey } from "../lib/eval-match";
 import { judgeFullResult, type FullJudgeResult } from "../lib/judge";
+import { judgeDetailFromResult, runJudgeDetailMigration } from "../lib/judge-detail";
 import {
-  evalsStorageDescription,
-  loadEvals,
-  saveEvals,
-} from "../lib/evals-store";
+  findQueryRunIdByQuestionSql,
+  getQueryRunJudgeOverall,
+  updateQueryRunJudge,
+} from "../lib/query-runs-store";
+import { isDatabaseConfigured } from "../lib/db";
 import type { ReplayResult } from "../lib/replay";
 import { inferUiViz } from "../lib/infer-ui-viz";
 
@@ -73,14 +74,10 @@ function hasSqlStatement(sql: string): boolean {
   return /\b(SELECT|WITH)\b/i.test(sql);
 }
 
-function hasFullEval(
-  existing: FullJudgeResult[],
-  question: string,
-  sql: string
-): boolean {
-  const key = evalMatchKey(question, sql);
-  const entry = existing.find((e) => evalMatchKey(e.question, e.sql) === key);
-  return Boolean(entry);
+async function hasJudgeOnRow(question: string, sql: string): Promise<boolean> {
+  const id = await findQueryRunIdByQuestionSql(question, sql);
+  if (!id) return false;
+  return (await getQueryRunJudgeOverall(id)) != null;
 }
 
 function loadSeedResults(): SeedResult[] {
@@ -170,7 +167,7 @@ function printPlan(
   console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 }
 
-function printSummary(newResults: FullJudgeResult[], all: FullJudgeResult[]): void {
+function printSummary(newResults: FullJudgeResult[]): void {
   const correct = newResults.filter((r) => r.verdict === "correct").length;
   const partial = newResults.filter((r) => r.verdict === "partial").length;
   const incorrect = newResults.filter((r) => r.verdict === "incorrect").length;
@@ -204,11 +201,25 @@ function printSummary(newResults: FullJudgeResult[], all: FullJudgeResult[]): vo
     }
   }
   console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-  console.log(`Written to ${evalsStorageDescription()} (${all.length} total)`);
+  console.log("Persisted judge_overall on nl2sql.query_runs (when row exists)");
 }
 
 async function main(): Promise<void> {
   requireEnv("ANTHROPIC_API_KEY", process.env.ANTHROPIC_API_KEY);
+
+  if (!isDatabaseConfigured()) {
+    console.error("Error: DATABASE_URL is required to persist judge scores");
+    process.exit(1);
+  }
+
+  try {
+    await runJudgeDetailMigration();
+  } catch (e) {
+    console.warn(
+      "judge_detail migration skipped:",
+      e instanceof Error ? e.message : e
+    );
+  }
 
   const allSeed = loadSeedResults();
   const filtered = applyFilters(allSeed);
@@ -218,7 +229,6 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  const existing = await loadEvals();
   const noSql: SeedResult[] = [];
   const skipped: SeedResult[] = [];
   const toJudge: { row: SeedResult; replay: ReplayResult }[] = [];
@@ -229,7 +239,7 @@ async function main(): Promise<void> {
       noSql.push(row);
       continue;
     }
-    if (!JUDGE_FORCE && hasFullEval(existing, row.question, replay.sql)) {
+    if (!JUDGE_FORCE && (await hasJudgeOnRow(row.question, replay.sql))) {
       skipped.push(row);
       continue;
     }
@@ -256,9 +266,6 @@ async function main(): Promise<void> {
   }
 
   const newResults: FullJudgeResult[] = [];
-  let evalsMap = new Map(
-    existing.map((e) => [evalMatchKey(e.question, e.sql), e] as const)
-  );
 
   for (let i = 0; i < toJudge.length; i++) {
     const { row, replay } = toJudge[i];
@@ -273,12 +280,16 @@ async function main(): Promise<void> {
     const result = await judgeFullResult(row.question, replay.sql, replay);
     newResults.push(result);
 
-    evalsMap.set(evalMatchKey(result.question, result.sql), result);
-    const merged = [...evalsMap.values()].sort(
-      (a, b) =>
-        new Date(b.judgedAt).getTime() - new Date(a.judgedAt).getTime()
-    );
-    await saveEvals(merged);
+    const runId = await findQueryRunIdByQuestionSql(row.question, replay.sql);
+    if (runId) {
+      await updateQueryRunJudge(
+        runId,
+        result.overall,
+        judgeDetailFromResult(result)
+      );
+    } else {
+      console.warn("  → no matching query_runs row — score not persisted");
+    }
 
     console.log(
       `  → ${result.verdict} (score ${result.overall}/5)`
@@ -287,19 +298,8 @@ async function main(): Promise<void> {
     if (i < toJudge.length - 1) await sleep(JUDGE_DELAY_MS);
   }
 
-  const final = [...evalsMap.values()].sort(
-    (a, b) => new Date(b.judgedAt).getTime() - new Date(a.judgedAt).getTime()
-  );
-
-  if (!process.env.EVALS_S3_URI?.trim()) {
-    console.warn(
-      "\nNote: EVALS_S3_URI is not set — results saved to data/evals.json only.",
-      "Set EVALS_S3_URI in .env and re-run, or use: npm run eval:upload"
-    );
-  }
-
-  printSummary(newResults, final);
-  console.log("Seed judging completed with single-score output.");
+  printSummary(newResults);
+  console.log("Seed judging completed.");
 }
 
 main().catch((e) => {

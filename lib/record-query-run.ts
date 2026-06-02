@@ -1,5 +1,7 @@
 import { writeTokensToQueryRunByExecutionId } from "@/lib/query-run-tokens";
 import type { SqlGenerationResult } from "@/lib/claude";
+import type { JudgeResult } from "@/lib/judge";
+import { judgeDetailFromResult } from "@/lib/judge-detail";
 import {
   beginQueryRun,
   finalizeQueryRun,
@@ -11,14 +13,18 @@ import {
   type QueryRunUpdate,
 } from "@/lib/query-runs-store";
 
-/** Persist LLM judge score on query_runs (server-side; does not throw). */
+/** Persist LLM judge score + judge_detail on query_runs (server-side; does not throw). */
 export async function recordQueryRunJudge(
   queryRunId: string | null,
-  judgeOverall: number
+  result: Pick<JudgeResult, "overall" | "verdict" | "issues" | "judgedAt">
 ): Promise<void> {
   if (!queryRunId) return;
   try {
-    await updateQueryRunJudge(queryRunId, judgeOverall);
+    await updateQueryRunJudge(
+      queryRunId,
+      result.overall,
+      judgeDetailFromResult(result)
+    );
   } catch (e) {
     console.warn(
       "[query-runs] judge update failed:",

@@ -1,41 +1,36 @@
 /**
- * Judge query pairs from nl2sql.query_runs (Postgres) or p8k8 session timeline; write data/evals.json.
+ * Judge query pairs from nl2sql.query_runs and persist judge_overall on each row.
  *
  * Usage (reads .env / .env.local for DATABASE_URL):
  *   npm run eval
  *   npm run eval:full
  *
- * Source (default auto = Postgres when DATABASE_URL is set, else p8k8):
- *   EVAL_SOURCE=postgres|p8k8|auto
- *   npm run eval -- --source=p8k8
- *
  * Full eval replays through the app (APP_URL) and judges SQL + Athena + UI viz.
  * SQL-only mode judges question+sql already stored in the database.
  *
  * Optional:
- *   EVAL_LIMIT=200      max rows to load from DB / p8k8
+ *   EVAL_LIMIT=200      max rows to load from DB
  *   EVAL_APP_VERSION=   filter by app_version (default: current deploy; use "all" for every deploy)
  *   EVAL_DELAY_MS=600
  *   REPLAY_DELAY_MS=2000
+ *   --force            re-judge even when judge_overall is already set
  */
 
 import { loadEnvFile } from "../lib/load-env-file";
 loadEnvFile();
 
-import { evalMatchKey } from "../lib/eval-match";
+import { judgeDetailFromResult, runJudgeDetailMigration } from "../lib/judge-detail";
 import {
-  resolveDashboardDataSource,
-  p8k8Configured,
-  type DashboardDataSource,
-} from "../lib/dashboard-source";
-import { fetchP8k8MomentBases } from "../lib/load-p8k8-moments";
+  findLatestQueryRunIdByQuestion,
+  findQueryRunIdByQuestionSql,
+  updateQueryRunJudge,
+} from "../lib/query-runs-store";
 import {
   judgeFullResult,
   judgeQueryPair,
   type FullJudgeResult,
 } from "../lib/judge";
 import { replayQuestion } from "../lib/replay";
-import { evalsStorageDescription, loadEvals, saveEvals } from "../lib/evals-store";
 import { loadQueryRunPairs, type QueryRunPair } from "../lib/query-runs-dashboard";
 import { isDatabaseConfigured } from "../lib/db";
 import { resolveQueryRunsAppVersion } from "../lib/app-version";
@@ -43,8 +38,6 @@ import { resolveQueryRunsAppVersion } from "../lib/app-version";
 const FULL_EVAL = process.argv.includes("--full");
 const FORCE_REPLAY = process.argv.includes("--force");
 const REPLACE_EVALS = process.argv.includes("--replace");
-const SOURCE_ARG = process.argv.find((a) => a.startsWith("--source="));
-const CLI_SOURCE = SOURCE_ARG?.split("=")[1]?.trim().toLowerCase();
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
 const APP_URL = process.env.APP_URL?.replace(/\/$/, "");
 const EVAL_LIMIT = Number.parseInt(process.env.EVAL_LIMIT ?? "100", 10) || 100;
@@ -69,86 +62,7 @@ function hasSqlStatement(sql: string): boolean {
   return /\b(SELECT|WITH)\b/i.test(sql);
 }
 
-type EvalPair = { question: string; sql: string };
-
-function resolveEvalSource(): DashboardDataSource {
-  if (CLI_SOURCE === "postgres" || CLI_SOURCE === "db") return "postgres";
-  if (CLI_SOURCE === "p8k8") return "p8k8";
-  if (process.env.EVAL_SOURCE?.trim().toLowerCase() === "postgres") return "postgres";
-  if (process.env.EVAL_SOURCE?.trim().toLowerCase() === "p8k8") return "p8k8";
-  return resolveDashboardDataSource();
-}
-
-async function loadEvalPairs(source: DashboardDataSource): Promise<EvalPair[]> {
-  const limit = EVAL_LIMIT;
-
-  if (source === "postgres") {
-    if (!isDatabaseConfigured()) {
-      console.error("Error: DATABASE_URL is required for postgres eval source");
-      process.exit(1);
-    }
-    const appVersion = resolveQueryRunsAppVersion(process.env.EVAL_APP_VERSION);
-    const rows: QueryRunPair[] = await loadQueryRunPairs({ limit, appVersion });
-    console.log(
-      `Loaded ${rows.length} query run(s) from nl2sql.query_runs${
-        appVersion ? ` (app_version=${appVersion})` : " (all deploys)"
-      }`
-    );
-    return rows.map((r) => ({ question: r.question, sql: r.sql }));
-  }
-
-  if (!p8k8Configured()) {
-    console.error("Error: P8K8_URL and P8K8_AUTH_TOKEN required for p8k8 eval source");
-    process.exit(1);
-  }
-
-  const bases = await fetchP8k8MomentBases(limit);
-  const pairs = bases
-    .filter((p) => hasSqlStatement(p.sql))
-    .map((p) => ({ question: p.question, sql: p.sql }));
-  console.log(`Loaded ${pairs.length} pair(s) from p8k8 session timeline`);
-  return pairs;
-}
-
-function mergeByPairKey(
-  existing: FullJudgeResult[],
-  added: FullJudgeResult[]
-): FullJudgeResult[] {
-  const map = new Map<string, FullJudgeResult>();
-  for (const e of existing) map.set(evalMatchKey(e.question, e.sql), e);
-  for (const e of added) map.set(evalMatchKey(e.question, e.sql), e);
-  return Array.from(map.values());
-}
-
-function hasFullEval(
-  existing: FullJudgeResult[],
-  question: string,
-  sql: string
-): boolean {
-  const key = evalMatchKey(question, sql);
-  const entry = existing.find((e) => evalMatchKey(e.question, e.sql) === key);
-  return Boolean(entry);
-}
-
-/** Union of questions from prior evals and p8k8 pairs (stable order: evals first, then p8k8). */
-function collectQuestionCatalog(
-  existing: FullJudgeResult[],
-  pairs: { question: string }[]
-): string[] {
-  const seen = new Set<string>();
-  const out: string[] = [];
-  const add = (q: string) => {
-    const t = q.trim();
-    if (!t || seen.has(t)) return;
-    seen.add(t);
-    out.push(t);
-  };
-  for (const e of existing) add(e.question);
-  for (const p of pairs) add(p.question);
-  return out;
-}
-
-function printSummary(newResults: FullJudgeResult[], all: FullJudgeResult[]): void {
+function printSummary(newResults: FullJudgeResult[]): void {
   const correct = newResults.filter((r) => r.verdict === "correct").length;
   const partial = newResults.filter((r) => r.verdict === "partial").length;
   const incorrect = newResults.filter((r) => r.verdict === "incorrect").length;
@@ -166,7 +80,7 @@ function printSummary(newResults: FullJudgeResult[], all: FullJudgeResult[]): vo
   }
 
   console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-  console.log(`Evaluated: ${n} new pairs`);
+  console.log(`Evaluated: ${n} pair(s) → judge_overall on nl2sql.query_runs`);
   if (n > 0) {
     console.log(`Correct:    ${correct}  (${Math.round((correct / n) * 100)}%)`);
     console.log(`Partial:    ${partial}  (${Math.round((partial / n) * 100)}%)`);
@@ -184,14 +98,48 @@ function printSummary(newResults: FullJudgeResult[], all: FullJudgeResult[]): vo
     }
   }
   console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-  console.log(`Written to ${evalsStorageDescription()} (${all.length} total)`);
+}
+
+async function persistJudge(
+  result: FullJudgeResult,
+  rowId?: string
+): Promise<void> {
+  const id =
+    rowId ??
+    (await findQueryRunIdByQuestionSql(result.question, result.sql)) ??
+    (await findLatestQueryRunIdByQuestion(result.question));
+  if (!id) {
+    console.warn("  → no query_runs row to persist judge");
+    return;
+  }
+  const ok = await updateQueryRunJudge(
+    id,
+    result.overall,
+    judgeDetailFromResult(result)
+  );
+  if (!ok) console.warn(`  → failed to update judge on row ${id}`);
+  if (result.issues[0]) {
+    console.log(`  → reasoning: ${result.issues[0]}`);
+  }
+}
+
+async function loadEvalPairs(): Promise<QueryRunPair[]> {
+  if (!isDatabaseConfigured()) {
+    console.error("Error: DATABASE_URL is required");
+    process.exit(1);
+  }
+  const appVersion = resolveQueryRunsAppVersion(process.env.EVAL_APP_VERSION);
+  const rows = await loadQueryRunPairs({ limit: EVAL_LIMIT, appVersion });
+  console.log(
+    `Loaded ${rows.length} query run(s) from nl2sql.query_runs${
+      appVersion ? ` (app_version=${appVersion})` : " (all deploys)"
+    }`
+  );
+  return rows.filter((r) => hasSqlStatement(r.sql));
 }
 
 async function main(): Promise<void> {
   requireEnv("ANTHROPIC_API_KEY", ANTHROPIC_API_KEY);
-
-  const source = resolveEvalSource();
-  console.log(`Eval source: ${source}`);
 
   if (FULL_EVAL) {
     if (!APP_URL && !process.env.APP_URL) {
@@ -205,52 +153,56 @@ async function main(): Promise<void> {
       );
     }
     console.warn(
-      "Full eval hits the running app (npm run dev). Athena/AWS env must be valid on that server — not only in this shell."
+      "Full eval hits the running app (npm run dev). Athena/AWS env must be valid on that server."
     );
-    if (REPLACE_EVALS) {
-      console.warn(
-        "Replace mode: evals file will contain only this run's full evals (one row per question)."
-      );
-    }
-    if (FORCE_REPLAY) {
-      console.warn("Force mode: re-judging even when a matching full eval exists.");
-    }
   }
 
-  const pairs = (await loadEvalPairs(source)).filter((p) =>
-    hasSqlStatement(p.sql)
-  );
+  try {
+    await runJudgeDetailMigration();
+  } catch (e) {
+    console.warn(
+      "judge_detail migration skipped:",
+      e instanceof Error ? e.message : e
+    );
+  }
+
+  const pairs = await loadEvalPairs();
 
   if (pairs.length === 0) {
     console.error("No question/SQL pairs to judge. Run some queries in the app first.");
     process.exit(1);
   }
 
-  const existing = await loadEvals();
   const newResults: FullJudgeResult[] = [];
 
   if (FULL_EVAL) {
-    const questions = REPLACE_EVALS
-      ? collectQuestionCatalog(existing, pairs)
-      : (() => {
-          const seen = new Set<string>();
-          return pairs.filter((p) => {
-            const q = p.question.trim();
-            if (seen.has(q)) return false;
-            seen.add(q);
-            return true;
-          }).map((p) => p.question.trim());
-        })();
+    const seen = new Set<string>();
+    const questions = pairs
+      .map((p) => p.question.trim())
+      .filter((q) => {
+        if (seen.has(q)) return false;
+        seen.add(q);
+        return true;
+      });
 
-    console.log(
-      `Full eval: ${questions.length} unique question(s)${REPLACE_EVALS ? ` (from evals + ${source})` : ` (from ${source})`}`
-    );
+    console.log(`Full eval: ${questions.length} unique question(s)`);
 
     for (let i = 0; i < questions.length; i++) {
       const question = questions[i];
+      const pair = pairs.find((p) => p.question.trim() === question);
       console.log(
         `Full eval [${i + 1}/${questions.length}]: "${question.slice(0, 60)}${question.length > 60 ? "..." : ""}"`
       );
+
+      if (
+        !FORCE_REPLAY &&
+        !REPLACE_EVALS &&
+        pair?.judgeOverall != null
+      ) {
+        console.log("  → judge_overall already set, skipping");
+        if (i < questions.length - 1) await sleep(REPLAY_DELAY_MS);
+        continue;
+      }
 
       console.log("  → replaying through app...");
       const replay = await replayQuestion(question);
@@ -258,68 +210,32 @@ async function main(): Promise<void> {
       console.log(
         `  → athena: ${replay.athenaStatus}, rows: ${replay.rowCount ?? "n/a"}${errHint}`
       );
-      if (
-        replay.athenaStatus === "ERROR" &&
-        replay.errorReason?.includes("output bucket")
-      ) {
-        console.log(
-          "  → hint: fix ATHENA_OUTPUT_LOCATION in .env (used by npm run dev), then restart dev"
-        );
-      }
-
-      if (
-        !FORCE_REPLAY &&
-        !REPLACE_EVALS &&
-        hasFullEval(existing, question, replay.sql)
-      ) {
-        console.log("  → already judged, skipping");
-        if (i < questions.length - 1) await sleep(REPLAY_DELAY_MS);
-        continue;
-      }
 
       console.log("  → judging (SQL + result)...");
       const result = await judgeFullResult(question, replay.sql, replay);
       newResults.push(result);
+      await persistJudge(result, pair?.id);
 
       if (i < questions.length - 1) await sleep(REPLAY_DELAY_MS);
     }
   } else {
-    const judgedKeys = new Set(
-      existing.map((e) => evalMatchKey(e.question, e.sql))
-    );
-    const toJudge = pairs.filter(
-      (p) => !judgedKeys.has(evalMatchKey(p.question, p.sql))
-    );
+    const toJudge = FORCE_REPLAY
+      ? pairs
+      : pairs.filter((p) => p.judgeOverall == null);
 
     for (let i = 0; i < toJudge.length; i++) {
-      const { question, sql } = toJudge[i];
+      const { id, question, sql } = toJudge[i];
       console.log(
         `Judging [${i + 1}/${toJudge.length}]: "${question.slice(0, 60)}${question.length > 60 ? "..." : ""}"`
       );
       const result = await judgeQueryPair(question, sql);
       newResults.push(result);
+      await persistJudge(result, id);
       if (i < toJudge.length - 1) await sleep(EVAL_DELAY_MS);
     }
   }
 
-  const merged = REPLACE_EVALS
-    ? newResults
-    : mergeByPairKey(existing, newResults);
-  merged.sort(
-    (a, b) =>
-      new Date(b.judgedAt).getTime() - new Date(a.judgedAt).getTime()
-  );
-
-  await saveEvals(merged);
-
-  if (!process.env.EVALS_S3_URI?.trim()) {
-    console.warn(
-      "\nNote: EVALS_S3_URI is not set — results saved to data/evals.json only.",
-      "Set EVALS_S3_URI in .env and re-run, or use: npm run eval:upload"
-    );
-  }
-
-  printSummary(newResults, merged);
+  printSummary(newResults);
   if (FULL_EVAL) console.log("Full eval mode: single-score judging completed.");
 }
 
