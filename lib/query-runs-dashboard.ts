@@ -64,6 +64,7 @@ export function queryRunRowToMomentBase(row: QueryRunRow): DashboardMomentBase {
     costUsd: evaluated?.costUsd ?? null,
     hallucinationType: evaluated?.hallucinationType ?? null,
     questionSource: evaluated?.questionSource ?? null,
+    judgeDetail: evaluated?.judgeDetail ?? null,
   };
 }
 

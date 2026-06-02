@@ -18,6 +18,8 @@ import type { QueryCategory } from "@/lib/query-category";
 import type { QueryDataset } from "@/lib/query-dataset";
 import type { QueryDifficulty } from "@/lib/query-difficulty";
 import type { HallucinationType, QueryRunRow } from "@/lib/query-runs-store";
+import type { JudgeDetail } from "@/lib/judge-detail-types";
+import { parseJudgeDetail } from "@/lib/judge-detail";
 import {
   parseCostUsd,
   parseJudgeOverall,
@@ -28,9 +30,15 @@ import type { QuestionSource } from "@/lib/question-source-types";
 import type { TokenSummary } from "@/lib/query-run-tokens";
 
 export function judgeViewFromQueryRun(row: QueryRunRow): DashboardJudgeView | null {
-  const overall = parseJudgeOverall(row.judge_overall);
+  const detail = parseJudgeDetail(row.judge_detail);
+  const overall =
+    detail?.overall ?? parseJudgeOverall(row.judge_overall);
   if (overall == null) return null;
-  return buildDashboardJudgeView(row.question, row.sql, overall);
+  const view = buildDashboardJudgeView(row.question, row.sql, overall);
+  if (detail) {
+    return { ...view, verdict: detail.verdict };
+  }
+  return view;
 }
 
 export type EvaluatedRunFields = {
@@ -43,11 +51,17 @@ export type EvaluatedRunFields = {
   costUsd: number | null;
   hallucinationType: HallucinationType | null;
   questionSource: QuestionSource;
+  judgeDetail: JudgeDetail | null;
 };
 
 export function evaluatedFieldsFromQueryRun(row: QueryRunRow): EvaluatedRunFields | null {
-  const view = judgeViewFromQueryRun(row);
-  if (!view) return null;
+  const detail = parseJudgeDetail(row.judge_detail);
+  const overall =
+    detail?.overall ?? parseJudgeOverall(row.judge_overall);
+  if (overall == null) return null;
+
+  const view = buildDashboardJudgeView(row.question, row.sql, overall);
+  const verdict = detail?.verdict ?? view.verdict;
 
   const hallucinationRaw = row.hallucination_type?.trim() || null;
   const hallucinationType =
@@ -59,8 +73,8 @@ export function evaluatedFieldsFromQueryRun(row: QueryRunRow): EvaluatedRunField
       : null;
 
   return {
-    judgeOverall: view.overall,
-    judgeVerdict: view.verdict,
+    judgeOverall: overall,
+    judgeVerdict: verdict,
     judgeCategory: view.category,
     judgeDataset: view.dataset,
     judgeDifficulty: view.difficulty,
@@ -68,5 +82,6 @@ export function evaluatedFieldsFromQueryRun(row: QueryRunRow): EvaluatedRunField
     costUsd: parseCostUsd(row.cost_usd),
     hallucinationType,
     questionSource: getQuestionSource(row.question),
+    judgeDetail: detail,
   };
 }

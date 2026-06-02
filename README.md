@@ -115,7 +115,7 @@ npm run dev
 
 Open http://localhost:3000. When logged in, **`/dashboard`** shows **judged** runs only from **`nl2sql.query_runs`** — **latest judged run per question** in the selected time range. Filters: last 1d / 7d / 30d, golden vs question bank vs ad-hoc. Surfaces `judge_overall`, tokens, cost, and hallucination type. Requires **`DATABASE_URL`**. API: `?sinceDays=7`, `?questionSource=golden`, `?appVersion=…` for deploy filter.
 
-**Eval script** (`npm run eval`) judges rows in Postgres and writes **`judge_overall`** on each `query_runs` row; defaults to current deploy (`EVAL_APP_VERSION=all` for all deploys).
+**Eval script** (`npm run eval`) judges rows in Postgres and writes **`judge_overall`** plus **`judge_detail`** JSONB (`reasoning`, `verdict`, `judgedAt`) on each `query_runs` row; defaults to current deploy (`EVAL_APP_VERSION=all` for all deploys). Apply `scripts/sql/add-judge-detail.sql` once if the column is missing (eval scripts also run `ADD COLUMN IF NOT EXISTS`).
 
 **Run + eval** (`npm run run:eval`) reads `data/questions.json`, generates SQL with your local env (`USE_P8K8` / `CLAUDE_SQL_AGENT`), logs to Postgres, judges, and persists scores on `query_runs`. Use `npm run run:eval:full` for Athena+viz judging. No browser required.
 

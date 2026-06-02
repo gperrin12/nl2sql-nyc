@@ -508,8 +508,9 @@ async function main(): Promise<void> {
       outcome.replay
     );
 
-    await recordQueryRunJudge(outcome.queryRunId, result.overall);
+    await recordQueryRunJudge(outcome.queryRunId, result);
     console.log(`  → judge: ${result.overall}/5 (${result.verdict})`);
+    if (result.issues[0]) console.log(`  → ${result.issues[0]}`);
 
     newResults.push(result);
 

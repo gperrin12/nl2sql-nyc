@@ -19,6 +19,7 @@
 import { loadEnvFile } from "../lib/load-env-file";
 loadEnvFile();
 
+import { judgeDetailFromResult, runJudgeDetailMigration } from "../lib/judge-detail";
 import {
   findLatestQueryRunIdByQuestion,
   findQueryRunIdByQuestionSql,
@@ -100,21 +101,26 @@ function printSummary(newResults: FullJudgeResult[]): void {
 }
 
 async function persistJudge(
-  question: string,
-  sql: string,
-  overall: number,
+  result: FullJudgeResult,
   rowId?: string
 ): Promise<void> {
   const id =
     rowId ??
-    (await findQueryRunIdByQuestionSql(question, sql)) ??
-    (await findLatestQueryRunIdByQuestion(question));
+    (await findQueryRunIdByQuestionSql(result.question, result.sql)) ??
+    (await findLatestQueryRunIdByQuestion(result.question));
   if (!id) {
-    console.warn("  → no query_runs row to persist judge_overall");
+    console.warn("  → no query_runs row to persist judge");
     return;
   }
-  const ok = await updateQueryRunJudge(id, overall);
-  if (!ok) console.warn(`  → failed to update judge_overall on row ${id}`);
+  const ok = await updateQueryRunJudge(
+    id,
+    result.overall,
+    judgeDetailFromResult(result)
+  );
+  if (!ok) console.warn(`  → failed to update judge on row ${id}`);
+  if (result.issues[0]) {
+    console.log(`  → reasoning: ${result.issues[0]}`);
+  }
 }
 
 async function loadEvalPairs(): Promise<QueryRunPair[]> {
@@ -148,6 +154,15 @@ async function main(): Promise<void> {
     }
     console.warn(
       "Full eval hits the running app (npm run dev). Athena/AWS env must be valid on that server."
+    );
+  }
+
+  try {
+    await runJudgeDetailMigration();
+  } catch (e) {
+    console.warn(
+      "judge_detail migration skipped:",
+      e instanceof Error ? e.message : e
     );
   }
 
@@ -199,7 +214,7 @@ async function main(): Promise<void> {
       console.log("  → judging (SQL + result)...");
       const result = await judgeFullResult(question, replay.sql, replay);
       newResults.push(result);
-      await persistJudge(question, replay.sql, result.overall, pair?.id);
+      await persistJudge(result, pair?.id);
 
       if (i < questions.length - 1) await sleep(REPLAY_DELAY_MS);
     }
@@ -215,7 +230,7 @@ async function main(): Promise<void> {
       );
       const result = await judgeQueryPair(question, sql);
       newResults.push(result);
-      await persistJudge(question, sql, result.overall, id);
+      await persistJudge(result, id);
       if (i < toJudge.length - 1) await sleep(EVAL_DELAY_MS);
     }
   }

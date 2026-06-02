@@ -14,7 +14,11 @@
 import type { AgentStreamPayload } from "@/lib/sql-agent/types";
 import { getAppVersion } from "@/lib/app-version";
 import { getPgPool, isDatabaseConfigured } from "@/lib/db";
+import type { JudgeDetail } from "@/lib/judge-detail-types";
 import type { TokenSummary } from "@/lib/query-run-tokens";
+
+export type { JudgeDetail } from "@/lib/judge-detail-types";
+export { judgeDetailFromResult, parseJudgeDetail } from "@/lib/judge-detail";
 
 function pgErrorCode(e: unknown): string | undefined {
   if (e && typeof e === "object" && "code" in e) {
@@ -67,6 +71,7 @@ export type QueryRunUpdate = {
   rowCount?: number | null;
   trace?: AgentStreamPayload[] | null;
   judgeOverall?: number | null;
+  judgeDetail?: JudgeDetail | null;
   promptVersion?: string | null;
 };
 
@@ -90,6 +95,7 @@ export type QueryRunRow = {
   cost_usd: string | null;
   hallucination_type: string | null;
   hallucinations: unknown;
+  judge_detail: unknown;
 };
 
 export function parseJudgeOverall(raw: string | null | undefined): number | null {
@@ -218,6 +224,13 @@ export async function updateQueryRun(
       patch.judgeOverall == null ? null : String(patch.judgeOverall)
     );
   }
+  if (patch.judgeDetail !== undefined) {
+    sets.push(`judge_detail = $${n}::jsonb`);
+    values.push(
+      patch.judgeDetail == null ? null : JSON.stringify(patch.judgeDetail)
+    );
+    n += 1;
+  }
   if (patch.promptVersion !== undefined) {
     add("prompt_version", patch.promptVersion);
   }
@@ -232,12 +245,16 @@ export async function updateQueryRun(
   return (result.rowCount ?? 0) > 0;
 }
 
-/** Persist LLM judge score (1–5) on a query_runs row. */
+/** Persist LLM judge score (1–5) and optional judge_detail JSONB. */
 export async function updateQueryRunJudge(
   id: string,
-  judgeOverall: number
+  judgeOverall: number,
+  judgeDetail?: JudgeDetail | null
 ): Promise<boolean> {
-  return updateQueryRun(id, { judgeOverall });
+  return updateQueryRun(id, {
+    judgeOverall,
+    ...(judgeDetail !== undefined ? { judgeDetail } : {}),
+  });
 }
 
 /** Persist one completed (or failed) query run. No-op if DATABASE_URL is unset. */
@@ -475,7 +492,8 @@ const QUERY_RUN_SELECT = `
   tokens_used,
   cost_usd::text,
   hallucination_type,
-  hallucinations`;
+  hallucinations,
+  judge_detail`;
 
 function hasEvaluableSql(sql: string | null | undefined): boolean {
   return sql != null && /\b(SELECT|WITH)\b/i.test(sql);

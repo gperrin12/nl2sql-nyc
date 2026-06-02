@@ -16,6 +16,7 @@
 import { readFileSync, existsSync } from "fs";
 import path from "path";
 import { judgeFullResult, type FullJudgeResult } from "../lib/judge";
+import { judgeDetailFromResult, runJudgeDetailMigration } from "../lib/judge-detail";
 import {
   findQueryRunIdByQuestionSql,
   getQueryRunJudgeOverall,
@@ -211,6 +212,15 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
+  try {
+    await runJudgeDetailMigration();
+  } catch (e) {
+    console.warn(
+      "judge_detail migration skipped:",
+      e instanceof Error ? e.message : e
+    );
+  }
+
   const allSeed = loadSeedResults();
   const filtered = applyFilters(allSeed);
 
@@ -272,7 +282,11 @@ async function main(): Promise<void> {
 
     const runId = await findQueryRunIdByQuestionSql(row.question, replay.sql);
     if (runId) {
-      await updateQueryRunJudge(runId, result.overall);
+      await updateQueryRunJudge(
+        runId,
+        result.overall,
+        judgeDetailFromResult(result)
+      );
     } else {
       console.warn("  → no matching query_runs row — score not persisted");
     }

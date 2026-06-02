@@ -36,6 +36,7 @@ import {
   guardSqlForEval,
 } from "../lib/run-guarded-sql";
 import { detectWarehouseHallucinations } from "../lib/hallucination-schema";
+import { runJudgeDetailMigration } from "../lib/judge-detail";
 import { getQueryRunJudgeOverall } from "../lib/query-runs-store";
 import { startQuery, getStatus, getResults } from "../lib/athena";
 import { inferUiViz } from "../lib/infer-ui-viz";
@@ -501,6 +502,17 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
+  if (!DRY_RUN && isDatabaseConfigured()) {
+    try {
+      await runJudgeDetailMigration();
+    } catch (e) {
+      console.warn(
+        "judge_detail migration skipped:",
+        e instanceof Error ? e.message : e
+      );
+    }
+  }
+
   // Direct mode forces the agent backend with a DB-stored prompt variant (A/B testing).
   // Skipped on --dry-run, which only prints the plan.
   if (!REMOTE && !DRY_RUN) {
@@ -588,8 +600,9 @@ async function main(): Promise<void> {
     }
 
     // Persist judge score onto the nl2sql.query_runs row (no-op for remote / no row).
-    await recordQueryRunJudge(outcome.queryRunId, result.overall);
+    await recordQueryRunJudge(outcome.queryRunId, result);
     console.log(`  → judge: ${result.overall}/5 (${result.verdict})`);
+    if (result.issues[0]) console.log(`  → ${result.issues[0]}`);
 
     newResults.push(result);
 

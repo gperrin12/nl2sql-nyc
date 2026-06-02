@@ -571,6 +571,11 @@ function MomentRow({
                     ? ` · ${formatHallucinationLabel(m.hallucinationType)}`
                     : ""}
                 </p>
+                {m.judgeDetail?.reasoning ? (
+                  <p className="text-sm text-[var(--text)] leading-relaxed">
+                    {m.judgeDetail.reasoning}
+                  </p>
+                ) : null}
               </div>
             )}
 

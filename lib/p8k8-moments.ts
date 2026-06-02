@@ -8,6 +8,7 @@ import type { QueryCategory } from "@/lib/query-category";
 import type { QueryDataset } from "@/lib/query-dataset";
 import type { QueryDifficulty } from "@/lib/query-difficulty";
 import type { HallucinationType } from "@/lib/query-runs-store";
+import type { JudgeDetail } from "@/lib/judge-detail-types";
 import type { QuestionSource } from "@/lib/question-source-types";
 import type { TokenSummary } from "@/lib/query-run-tokens";
 import type { QuestionMetrics, SqlComplexity } from "@/lib/sql-metrics";
@@ -43,6 +44,7 @@ export type DashboardMoment = {
   costUsd?: number | null;
   hallucinationType?: HallucinationType | null;
   questionSource?: QuestionSource | null;
+  judgeDetail?: JudgeDetail | null;
 };
 
 type P8k8TimelineEvent = {
