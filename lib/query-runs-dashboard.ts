@@ -1,5 +1,5 @@
 import { evaluatedFieldsFromQueryRun } from "@/lib/dashboard-judge";
-import type { DashboardMomentBase } from "@/lib/p8k8-moments";
+import type { DashboardMomentBase } from "@/lib/dashboard-moments";
 import type { QuestionSource } from "@/lib/question-source-types";
 import {
   listEvaluatedDashboardRuns,

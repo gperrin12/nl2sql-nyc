@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { CorrectnessVerdict } from "@/lib/judge";
-import type { DashboardMoment } from "@/lib/p8k8-moments";
+import type { DashboardMoment } from "@/lib/dashboard-moments";
 import {
   classifyQuestion,
   type QueryCategory,

@@ -9,7 +9,7 @@
  *
  * Modes:
  *   default     — direct: pickBackend() + Athena in this process (uses your .env)
- *   --remote    — HTTP via APP_URL (uses that deployment's USE_P8K8 / CLAUDE_SQL_AGENT)
+ *   --remote    — HTTP via APP_URL (uses that deployment's CLAUDE_SQL_AGENT / agent settings)
  *
  * Flags:
  *   --full      — judge SQL + Athena result + viz (like eval:full)
@@ -51,7 +51,6 @@ import {
   loadQuestionsFromFile,
   type QuestionBankEntry,
 } from "../lib/questions-bank";
-import { generateSqlViaP8k8 } from "../lib/p8k8";
 import { loadPromptVersion } from "../lib/prompt-versions";
 import {
   recordQueryRunFinalize,
@@ -61,7 +60,6 @@ import {
 } from "../lib/record-query-run";
 import type { ReplayResult } from "../lib/replay";
 import { replayQuestion } from "../lib/replay";
-import { pickBackend } from "../lib/route";
 import { generateSqlWithAgent } from "../lib/sql-agent/run";
 import {
   getQueryRunIdByExecutionId,
@@ -469,9 +467,7 @@ function printSummary(newResults: FullJudgeResult[]): void {
 
 async function main(): Promise<void> {
   if (!REMOTE) {
-    if (process.env.USE_P8K8 !== "true") {
-      requireEnv("ANTHROPIC_API_KEY", process.env.ANTHROPIC_API_KEY);
-    }
+    requireEnv("ANTHROPIC_API_KEY", process.env.ANTHROPIC_API_KEY);
     if (!process.env.ATHENA_OUTPUT_LOCATION?.trim()) {
       console.error("Error: ATHENA_OUTPUT_LOCATION is required for direct mode");
       process.exit(1);

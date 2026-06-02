@@ -1,6 +1,6 @@
 import { enrichDashboardMoments } from "@/lib/enrich-dashboard-moments";
-import type { DashboardMoment } from "@/lib/p8k8-moments";
-import { paginateMoments } from "@/lib/p8k8-moments";
+import type { DashboardMoment } from "@/lib/dashboard-moments";
+import { paginateMoments } from "@/lib/dashboard-moments";
 import { loadEvaluatedQueryRunMoments } from "@/lib/query-runs-dashboard";
 import {
   getAppVersion,

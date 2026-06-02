@@ -1,8 +1,8 @@
 /**
- * Server-only: merge p8k8 pairs with local latency store + computed metrics.
+ * Server-only: merge query run pairs with local latency store + computed metrics.
  */
 
-import type { DashboardMoment, DashboardMomentBase } from "@/lib/p8k8-moments";
+import type { DashboardMoment, DashboardMomentBase } from "@/lib/dashboard-moments";
 import { lookupLatencyFromMap } from "@/lib/query-metrics-store";
 import { questionMetrics, sqlComplexity } from "@/lib/sql-metrics";
 

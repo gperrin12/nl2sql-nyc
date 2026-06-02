@@ -42,9 +42,7 @@ type ErrorResponse = {
 const MAX_REPAIR_ATTEMPTS = 5;
 
 /** Live trace panel uses POST /api/query/agent-stream (not /api/query/start). */
-const USE_QUERY_STREAM =
-  process.env.NEXT_PUBLIC_AGENT_SSE === "true" ||
-  process.env.NEXT_PUBLIC_USE_P8K8 === "true";
+const USE_QUERY_STREAM = process.env.NEXT_PUBLIC_AGENT_SSE === "true";
 
 export function HomeClient() {
   const [executionId, setExecutionId] = useState<string | null>(null);
