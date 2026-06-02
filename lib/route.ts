@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { generateSql } from "@/lib/claude";
-import { generateSqlViaP8k8 } from "@/lib/p8k8";
 import { mapSpatialIntent } from "@/lib/sql-agent/mapIntent";
 import { generateSqlWithAgent } from "@/lib/sql-agent/run";
 import { isAuthenticated } from "@/lib/auth";
@@ -14,18 +13,14 @@ const BodySchema = z.object({
 /**
  * Which SQL-generation backend to use:
  *
- *   USE_P8K8=true              → always route through p8k8
- *   CLAUDE_SQL_AGENT=true      → always use the local tool-using agent
- *   spatial question           → always use the local tool-using agent
- *   (default)                  → single-shot generateSql() via Anthropic SDK
- *
- * Priority: agent (spatial/flag) > p8k8 > direct Claude
+ *   CLAUDE_SQL_AGENT=true  → always use the local tool-using agent
+ *   spatial question       → always use the local tool-using agent
+ *   (default)              → single-shot generateSql() via Anthropic SDK
  */
-export function pickBackend(question: string): "agent" | "p8k8" | "claude" {
+export function pickBackend(question: string): "agent" | "claude" {
   const isSpatial =
     process.env.CLAUDE_SQL_AGENT === "true" || mapSpatialIntent(question);
   if (isSpatial) return "agent";
-  if (process.env.USE_P8K8 === "true") return "p8k8";
   return "claude";
 }
 
@@ -49,9 +44,6 @@ export async function POST(req: NextRequest) {
     generate: async () => {
       if (backend === "agent") {
         return generateSqlWithAgent(parsed.question);
-      }
-      if (backend === "p8k8") {
-        return generateSqlViaP8k8(parsed.question);
       }
       return generateSql(parsed.question);
     },

@@ -1,7 +1,6 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
 import { generateSql } from "@/lib/claude";
-import { generateSqlViaP8k8WithEvents } from "@/lib/p8k8";
 import { pickBackend } from "@/lib/route";
 import { runSqlAgentWithEvents } from "@/lib/sql-agent/run";
 import type { AgentStreamPayload } from "@/lib/sql-agent/types";
@@ -50,9 +49,6 @@ export async function POST(req: NextRequest) {
         generate: async () => {
           if (backend === "agent") {
             return runSqlAgentWithEvents(parsed.question, push);
-          }
-          if (backend === "p8k8") {
-            return generateSqlViaP8k8WithEvents(parsed.question, push);
           }
           await push({ type: "turn", index: 0 });
           await push({

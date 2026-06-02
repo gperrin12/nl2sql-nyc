@@ -180,6 +180,21 @@ function findOrderedWinner(
   const { metricColumn, labelColumn } = cols;
   const labelValue = rows[0][labelColumn];
   if (labelValue == null || labelValue === "") return null;
+
+  const row0Metric = parseNumeric(rows[0][metricColumn]);
+  let bestVal = -Infinity;
+  for (let i = 0; i < rows.length; i++) {
+    const n = parseNumeric(rows[i][metricColumn]);
+    if (n !== null && n > bestVal) bestVal = n;
+  }
+  if (
+    row0Metric === null ||
+    !Number.isFinite(bestVal) ||
+    row0Metric !== bestVal
+  ) {
+    return null;
+  }
+
   return {
     rowIndex: 0,
     labelColumn,
@@ -234,7 +249,9 @@ export function resolveTriviaProofFromResults(
   }
 
   // Primary truth source: first row after ORDER BY ... DESC LIMIT 4.
-  // Fallback to metric inference only when ordered winner can't be read.
+  // Reject ties before trusting row order; fallback to metric inference when order can't be read.
+  if (findRankingMetricTie(columns, rows)) return null;
+
   const winner = findOrderedWinner(columns, rows) ?? findRankingWinner(columns, rows);
   if (!winner) return null;
 

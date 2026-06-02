@@ -42,7 +42,7 @@ hobby/pro tiers cap function execution well below that.
 
 Set `CLAUDE_SQL_AGENT=true` to use a **tool loop** instead of one-shot generation: the model calls `list_tables` and `get_schema` so it only loads relevant table definitions (fewer invented columns), then emits SQL.
 
-Set **`NEXT_PUBLIC_AGENT_SSE=true`** (or **`NEXT_PUBLIC_USE_P8K8=true`** when using p8k8) so the UI calls **`POST /api/query/agent-stream`** instead of `/api/query/start`. You’ll see a live **agent trace** (round → reason → tool act/observe when applicable), then SQL, guardrails, and Athena in one streamed sequence. Without one of those flags, `USE_P8K8=true` still works but only via the non-streaming start route — you get `model: p8k8` with **no** trace panel. Rebuild or restart dev after changing `NEXT_PUBLIC_*` vars.
+Set **`NEXT_PUBLIC_AGENT_SSE=true`** so the UI calls **`POST /api/query/agent-stream`** instead of `/api/query/start`. You’ll see a live **agent trace** (round → reason → tool act/observe when applicable), then SQL, guardrails, and Athena in one streamed sequence. Rebuild or restart dev after changing `NEXT_PUBLIC_*` vars.
 
 When Athena fails or returns unusable results, call **`POST /api/query/repair`** with JSON `{ "question", "sql", "feedback" }` where `feedback` is the Athena state reason (or your own notes). That runs a **repair pass** with the full dialect prompt and starts a new execution.
 
@@ -117,7 +117,7 @@ Open http://localhost:3000. When logged in, **`/dashboard`** shows **judged** ru
 
 **Eval script** (`npm run eval`) judges rows in Postgres and writes **`judge_overall`** plus **`judge_detail`** JSONB (`reasoning`, `verdict`, `judgedAt`) on each `query_runs` row; defaults to current deploy (`EVAL_APP_VERSION=all` for all deploys). Apply `scripts/sql/add-judge-detail.sql` once if the column is missing (eval scripts also run `ADD COLUMN IF NOT EXISTS`).
 
-**Run + eval** (`npm run run:eval`) reads `data/questions.json`, generates SQL with your local env (`USE_P8K8` / `CLAUDE_SQL_AGENT`), logs to Postgres, judges, and persists scores on `query_runs`. Use `npm run run:eval:full` for Athena+viz judging. No browser required.
+**Run + eval** (`npm run run:eval`) reads `data/questions.json`, generates SQL with the local tool-using agent (`CLAUDE_SQL_AGENT` or forced in eval), logs to Postgres, judges, and persists scores on `query_runs`. Use `npm run run:eval:full` for Athena+viz judging. No browser required.
 
 **Golden eval** (`npm run eval:golden`) reads `data/golden-dataset.json` (12 curated questions), runs the **tool-using SQL agent**, executes on Athena, judges, and logs to `nl2sql.query_runs` with **`app_version`** (default in `lib/golden-eval-version.ts`) and **`prompt_version`** (from `--prompt-version`, default `v1-baseline`). A/B prompts: `npm run eval:golden -- --prompt-version v2-chain-of-thought`. Change deploy tag: `GOLDEN_APP_VERSION=v3.2 npm run eval:golden` or `--version v3.2`. Requires `NEON_DATABASE_URL`, `ANTHROPIC_API_KEY`, `ATHENA_OUTPUT_LOCATION`. Dry run: `npm run eval:golden:dry`. Filter: `RUN_LIMIT=1 SEED_IDS=agg-003 npm run eval:golden`. Re-judge logged rows: `EVAL_APP_VERSION=v3.1 npm run eval`.
 

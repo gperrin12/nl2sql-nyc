@@ -9,7 +9,7 @@ import {
 import { MomentsTable } from "@/components/MomentsTable";
 import { momentToJudgeView } from "@/lib/dashboard-judge-view";
 import type { CorrectnessVerdict } from "@/lib/judge";
-import type { DashboardMoment } from "@/lib/p8k8-moments";
+import type { DashboardMoment } from "@/lib/dashboard-moments";
 import type { QueryCategory } from "@/lib/query-category";
 import {
   DIFFICULTY_LABELS,

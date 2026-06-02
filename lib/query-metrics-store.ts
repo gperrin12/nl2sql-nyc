@@ -1,5 +1,5 @@
 /**
- * Server-side store for query latency (p8k8 timestamps are not reliable).
+ * Server-side store for query latency (wall-clock from local metrics file).
  * Persists to .data/query-metrics.json locally (gitignored).
  * Skipped on Vercel/serverless — no writable project disk (/var/task).
  */

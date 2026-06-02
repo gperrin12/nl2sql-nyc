@@ -47,7 +47,7 @@ export type SqlGenerationResult = {
   outputTokens: number;
   /** Plain-English lead-in from the tool agent final message (map/spatial flows). */
   summary?: string;
-  /** Wall-clock ms for NL→SQL (p8k8 / agent); not from p8k8 moment timestamps. */
+  /** Wall-clock ms for NL→SQL (agent); not from external session timestamps. */
   latencyMs?: number;
   tokensUsed?: TokenSummary;
   costUsd?: number;

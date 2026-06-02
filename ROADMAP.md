@@ -10,6 +10,6 @@ Direction for NL → SQL over NYC civic data in Athena.
 - Optional live **SSE agent trace** (`NEXT_PUBLIC_AGENT_SSE` + `POST /api/query/agent-stream`).
 - Map rendering + browser query history (planned).
 
-## v3 — Persistent chat memory (p8k8), conversation evals
+## v3 — Conversation evals, persistent chat memory
 
 ## v4 — SQL eval harness with execution accuracy + bytes-scanned VES
