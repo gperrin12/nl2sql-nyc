@@ -1,7 +1,7 @@
 /**
  * Judge query pairs from nl2sql.query_runs and persist judge_overall on each row.
  *
- * Usage (reads .env / .env.local for DATABASE_URL):
+ * Usage (reads .env / .env.local for NEON_DATABASE_URL):
  *   npm run eval
  *   npm run eval:full
  *
@@ -125,7 +125,7 @@ async function persistJudge(
 
 async function loadEvalPairs(): Promise<QueryRunPair[]> {
   if (!isDatabaseConfigured()) {
-    console.error("Error: DATABASE_URL is required");
+    console.error("Error: NEON_DATABASE_URL is required");
     process.exit(1);
   }
   const appVersion = resolveQueryRunsAppVersion(process.env.EVAL_APP_VERSION);

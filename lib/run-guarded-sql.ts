@@ -30,7 +30,7 @@ export type GuardGenerationV2Options = {
 };
 
 /**
- * Circuit-breaker guardrails (ensureGuardedSqlV2). Requires DATABASE_URL / getPgPool().
+ * Circuit-breaker guardrails (ensureGuardedSqlV2). Requires NEON_DATABASE_URL / getPgPool().
  */
 export async function guardGenerationWithV2(
   question: string,
@@ -73,7 +73,7 @@ export async function guardGenerationWithV2(
 }
 
 /**
- * Eval scripts: V2 guardrails; throws if DATABASE_URL is unset.
+ * Eval scripts: V2 guardrails; throws if NEON_DATABASE_URL is unset.
  */
 export async function guardSqlForEval(
   question: string,
@@ -83,7 +83,7 @@ export async function guardSqlForEval(
   const result = await guardGenerationWithV2(question, generation, options);
   if (!result.ok && "poolMissing" in result) {
     throw new Error(
-      "DATABASE_URL is required for circuit-breaker guardrails (nl2sql.repair_attempts)"
+      "NEON_DATABASE_URL is required for circuit-breaker guardrails (nl2sql.repair_attempts)"
     );
   }
   return result;
@@ -119,9 +119,9 @@ export function guardrailAbstentionMessage(failure: {
 }
 
 const POOL_REQUIRED_MSG =
-  "DATABASE_URL is not configured — circuit-breaker guardrails require Postgres (nl2sql.repair_attempts)";
+  "NEON_DATABASE_URL is not configured — circuit-breaker guardrails require Postgres (nl2sql.repair_attempts)";
 
-/** 503 when the app pipeline runs without DATABASE_URL. */
+/** 503 when the app pipeline runs without NEON_DATABASE_URL. */
 export function guardrailPoolMissingFailure(
   sql: string
 ): Record<string, unknown> {

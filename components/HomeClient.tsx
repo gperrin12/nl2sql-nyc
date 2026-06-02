@@ -219,7 +219,7 @@ export function HomeClient() {
         }
         if (data.skipped) {
           console.warn(
-            "[query/log] skipped — set DATABASE_URL on the server (Vercel env), then redeploy"
+            "[query/log] skipped — set NEON_DATABASE_URL on the server (Vercel env), then redeploy"
           );
           return;
         }

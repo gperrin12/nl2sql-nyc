@@ -17,14 +17,14 @@ function poolSslOption(
   return undefined;
 }
 
-/** Serverless-safe singleton; skipped when DATABASE_URL is unset. */
+/** Serverless-safe singleton; skipped when NEON_DATABASE_URL is unset. */
 export function getPgPool(): Pool | null {
-  const url = process.env.DATABASE_URL?.trim();
+  const url = process.env.NEON_DATABASE_URL?.trim();
   if (!url) return null;
 
   if (/localhost|127\.0\.0\.1/i.test(url) && process.env.VERCEL === "1") {
     console.warn(
-      "[db] DATABASE_URL points at localhost on Vercel — use your Lightsail host/IP, not a tunnel URL"
+      "[db] NEON_DATABASE_URL points at localhost on Vercel — use your Neon pooled connection string"
     );
   }
 
@@ -42,7 +42,7 @@ export function getPgPool(): Pool | null {
 }
 
 export function isDatabaseConfigured(): boolean {
-  return Boolean(process.env.DATABASE_URL?.trim());
+  return Boolean(process.env.NEON_DATABASE_URL?.trim());
 }
 
 /** Quick connectivity check for /api/query/log GET. */
@@ -50,7 +50,7 @@ export async function probeDatabase(): Promise<
   { ok: true } | { ok: false; detail: string }
 > {
   if (!isDatabaseConfigured()) {
-    return { ok: false, detail: "DATABASE_URL is not set" };
+    return { ok: false, detail: "NEON_DATABASE_URL is not set" };
   }
 
   const pool = getPgPool();

@@ -6,7 +6,7 @@
  * system_prompt is injected into the tool-using agent and the variant name
  * is tagged onto the resulting nl2sql.query_runs rows (prompt_version column).
  *
- * Returns null when DATABASE_URL is unset or no matching row exists.
+ * Returns null when NEON_DATABASE_URL is unset or no matching row exists.
  */
 
 import { getPgPool } from "@/lib/db";

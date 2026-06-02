@@ -13,7 +13,7 @@ export async function GET() {
   }
 
   const configured = isDatabaseConfigured();
-  const probe = configured ? await probeDatabase() : { ok: false as const, detail: "DATABASE_URL is not set" };
+  const probe = configured ? await probeDatabase() : { ok: false as const, detail: "NEON_DATABASE_URL is not set" };
 
   return NextResponse.json({
     configured,
