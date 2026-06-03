@@ -84,7 +84,7 @@ async function storeEmbeddings(
   try {
     // Clear previous test run so similarity results don't include stale data
     console.log("\nClearing previous test data...");
-    await client.query(`DELETE FROM documents WHERE source = 'exercise-test'`);
+    await client.query(`DELETE FROM nl2sql.documents WHERE source = 'exercise-test'`);
 
     console.log(`Inserting ${texts.length} rows...`);
 
@@ -92,7 +92,7 @@ async function storeEmbeddings(
       await client.query(
         // The ::vector cast tells pgvector to parse the '[x,y,...]' string into a vector type.
         // Without the cast you'll get: "column 'embedding' is of type vector but expression is of type text"
-        `INSERT INTO documents (content, embedding, source)
+        `INSERT INTO nl2sql.documents (content, embedding, source)
          VALUES ($1, $2::vector, $3)`,
         [texts[i], toVectorString(embeddings[i]), "exercise-test"]
       );
@@ -123,7 +123,7 @@ async function findSimilar(
     const result = await client.query<{ content: string; similarity: number }>(
       `SELECT content,
               1 - (embedding <=> $1::vector) AS similarity
-       FROM documents
+       FROM nl2sql.documents
        WHERE source = 'exercise-test'
          AND content != $2
        ORDER BY embedding <=> $1::vector
