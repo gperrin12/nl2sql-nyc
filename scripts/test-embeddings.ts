@@ -10,7 +10,7 @@
 import { loadEnvFile } from "../lib/load-env-file";
 loadEnvFile();
 
-import { Pool } from "pg";
+import { Pool, type PoolClient } from "pg";
 import OpenAI from "openai";
 
 // ---------------------------------------------------------------------------
@@ -55,6 +55,27 @@ function toVectorString(embedding: number[]): string {
 }
 
 // ---------------------------------------------------------------------------
+// Prerequisite: pgvector extension (defines the vector type and <=> operator)
+// ---------------------------------------------------------------------------
+
+/** Neon uses nl2sql schema only; pgvector types/operators live there, not on default search_path. */
+async function connectNl2sql(): Promise<PoolClient> {
+  const client = await pool.connect();
+  await client.query(`SET search_path TO nl2sql`);
+  return client;
+}
+
+async function ensurePgVector(): Promise<void> {
+  const client = await connectNl2sql();
+  try {
+    await client.query(`CREATE EXTENSION IF NOT EXISTS vector WITH SCHEMA nl2sql`);
+    console.log("pgvector extension ready.");
+  } finally {
+    client.release();
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Phase 1: Embed
 // ---------------------------------------------------------------------------
 
@@ -79,7 +100,7 @@ async function storeEmbeddings(
   texts: string[],
   embeddings: number[][]
 ): Promise<void> {
-  const client = await pool.connect();
+  const client = await connectNl2sql();
 
   try {
     // Clear previous test run so similarity results don't include stale data
@@ -90,10 +111,10 @@ async function storeEmbeddings(
 
     for (let i = 0; i < texts.length; i++) {
       await client.query(
-        // The ::vector cast tells pgvector to parse the '[x,y,...]' string into a vector type.
+        // The ::nl2sql.vector cast tells pgvector to parse the '[x,y,...]' string into a vector type.
         // Without the cast you'll get: "column 'embedding' is of type vector but expression is of type text"
         `INSERT INTO nl2sql.documents (content, embedding, source)
-         VALUES ($1, $2::vector, $3)`,
+         VALUES ($1, $2::nl2sql.vector, $3)`,
         [texts[i], toVectorString(embeddings[i]), "exercise-test"]
       );
     }
@@ -113,7 +134,7 @@ async function findSimilar(
   queryEmbedding: number[],
   topK: number = 3
 ): Promise<Array<{ content: string; similarity: number }>> {
-  const client = await pool.connect();
+  const client = await connectNl2sql();
 
   try {
     // <=> returns cosine DISTANCE (0 = identical, 2 = maximally different).
@@ -122,11 +143,11 @@ async function findSimilar(
     // WHERE content != $2 excludes the query sentence from its own results.
     const result = await client.query<{ content: string; similarity: number }>(
       `SELECT content,
-              1 - (embedding <=> $1::vector) AS similarity
+              1 - (embedding <=> $1::nl2sql.vector) AS similarity
        FROM nl2sql.documents
        WHERE source = 'exercise-test'
          AND content != $2
-       ORDER BY embedding <=> $1::vector
+       ORDER BY embedding <=> $1::nl2sql.vector
        LIMIT $3`,
       [toVectorString(queryEmbedding), queryText, topK]
     );
@@ -147,6 +168,8 @@ async function main() {
   console.log("=".repeat(60));
 
   try {
+    await ensurePgVector();
+
     // Phase 1
     const embeddings = await embedSentences(sentences);
     console.log(
