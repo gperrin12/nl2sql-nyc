@@ -22,7 +22,7 @@ Environment variables (.env):
 import os
 import json
 from pathlib import Path
-from datetime import date
+from datetime import date, datetime
 
 import requests
 import psycopg2
@@ -43,6 +43,14 @@ PDF_DIR = DATA_DIR / "pdfs"
 TEXT_DIR = DATA_DIR / "text"
 PDF_PATH = PDF_DIR / "pmmr_2026.pdf"
 TEXT_PATH = TEXT_DIR / "pmmr_2026.md"
+
+# NYC.gov (Akamai) returns 403 without a browser-like User-Agent.
+REQUEST_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    ),
+}
 
 
 # ─── Download ─────────────────────────────────────────────────────────────────
@@ -65,7 +73,7 @@ def download_with_caching(url: str, dest_path: Path) -> Path:
     if dest_path.exists():
         print(f"Cache hit: {dest_path}")
         return dest_path
-    with requests.get(url, stream=True, timeout=10) as response:
+    with requests.get(url, stream=True, timeout=60, headers=REQUEST_HEADERS) as response:
         response.raise_for_status()
         dest_path.parent.mkdir(parents=True, exist_ok=True)
         with open(dest_path, "wb") as f:
@@ -96,8 +104,17 @@ def extract_to_markdown(pdf_path: Path, text_path: Path) -> list[dict]:
     add pages=list(range(10)) to limit to 10 pages for faster iteration.
     Remove before committing.
     """
-    # TODO: implement
-    raise NotImplementedError("Implement extract_to_markdown()")
+    pages = pymupdf4llm.to_markdown(
+        str(pdf_path),
+        page_chunks=True,
+        write_images=False,
+    )
+    markdown = "\n\n".join(page["text"] for page in pages)
+    text_path.parent.mkdir(parents=True, exist_ok=True)
+    text_path.write_text(markdown, encoding="utf-8")
+    size_mb = text_path.stat().st_size / 1024 / 1024
+    print(f"Extracted {len(pages)} pages ({size_mb:.2f} MB) → {text_path}")
+    return pages
 
 
 # ─── Postgres Storage ─────────────────────────────────────────────────────────
@@ -111,6 +128,7 @@ def store_metadata(
     file_path: Path,
     text_path: Path,
     page_count: int,
+    metadata: dict,
 ) -> int:
     """
     Insert a row into raw_documents. Returns the new row's id.
@@ -121,11 +139,58 @@ def store_metadata(
     TODO: Implement the insert
     - Use the url column as the conflict target (it has a UNIQUE constraint)
     - file_path and text_path should be absolute paths (use .resolve())
+    - metadata should be a JSON object with the following keys:
+      - url: the source URL
+      - title: the document title
+      - doc_type: the document type
+      - doc_date: the document date
+      - file_path: the absolute path to the cached PDF
+      - text_path: the absolute path to the extracted markdown
+      - page_count: the number of pages extracted
+      - extracted_at: the timestamp of the extraction
+      - metadata: the document metadata
     - After insert, fetch and return the id (use RETURNING id, or query by url)
     - Print confirmation with the row id
     """
-    # TODO: implement
-    raise NotImplementedError("Implement store_metadata()")
+    abs_pdf = str(file_path.resolve())
+    abs_text = str(text_path.resolve())
+    extracted_at = datetime.now()
+    metadata_payload: dict = {}
+
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            INSERT INTO nl2sql.raw_documents
+                (url, title, doc_type, doc_date, file_path, raw_text_path, page_count, extracted_at, metadata)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb)
+            ON CONFLICT (url) DO NOTHING
+            RETURNING id
+            """,
+            (
+                url,
+                title,
+                doc_type,
+                doc_date,
+                abs_pdf,
+                abs_text,
+                page_count,
+                extracted_at,
+                json.dumps(metadata_payload),
+            ),
+        )
+        row = cur.fetchone()
+        if row is None:
+            cur.execute(
+                "SELECT id FROM nl2sql.raw_documents WHERE url = %s",
+                (url,),
+            )
+            row = cur.fetchone()
+        if row is None:
+            raise RuntimeError(f"Failed to insert or fetch raw_documents row for {url}")
+        row_id = row[0]
+    conn.commit()
+    print(f"Stored raw_documents row id: {row_id}")
+    return row_id
 
 
 # ─── Main ─────────────────────────────────────────────────────────────────────
@@ -156,6 +221,7 @@ def main():
             file_path=PDF_PATH,
             text_path=TEXT_PATH,
             page_count=len(pages),
+            metadata={},
         )
         print(f"raw_documents row id: {row_id}")
     finally:
