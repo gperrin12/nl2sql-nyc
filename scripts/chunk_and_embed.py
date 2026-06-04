@@ -50,7 +50,7 @@ BATCH_SIZE = 100               # chunks per embedding API call
 @contextmanager
 def get_db_connection():
     """Context manager for a psycopg2 connection. Closes on exit."""
-    conn = psycopg2.connect(os.environ["DATABASE_URL"])
+    conn = psycopg2.connect(os.environ["NEON_DATABASE_URL"])
     try:
         yield conn
     finally:
@@ -86,9 +86,10 @@ def fixed_chunk(text: str, chunk_size: int = CHUNK_SIZE, overlap: int = CHUNK_OV
     Hint: Use enc.encode() to tokenize, slice into chunks with stride = chunk_size - overlap,
           then decode each chunk back to text with enc.decode().
     """
-    # TODO: implement fixed chunking
-    raise NotImplementedError("Implement fixed_chunk() — see lesson.md for the pattern")
 
+    tokens = enc.encode(text)
+    chunks = [enc.decode(tokens[i:i + chunk_size]) for i in range(0, len(tokens), chunk_size - overlap)]
+    return chunks
 
 def parse_sections_from_markdown(markdown_text: str) -> list[dict]:
     """
@@ -152,8 +153,17 @@ def section_aware_chunk(
     Hint: For each section, call fixed_chunk() on section["text"], then wrap each result
           in a dict that includes the section name and chunk index.
     """
-    # TODO: implement section-aware chunking
-    raise NotImplementedError("Implement section_aware_chunk() — see lesson.md for the pattern")
+    chunks = []
+    for section in sections:
+        section_chunks = fixed_chunk(section["text"])
+        for i, chunk in enumerate(section_chunks):
+            chunks.append({
+                "content": chunk,
+                "section": section["section"],
+                "chunk_index": i,
+                "page": section.get("page", None),
+            })
+    return chunks
 
 
 # ---------------------------------------------------------------------------
@@ -177,8 +187,8 @@ def embed_batch(texts: list[str]) -> list[list[float]]:
     Hint: Use openai_client.embeddings.create(input=texts, model=EMBEDDING_MODEL)
           and extract .data[i].embedding from the response.
     """
-    # TODO: implement embed_batch
-    raise NotImplementedError("Implement embed_batch() — see lesson.md for the pattern")
+    response = openai_client.embeddings.create(input=texts, model=EMBEDDING_MODEL)
+    return [data.embedding for data in response.data]
 
 
 def embed_chunks(texts: list[str]) -> list[list[float]]:
@@ -237,8 +247,27 @@ def upsert_chunks(
           compute the content hash, and run an INSERT ... ON CONFLICT (content_hash) DO NOTHING.
           Track cur.rowcount to count inserted vs. skipped rows.
     """
-    # TODO: implement upsert_chunks
-    raise NotImplementedError("Implement upsert_chunks() — see lesson.md for the idempotency pattern")
+    inserted = 0
+    skipped = 0
+    with get_db_connection() as conn:
+        with conn.cursor() as cur:
+            for chunk, embedding in zip(chunks, embeddings):
+                content_hash = compute_content_hash(chunk["content"])
+                metadata = {
+                    "source": source,
+                    "doc_type": doc_type,
+                    "section": chunk.get("section", None),
+                    "page": chunk.get("page", None),
+                    "strategy": strategy,
+                }
+                cur.execute("INSERT INTO nl2sql.chunks (document_id, content, embedding, chunk_index, metadata, content_hash) VALUES (%s, %s, %s, %s, %s::jsonb, %s) ON CONFLICT (content_hash) DO NOTHING", (document_id, chunk["content"], embedding, chunk.get("chunk_index", 0), json.dumps(metadata), content_hash))
+                if cur.rowcount == 1:
+                    inserted += 1
+                else:
+                    skipped += 1
+            conn.commit()
+            return inserted, skipped
+
 
 
 # ---------------------------------------------------------------------------
@@ -247,7 +276,7 @@ def upsert_chunks(
 
 def load_raw_documents(source: str | None = None) -> list[dict]:
     """
-    Load raw MMR documents from Postgres.
+    Load raw MMR documents from Postgres and read markdown from disk.
 
     Args:
         source: Optional source filter (e.g. "mmr_2024"). If None, loads all.
@@ -257,14 +286,22 @@ def load_raw_documents(source: str | None = None) -> list[dict]:
     """
     with get_db_connection() as conn:
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
-            if source:
-                cur.execute(
-                    "SELECT id, source, doc_type, content, metadata FROM raw_documents WHERE source = %s",
-                    (source,),
-                )
-            else:
-                cur.execute("SELECT id, source, doc_type, content, metadata FROM raw_documents")
-            return [dict(row) for row in cur.fetchall()]
+            cur.execute("SELECT id, url, title, doc_type, doc_date, file_path, raw_text_path, page_count, metadata FROM nl2sql.raw_documents")
+            rows = [dict(row) for row in cur.fetchall()]
+
+    documents = []
+    for row in rows:
+        if row["raw_text_path"] and os.path.exists(row["raw_text_path"]):
+            with open(row["raw_text_path"], "r", encoding="utf-8") as f:
+                content = f.read()
+            documents.append({
+                "id": row["id"],
+                "source": row["url"],  # Use URL as source identifier
+                "doc_type": row["doc_type"],
+                "content": content,
+                "metadata": row["metadata"] or {},
+            })
+    return documents
 
 
 # ---------------------------------------------------------------------------
@@ -326,18 +363,25 @@ def embed_query(question: str) -> list[float]:
 
 def retrieve_top_chunks(query_embedding: list[float], strategy: str, top_k: int = 3) -> list[dict]:
     """Retrieve top-k most similar chunks for a given strategy."""
+    # Convert embedding list to pgvector string format: [x,y,z,...]
+    embedding_str = f"[{','.join(str(x) for x in query_embedding)}]"
+
     with get_db_connection() as conn:
+        # Set search_path to nl2sql so pgvector operators are available
+        with conn.cursor() as setup_cur:
+            setup_cur.execute("SET search_path TO nl2sql")
+
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute("""
                 SELECT
                     content,
                     metadata,
                     1 - (embedding <=> %s::vector) AS similarity
-                FROM chunks
+                FROM nl2sql.chunks
                 WHERE metadata->>'strategy' = %s
                 ORDER BY embedding <=> %s::vector
                 LIMIT %s
-            """, (query_embedding, strategy, query_embedding, top_k))
+            """, (embedding_str, strategy, embedding_str, top_k))
             return [dict(row) for row in cur.fetchall()]
 
 
