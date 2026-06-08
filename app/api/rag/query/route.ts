@@ -9,14 +9,14 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
-import { getPgPool } from "@/lib/db"; // existing Postgres pool from nl2sql-nyc
+import { getPgPool, isDatabaseConfigured } from "@/lib/db"; // existing Postgres pool from nl2sql-nyc
 
 // ---------------------------------------------------------------------------
 // Configuration
 // ---------------------------------------------------------------------------
 
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY!;
-const CLAUDE_MODEL = process.env.CLAUDE_MODEL ?? "claude-sonnet-4-6";
+const CLAUDE_MODEL = process.env.CLAUDE_MODEL ?? "claude-sonnet-4-5";
 const TOP_K = 5;
 const SIMILARITY_THRESHOLD = 0.4; // Chunks below this score → abstain before generation
 
@@ -24,6 +24,19 @@ const SIMILARITY_THRESHOLD = 0.4; // Chunks below this score → abstain before 
 const EMBEDDING_MODEL = "text-embedding-3-small";
 
 const anthropic = new Anthropic({ apiKey: ANTHROPIC_API_KEY });
+
+function ragConfigError(): string | null {
+  if (!process.env.OPENAI_API_KEY?.trim()) {
+    return "OPENAI_API_KEY is not configured (required for query embeddings)";
+  }
+  if (!process.env.ANTHROPIC_API_KEY?.trim()) {
+    return "ANTHROPIC_API_KEY is not configured";
+  }
+  if (!isDatabaseConfigured()) {
+    return "NEON_DATABASE_URL is not configured";
+  }
+  return null;
+}
 
 // ---------------------------------------------------------------------------
 // RAG System Prompt
@@ -93,7 +106,11 @@ async function embedQuery(question: string): Promise<number[]> {
   //   return result.data[0].embedding;
 
   const { default: OpenAI } = await import("openai");
-  const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  const apiKey = process.env.OPENAI_API_KEY?.trim();
+  if (!apiKey) {
+    throw new Error("OPENAI_API_KEY is not configured");
+  }
+  const openai = new OpenAI({ apiKey });
   const result = await openai.embeddings.create({
     model: "text-embedding-3-small",
     input: question,
@@ -134,13 +151,14 @@ async function retrieveChunks(embedding: number[], topK: number = TOP_K): Promis
       `SELECT
           id,
           content,
-          COALESCE(metadata->>'source', metadata->>'source_url', 'Unknown') as source,
+          COALESCE(metadata->>'source', metadata->>'source_url', 'Unknown') AS source,
           source_type,
-          metadata->>'section' as section,
-          (metadata->>'page')::integer as page_num,
-          1 - (embedding <=> $1::vector) AS similarity
-       FROM chunks
-       ORDER BY embedding <=> $1::vector
+          metadata->>'section' AS section,
+          (metadata->>'page')::integer AS page_num,
+          1 - (embedding <=> $1::nl2sql.vector) AS similarity
+       FROM nl2sql.chunks
+       WHERE embedding IS NOT NULL
+       ORDER BY embedding <=> $1::nl2sql.vector
        LIMIT $2`,
       [embeddingStr, topK]
     );
@@ -207,22 +225,27 @@ async function logRagQuery(params: {
   const pool = getPgPool();
   if (!pool) throw new Error("Database not configured");
 
-  await pool.query(
-    `INSERT INTO nl2sql.rag_queries
-       (question, retrieved_chunk_ids, answer, abstained, abstain_reason,
-        prompt_tokens, completion_tokens, top_similarity)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-    [
-      params.question,
-      JSON.stringify(chunkIds),
-      params.answer,
-      params.abstained,
-      params.abstainReason ?? null,
-      params.promptTokens ?? null,
-      params.completionTokens ?? null,
-      params.topSimilarity ?? null,
-    ]
-  );
+  try {
+    await pool.query(
+      `INSERT INTO nl2sql.rag_queries
+         (question, retrieved_chunk_ids, answer, abstained, abstain_reason,
+          prompt_tokens, completion_tokens, top_similarity)
+       VALUES ($1, $2::jsonb, $3, $4, $5, $6, $7, $8)`,
+      [
+        params.question,
+        JSON.stringify(chunkIds),
+        params.answer,
+        params.abstained,
+        params.abstainReason ?? null,
+        params.promptTokens ?? null,
+        params.completionTokens ?? null,
+        params.topSimilarity ?? null,
+      ]
+    );
+  } catch (err) {
+    // Logging should not fail the user-facing RAG response.
+    console.error("[rag/query] failed to log query:", err);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -243,6 +266,11 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   }
 
   try {
+    const configError = ragConfigError();
+    if (configError) {
+      return NextResponse.json({ error: configError }, { status: 503 });
+    }
+
     // 1. Embed the query
     const queryEmbedding = await embedQuery(question);
 
@@ -250,7 +278,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     const chunks = await retrieveChunks(queryEmbedding, TOP_K);
 
     // 3. Similarity threshold check — abstain before generation if retrieval failed
-    const topSimilarity = chunks[0]?.similarity ?? 0;
+    const topSimilarity = Number(chunks[0]?.similarity ?? 0);
 
     if (chunks.length === 0 || topSimilarity < SIMILARITY_THRESHOLD) {
       const result: RagQueryResult = {
@@ -330,9 +358,15 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
     return NextResponse.json(result);
   } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
     console.error("[rag/query] error:", err);
     return NextResponse.json(
-      { error: "Internal server error" },
+      {
+        error:
+          process.env.NODE_ENV === "development"
+            ? message
+            : "Internal server error",
+      },
       { status: 500 }
     );
   }
