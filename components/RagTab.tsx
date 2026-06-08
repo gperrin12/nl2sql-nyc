@@ -1,20 +1,6 @@
 "use client";
 
-/**
- * RagTab.tsx — Documents tab for nl2sql-nyc
- *
- * A simple interface for querying the RAG endpoint.
- * Renders the answer with source citations alongside the retrieved chunks.
- *
- * Place this at: components/RagTab.tsx
- * Then import and add to the tab layout in your main page or query interface.
- */
-
 import { useState } from "react";
-
-// ---------------------------------------------------------------------------
-// Types — mirror the response shape from POST /api/rag/query
-// ---------------------------------------------------------------------------
 
 interface Chunk {
   id: number;
@@ -34,9 +20,35 @@ interface RagResponse {
   usage?: { input_tokens: number; output_tokens: number };
 }
 
-// ---------------------------------------------------------------------------
-// Component
-// ---------------------------------------------------------------------------
+const EXAMPLES = [
+  "What was Vision Zero summons activity in the first four months of FY2026?",
+  "What was the Department of Sanitation's missed collection rate?",
+  "How many motorcycle seizures did NYPD report for Vision Zero?",
+  "What bicycle lane miles did DOT install?",
+  "What were FDNY structural fire response times?",
+];
+
+function parseApiError(text: string): string {
+  try {
+    const data = JSON.parse(text) as { error?: string };
+    return data.error ?? text;
+  } catch {
+    return text;
+  }
+}
+
+function formatSource(source: string): string {
+  if (source.startsWith("http")) {
+    try {
+      const path = new URL(source).pathname;
+      const file = path.split("/").pop() ?? source;
+      return file.replace(/\.pdf$/i, "").replace(/_/g, " ");
+    } catch {
+      return source;
+    }
+  }
+  return source;
+}
 
 export function RagTab() {
   const [question, setQuestion] = useState("");
@@ -44,10 +56,11 @@ export function RagTab() {
   const [response, setResponse] = useState<RagResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!question.trim() || isLoading) return;
+  async function handleSubmit(questionText: string) {
+    const trimmed = questionText.trim();
+    if (!trimmed || isLoading) return;
 
+    setQuestion(trimmed);
     setIsLoading(true);
     setError(null);
     setResponse(null);
@@ -56,9 +69,9 @@ export function RagTab() {
       const res = await fetch("/api/rag/query", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question: question.trim() }),
+        body: JSON.stringify({ question: trimmed }),
       });
-      if (!res.ok) throw new Error(await res.text());
+      if (!res.ok) throw new Error(parseApiError(await res.text()));
       const data: RagResponse = await res.json();
       setResponse(data);
     } catch (err) {
@@ -69,104 +82,125 @@ export function RagTab() {
   }
 
   return (
-    <div className="flex flex-col gap-6 p-4 max-w-3xl mx-auto">
-      {/* Query input */}
-      <form onSubmit={handleSubmit} className="flex flex-col gap-3">
-        <label htmlFor="rag-question" className="text-sm font-medium text-gray-700">
-          Ask a question about NYC government documents
-        </label>
-        <textarea
-          id="rag-question"
-          value={question}
-          onChange={(e) => setQuestion(e.target.value)}
-          rows={3}
-          placeholder="e.g. What was the Department of Sanitation's missed collection rate in FY2023?"
-          className="w-full rounded border border-gray-300 px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
-          disabled={isLoading}
-        />
-        <button
-          type="submit"
-          disabled={isLoading || !question.trim()}
-          className="self-start rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {isLoading ? "Searching documents..." : "Ask"}
-        </button>
-      </form>
+    <div className="space-y-6">
+      <div className="space-y-3">
+        <div className="rounded-lg border border-[var(--border)] bg-[var(--panel)] p-2">
+          <textarea
+            id="rag-question"
+            value={question}
+            onChange={(e) => setQuestion(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+                void handleSubmit(question);
+              }
+            }}
+            rows={3}
+            placeholder="Ask a question about NYC government documents — Mayor's Management Report, agency performance, Vision Zero..."
+            className="w-full bg-transparent outline-none resize-none text-base p-2 text-[var(--text)]"
+            disabled={isLoading}
+          />
+          <div className="flex justify-between items-center px-2 pb-1">
+            <span className="text-xs text-[var(--muted)]">
+              Cmd/Ctrl + Enter to run
+            </span>
+            <button
+              type="button"
+              onClick={() => void handleSubmit(question)}
+              disabled={isLoading || !question.trim()}
+              className="px-4 py-1.5 rounded-md bg-[var(--accent)] text-black text-sm font-medium hover:bg-[var(--accent-dim)] disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              {isLoading ? "Searching..." : "Run"}
+            </button>
+          </div>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {EXAMPLES.map((ex) => (
+            <button
+              key={ex}
+              type="button"
+              onClick={() => setQuestion(ex)}
+              disabled={isLoading}
+              className="text-xs px-3 py-1 rounded-full border border-[var(--border)] text-[var(--muted)] hover:text-[var(--text)] hover:border-[var(--accent-dim)] disabled:opacity-40"
+            >
+              {ex}
+            </button>
+          ))}
+        </div>
+      </div>
 
-      {/* Error state */}
       {error && (
-        <div className="rounded border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          {error}
+        <div className="rounded-lg border border-[var(--error)] bg-red-950/20 p-4">
+          <p className="text-sm font-medium text-[var(--error)]">Query failed</p>
+          <p className="text-xs font-mono whitespace-pre-wrap mt-1 text-[var(--text)]">
+            {error}
+          </p>
         </div>
       )}
 
-      {/* Answer */}
       {response && (
-        <div className="flex flex-col gap-4">
-          {/* Abstention indicator */}
+        <div className="space-y-4">
           {response.abstained && (
-            <div className="rounded border border-yellow-200 bg-yellow-50 px-4 py-3 text-sm text-yellow-800">
-              {/* TODO: Show a clear message that the system didn't have enough information.
-                  Something like: "No relevant documents found — the system abstained rather than guessing."
-                  This is a feature, not an error. Make it visually distinct from an error. */}
-              System abstained: no sufficiently relevant documents were found.
+            <div className="rounded-lg border border-[var(--border)] bg-[var(--panel)] p-4">
+              <p className="text-sm font-medium text-[var(--foreground)]">
+                No relevant documents found
+              </p>
+              <p className="text-xs text-[var(--muted)] mt-1">
+                The system abstained rather than guessing — try rephrasing or asking
+                about MMR topics like sanitation, Vision Zero, or agency performance.
+              </p>
             </div>
           )}
 
-          {/* Answer text */}
-          <div className="rounded border border-gray-200 bg-white px-4 py-4">
-            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
+          <div className="rounded-lg border border-[var(--border)] border-l-4 border-l-[var(--accent)] bg-[var(--panel)] p-4">
+            <p className="text-[10px] uppercase tracking-wide text-[var(--muted)] mb-1">
               Answer
-            </h3>
-            {/* TODO: Render response.answer here.
-                Consider: should citations like [Source: ...] be rendered as styled badges
-                or plain text? Plain text is fine for now. */}
-            <p className="text-sm text-gray-800 whitespace-pre-wrap">{response.answer}</p>
+            </p>
+            <p className="text-sm text-[var(--text)] leading-relaxed whitespace-pre-wrap">
+              {response.answer}
+            </p>
           </div>
 
-          {/* Retrieved sources */}
           {response.chunks.length > 0 && (
-            <div className="flex flex-col gap-2">
-              <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-                Retrieved Documents ({response.chunks.length})
-              </h3>
+            <div className="space-y-2">
+              <p className="text-xs uppercase tracking-wide text-[var(--muted)] px-1">
+                Retrieved documents ({response.chunks.length})
+              </p>
               {response.chunks.map((chunk, i) => (
-                // TODO: Render each chunk as a source card.
-                // Show: source name, section (if present), page number (if present), similarity score.
-                // Optionally show a truncated preview of the chunk content.
-                // Keep it compact — this is reference info, not the main content.
                 <div
                   key={chunk.id}
-                  className="rounded border border-gray-200 bg-gray-50 px-3 py-2 text-xs"
+                  className="rounded-lg border border-[var(--border)] bg-[var(--panel)] p-4"
                 >
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex flex-col gap-0.5">
-                      <span className="font-medium text-gray-700">{chunk.source}</span>
+                  <div className="flex flex-wrap items-start justify-between gap-2 mb-2">
+                    <div className="space-y-0.5 min-w-0">
+                      <p className="text-xs font-medium text-[var(--foreground)] truncate">
+                        [{i + 1}] {formatSource(chunk.source)}
+                      </p>
                       {chunk.section && (
-                        <span className="text-gray-500">{chunk.section}</span>
+                        <p className="text-xs text-[var(--muted)]">{chunk.section}</p>
                       )}
-                      {chunk.page_num && (
-                        <span className="text-gray-400">p. {chunk.page_num}</span>
+                      {chunk.page_num != null && (
+                        <p className="text-xs text-[var(--muted)]">p. {chunk.page_num}</p>
                       )}
                     </div>
                     <span
-                      className="shrink-0 rounded bg-blue-100 px-1.5 py-0.5 text-blue-700 font-mono"
-                      title="Cosine similarity score"
+                      className="shrink-0 text-xs font-mono text-[var(--accent)]"
+                      title="Cosine similarity"
                     >
-                      {(chunk.similarity * 100).toFixed(1)}%
+                      {(Number(chunk.similarity) * 100).toFixed(1)}%
                     </span>
                   </div>
-                  {/* Truncated content preview */}
-                  <p className="mt-1.5 text-gray-500 line-clamp-2">{chunk.content}</p>
+                  <p className="text-xs text-[var(--muted)] leading-relaxed line-clamp-4 font-mono whitespace-pre-wrap">
+                    {chunk.content}
+                  </p>
                 </div>
               ))}
             </div>
           )}
 
-          {/* Token usage */}
           {response.usage && (
-            <p className="text-xs text-gray-400">
-              {response.usage.input_tokens} input tokens · {response.usage.output_tokens} output tokens
+            <p className="text-xs text-[var(--muted)] px-1">
+              {response.usage.input_tokens} input tokens ·{" "}
+              {response.usage.output_tokens} output tokens
             </p>
           )}
         </div>
