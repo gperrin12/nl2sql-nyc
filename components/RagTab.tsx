@@ -38,7 +38,7 @@ interface RagResponse {
 // Component
 // ---------------------------------------------------------------------------
 
-export default function RagTab() {
+export function RagTab() {
   const [question, setQuestion] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [response, setResponse] = useState<RagResponse | null>(null);
