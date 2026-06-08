@@ -18,7 +18,7 @@ import { getPgPool } from "@/lib/db"; // existing Postgres pool from nl2sql-nyc
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY!;
 const CLAUDE_MODEL = process.env.CLAUDE_MODEL ?? "claude-sonnet-4-6";
 const TOP_K = 5;
-const SIMILARITY_THRESHOLD = 0.6; // Chunks below this score → abstain before generation
+const SIMILARITY_THRESHOLD = 0.4; // Chunks below this score → abstain before generation
 
 // Embedding model must match what was used during ingestion — mixing models breaks retrieval.
 const EMBEDDING_MODEL = "text-embedding-3-small";
@@ -125,20 +125,29 @@ async function retrieveChunks(embedding: number[], topK: number = TOP_K): Promis
 
   const pool = getPgPool();
   if (!pool) throw new Error("Database not configured");
-  const result = await pool.query<Chunk>(
-    `SELECT
-        id,
-        content,
-        COALESCE(metadata->>'source', metadata->>'source_url', 'Unknown') as source,
-        source_type,
-        metadata->>'section' as section,
-        (metadata->>'page')::integer as page_num,
-        1 - (embedding <=> $1::vector) AS similarity
-     FROM nl2sql.chunks
-     ORDER BY embedding <=> $1::vector
-     LIMIT $2`,
-    [embeddingStr, topK]
-  );
+
+  // Set search_path and run query
+  const client = await pool.connect();
+  try {
+    await client.query("SET search_path TO nl2sql");
+    const result = await client.query<Chunk>(
+      `SELECT
+          id,
+          content,
+          COALESCE(metadata->>'source', metadata->>'source_url', 'Unknown') as source,
+          source_type,
+          metadata->>'section' as section,
+          (metadata->>'page')::integer as page_num,
+          1 - (embedding <=> $1::vector) AS similarity
+       FROM chunks
+       ORDER BY embedding <=> $1::vector
+       LIMIT $2`,
+      [embeddingStr, topK]
+    );
+    return result.rows;
+  } finally {
+    client.release();
+  }
 
   return result.rows;
 }
@@ -201,7 +210,7 @@ async function logRagQuery(params: {
   if (!pool) throw new Error("Database not configured");
 
   await pool.query(
-    `INSERT INTO rag_queries
+    `INSERT INTO nl2sql.rag_queries
        (question, retrieved_chunk_ids, answer, abstained, abstain_reason,
         prompt_tokens, completion_tokens, top_similarity)
      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
