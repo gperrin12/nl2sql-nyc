@@ -148,8 +148,6 @@ async function retrieveChunks(embedding: number[], topK: number = TOP_K): Promis
   } finally {
     client.release();
   }
-
-  return result.rows;
 }
 
 // ---------------------------------------------------------------------------
