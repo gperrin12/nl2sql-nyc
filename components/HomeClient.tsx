@@ -8,6 +8,7 @@ import { ResultsPanel } from "@/components/ResultsPanel";
 import { AgentStreamTrace } from "@/components/AgentStreamTrace";
 import { AppNav } from "@/components/AppNav";
 import { DataCatalogOverview } from "@/components/DataCatalogOverview";
+import { RagTab } from "@/components/RagTab";
 import type { AgentStreamPayload } from "@/lib/sql-agent/types";
 import { mapSpatialIntent } from "@/lib/sql-agent/mapIntent";
 
@@ -45,6 +46,7 @@ const MAX_REPAIR_ATTEMPTS = 5;
 const USE_QUERY_STREAM = process.env.NEXT_PUBLIC_AGENT_SSE === "true";
 
 export function HomeClient() {
+  const [mode, setMode] = useState<"sql" | "documents">("sql");
   const [executionId, setExecutionId] = useState<string | null>(null);
   const [generatedSql, setGeneratedSql] = useState<string | null>(null);
   const [generatedModel, setGeneratedModel] = useState<string | null>(null);
@@ -310,9 +312,34 @@ export function HomeClient() {
         </p>
       </header>
 
-      <QueryBox onSubmit={handleSubmit} disabled={!!isRunning} />
+      {/* Tab switcher */}
+      <div className="flex gap-2 border-b border-[var(--border)]">
+        <button
+          onClick={() => setMode("sql")}
+          className={`px-4 py-2 text-sm font-medium border-b-2 ${
+            mode === "sql"
+              ? "border-[var(--accent)] text-[var(--foreground)]"
+              : "border-transparent text-[var(--muted)] hover:text-[var(--foreground)]"
+          }`}
+        >
+          SQL Query
+        </button>
+        <button
+          onClick={() => setMode("documents")}
+          className={`px-4 py-2 text-sm font-medium border-b-2 ${
+            mode === "documents"
+              ? "border-[var(--accent)] text-[var(--foreground)]"
+              : "border-transparent text-[var(--muted)] hover:text-[var(--foreground)]"
+          }`}
+        >
+          Documents
+        </button>
+      </div>
 
-      <DataCatalogOverview />
+      {mode === "sql" ? (
+        <>
+          <QueryBox onSubmit={handleSubmit} disabled={!!isRunning} />
+          <DataCatalogOverview />
 
       {USE_QUERY_STREAM && (agentSteps.length > 0 || streamBusy) && (
         <AgentStreamTrace steps={agentSteps} busy={streamBusy} />
@@ -403,6 +430,10 @@ export function HomeClient() {
             runtimeMs={statusQuery.data.runtimeMs}
           />
         )}
+        </>
+      ) : (
+        <RagTab />
+      )}
     </main>
   );
 }
