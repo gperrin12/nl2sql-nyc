@@ -10,6 +10,7 @@
 
 import { getAnthropicClient } from "@/lib/anthropic-client";
 import { waitForAthenaResults } from "@/lib/athena-wait";
+import { ragQuery } from "@/lib/rag/query";
 import { runQueryPipeline } from "@/lib/run-query-pipeline";
 import { generateSqlWithAgent } from "@/lib/sql-agent/run";
 
@@ -110,15 +111,20 @@ async function executeSQL(question: string): Promise<SQLResult> {
 // ---------------------------------------------------------------------------
 
 async function executeRAG(question: string): Promise<RAGResult> {
-  // TODO: Call your ragQuery() function from Episode 10.
-  //
-  // Make sure the returned chunks include source, date, section, page,
-  // and chunkId metadata — you'll need all of these for citations.
-  //
-  // If your RAGChunk type from Episode 10 uses different field names,
-  // map them to the RAGChunk interface defined above.
+  const result = await ragQuery(question);
 
-  throw new Error("executeRAG not yet implemented — see TODO above");
+  return {
+    answer: result.answer,
+    chunks: result.chunks.map((chunk) => ({
+      content: chunk.content,
+      source: chunk.source,
+      date: chunk.date ?? "unknown",
+      section: chunk.section ?? "",
+      page: chunk.page_num,
+      similarity: chunk.similarity,
+      chunkId: String(chunk.id),
+    })),
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -145,22 +151,25 @@ Source: ${result.tableName} via NYC Athena | ${result.rowCount} rows | Retrieved
 // ---------------------------------------------------------------------------
 
 function formatRAGForPrompt(result: RAGResult): string {
-  // TODO: Map result.chunks into labeled document blocks.
-  // Each block should show: source, date, section, page, then the content.
-  // Separate chunks with a divider so boundaries are clear.
-  //
-  // Example per-chunk output:
-  //   [Document 1]
-  //   Source: Community Board 4 Brooklyn
-  //   Date: March 2023
-  //   Section: New Business — Rezoning Impacts
-  //   Page: 3
-  //   ChunkID: chunk_7f3a2b
-  //
-  //   <content goes here>
+  const blocks = result.chunks.map((chunk, i) => {
+    const page = chunk.page != null ? String(chunk.page) : "N/A";
+    return `[Document ${i + 1}]
+Source: ${chunk.source}
+Date: ${chunk.date}
+Section: ${chunk.section || "N/A"}
+Page: ${page}
+ChunkID: ${chunk.chunkId}
+---
+${chunk.content}`;
+  });
+
+  const body =
+    blocks.length > 0
+      ? blocks.join("\n\n---\n\n")
+      : result.answer;
 
   return `<document_context>
-TODO: format RAG chunks here
+${body}
 </document_context>`;
 }
 
