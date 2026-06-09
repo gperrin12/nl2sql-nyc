@@ -8,6 +8,9 @@ import {
   hasTlcTripDistanceFilter,
   tlcTripFilterGuardrailReason,
 } from "@/lib/tlc-trip-filters";
+import { fixWarehouseDateCasts } from "@/lib/warehouse-date-casts";
+
+export { fixNyc311IsoDateCasts, fixWarehouseDateCasts } from "@/lib/warehouse-date-casts";
 
 const FORBIDDEN_KEYWORDS = [
   "INSERT", "UPDATE", "DELETE", "DROP", "ALTER", "CREATE",
@@ -72,5 +75,5 @@ export function checkSql(rawSql: string): GuardrailResult {
     return { ok: false, reason: tlcTripFilterGuardrailReason() };
   }
 
-  return { ok: true, sql: stripped };
+  return { ok: true, sql: fixWarehouseDateCasts(stripped) };
 }
