@@ -9,6 +9,7 @@
  */
 
 import { getAnthropicClient } from "@/lib/anthropic-client";
+import { CLAUDE_DETERMINISTIC_SAMPLING } from "@/lib/claude";
 import { waitForAthenaResults } from "@/lib/athena-wait";
 import { ragQuery } from "@/lib/rag/query";
 import { runQueryPipeline } from "@/lib/run-query-pipeline";
@@ -25,6 +26,8 @@ export interface SQLResult {
   tableName: string;           // e.g. "nyc_311"
   timestamp: string;           // ISO 8601 — when the query ran
   runtimeMs: number;
+  /** Agent plain-English summary of what the SQL returns (when available). */
+  summary?: string;
 }
 
 export interface RAGChunk {
@@ -100,6 +103,7 @@ async function executeSQL(question: string): Promise<SQLResult> {
     tableName: inferPrimaryTable(pipeline.sql),
     timestamp,
     runtimeMs: Date.now() - startedAt,
+    summary: pipeline.summary,
   };
 }
 
@@ -135,11 +139,24 @@ async function executeRAG(question: string): Promise<RAGResult> {
 // understand both the data and where it came from.
 // ---------------------------------------------------------------------------
 
-function formatSQLForPrompt(result: SQLResult): string {
+function formatSQLForPrompt(result: SQLResult, question: string): string {
   const rowsJson = JSON.stringify(result.rows, null, 2);
+  const summaryBlock = result.summary?.trim()
+    ? `Agent summary: ${result.summary.trim()}\n`
+    : "";
+
   return `<quantitative_data>
+User question: ${question}
+
+${summaryBlock}SQL executed (filters here define geography, time period, and scope — even when result rows are a single aggregate without those columns):
+\`\`\`sql
+${result.sql.trim()}
+\`\`\`
+
+Result rows (${result.rowCount}):
 ${rowsJson}
-Source: ${result.tableName} via NYC Athena | ${result.rowCount} rows | Retrieved: ${result.timestamp}
+
+Source: ${result.tableName} via NYC Athena | Retrieved: ${result.timestamp}
 </quantitative_data>`;
 }
 
@@ -189,10 +206,16 @@ const SYNTHESIS_INSTRUCTIONS = `
 Combine quantitative Athena results with government document context into one answer.
 
 1. Use BOTH sources when available — do not ignore the structured data or the documents.
-2. Quantitative claims must cite: [DATA: table, metric, date range, Source: NYC Athena]
-3. Document claims must cite: [DOC: source name, date, section, page]
-4. If sources conflict, state the discrepancy explicitly. Do not pick a side silently.
-5. If one source is unavailable or has no relevant information, say so. Do not fabricate.
+2. For structured data, read the SQL query — not only the result rows. WHERE, JOIN, and GROUP BY
+   clauses define geography, time period, and filters. A single aggregate row (e.g. total_complaints)
+   is already scoped by those filters; do not claim borough or date range is unknown if the SQL
+   specifies them (e.g. borough = 'MANHATTAN', year/month for Q1 2026).
+3. Answer the user's question directly using row values plus SQL scope. Do not hedge about dimensions
+   that are fixed in the SQL but omitted from the SELECT list.
+4. Quantitative claims must cite: [DATA: table, metric, scope from SQL filters, Source: NYC Athena]
+5. Document claims must cite: [DOC: source name, date, section, page]
+6. If sources conflict, state the discrepancy explicitly. Do not pick a side silently.
+7. If one source is unavailable or has no relevant information, say so. Do not fabricate.
 </synthesis_instructions>
 `;
 
@@ -209,7 +232,7 @@ async function synthesize(
   ragResult: RAGResult | null
 ): Promise<string> {
   const dataPart = sqlResult
-    ? formatSQLForPrompt(sqlResult)
+    ? formatSQLForPrompt(sqlResult, question)
     : "<quantitative_data>Unavailable — retrieval error.</quantitative_data>";
 
   const docPart = ragResult
@@ -220,6 +243,7 @@ async function synthesize(
   const response = await getAnthropicClient().messages.create({
     model,
     max_tokens: 2048,
+    ...CLAUDE_DETERMINISTIC_SAMPLING,
     system:
       "You are an NYC civic intelligence assistant combining structured data and government document context to answer questions about New York City. Your answers must be factual, well-cited, and acknowledge when sources conflict or when data is incomplete.",
     messages: [
