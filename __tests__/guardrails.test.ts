@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { checkSql } from "@/lib/guardrails";
+import { fixWarehouseDateCasts } from "@/lib/warehouse-date-casts";
 
 // A minimal valid SELECT that satisfies all guardrails (no gtp_tlc_data, so TLC filter passes).
 const VALID_SQL = "SELECT borough, COUNT(*) FROM nyc_311 GROUP BY borough";
@@ -184,6 +185,118 @@ describe("checkSql — TLC trip distance filter", () => {
     expect(result.ok).toBe(true);
     if (result.ok) {
       expect(result.sql.endsWith(";")).toBe(false);
+    }
+  });
+});
+
+describe("fixWarehouseDateCasts — nyc_311", () => {
+  it("rewrites TRY_CAST on created_date when nyc_311 is queried", () => {
+    const sql =
+      "SELECT MIN(TRY_CAST(created_date AS TIMESTAMP)) AS earliest_date FROM nyc_311";
+    expect(fixWarehouseDateCasts(sql)).toBe(
+      "SELECT MIN(FROM_ISO8601_TIMESTAMP(created_date)) AS earliest_date FROM nyc_311"
+    );
+  });
+
+  it("rewrites MIN/MAX TRY_CAST pairs (date-range queries)", () => {
+    const sql =
+      "SELECT MIN(TRY_CAST(created_date AS TIMESTAMP)) AS earliest_date, " +
+      "MAX(TRY_CAST(created_date AS TIMESTAMP)) AS latest_date FROM nyc_311 WHERE year >= '2020'";
+    const fixed = fixWarehouseDateCasts(sql);
+    expect(fixed).not.toContain("TRY_CAST(created_date AS TIMESTAMP)");
+    expect(fixed).toContain(
+      "MIN(FROM_ISO8601_TIMESTAMP(created_date)) AS earliest_date"
+    );
+    expect(fixed).toContain(
+      "MAX(FROM_ISO8601_TIMESTAMP(created_date)) AS latest_date"
+    );
+  });
+
+  it("rewrites table-qualified and alias-qualified date columns", () => {
+    const sql =
+      "SELECT TRY_CAST(nyc_311.created_date AS TIMESTAMP), TRY_CAST(n.closed_date AS TIMESTAMP) " +
+      "FROM nyc_311 n";
+    const fixed = fixWarehouseDateCasts(sql);
+    expect(fixed).toContain("FROM_ISO8601_TIMESTAMP(nyc_311.created_date)");
+    expect(fixed).toContain("FROM_ISO8601_TIMESTAMP(n.closed_date)");
+  });
+
+  it("rewrites CAST (non-TRY) on ISO date columns", () => {
+    const sql =
+      "SELECT CAST(created_date AS TIMESTAMP) FROM nyc_311";
+    expect(fixWarehouseDateCasts(sql)).toBe(
+      "SELECT FROM_ISO8601_TIMESTAMP(created_date) FROM nyc_311"
+    );
+  });
+
+  it("leaves non-date TRY_CAST columns unchanged", () => {
+    const sql =
+      "SELECT TRY_CAST(latitude AS DOUBLE) FROM nyc_311 WHERE TRY_CAST(longitude AS DOUBLE) > 0";
+    expect(fixWarehouseDateCasts(sql)).toBe(sql);
+  });
+
+  it("no-ops when nyc_311 is not referenced", () => {
+    const sql = "SELECT TRY_CAST(created_date AS TIMESTAMP) FROM other_table";
+    expect(fixWarehouseDateCasts(sql)).toBe(sql);
+  });
+
+  it("does not double-wrap existing FROM_ISO8601_TIMESTAMP", () => {
+    const sql =
+      "SELECT MIN(FROM_ISO8601_TIMESTAMP(created_date)) FROM nyc_311";
+    expect(fixWarehouseDateCasts(sql)).toBe(sql);
+  });
+});
+
+describe("fixWarehouseDateCasts — gtp_tlc_data", () => {
+  it("rewrites tpep pickup/dropoff datetime casts", () => {
+    const sql =
+      "SELECT day_of_week(TRY_CAST(tpep_pickup_datetime AS TIMESTAMP)) FROM gtp_tlc_data t " +
+      "WHERE TRY_CAST(t.trip_distance AS DOUBLE) <= 50";
+    const fixed = fixWarehouseDateCasts(sql);
+    expect(fixed).toContain(
+      "day_of_week(FROM_ISO8601_TIMESTAMP(tpep_pickup_datetime))"
+    );
+    expect(fixed).toContain("TRY_CAST(t.trip_distance AS DOUBLE)");
+  });
+});
+
+describe("fixWarehouseDateCasts — par", () => {
+  it("rewrites lpep pickup/dropoff datetime casts", () => {
+    const sql =
+      "SELECT TRY_CAST(lpep_pickup_datetime AS TIMESTAMP) FROM par WHERE year = '2015'";
+    expect(fixWarehouseDateCasts(sql)).toBe(
+      "SELECT FROM_ISO8601_TIMESTAMP(lpep_pickup_datetime) FROM par WHERE year = '2015'"
+    );
+  });
+});
+
+describe("fixWarehouseDateCasts — nypd_collisions", () => {
+  it("rewrites crash_date to DATE_PARSE", () => {
+    const sql =
+      "SELECT MIN(TRY_CAST(crash_date AS TIMESTAMP)) FROM nypd_collisions WHERE year = '2024'";
+    expect(fixWarehouseDateCasts(sql)).toBe(
+      "SELECT MIN(TRY(DATE_PARSE(crash_date, '%m/%d/%Y'))) FROM nypd_collisions WHERE year = '2024'"
+    );
+  });
+});
+
+describe("fixWarehouseDateCasts — mta_turnstile", () => {
+  it("leaves transit_timestamp TRY_CAST unchanged (space-separated format)", () => {
+    const sql =
+      "SELECT HOUR(TRY_CAST(transit_timestamp AS TIMESTAMP)) FROM mta_turnstile WHERE year = '2025'";
+    expect(fixWarehouseDateCasts(sql)).toBe(sql);
+  });
+});
+
+describe("checkSql — warehouse date cast rewrite", () => {
+  it("returns rewritten SQL from checkSql", () => {
+    const sql =
+      "SELECT MIN(TRY_CAST(created_date AS TIMESTAMP)) AS earliest_date FROM nyc_311";
+    const result = checkSql(sql);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.sql).toContain("FROM_ISO8601_TIMESTAMP(created_date)");
+      expect(result.sql).not.toContain("TRY_CAST(created_date");
     }
   });
 });
