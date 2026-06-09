@@ -9,6 +9,7 @@ import { AgentStreamTrace } from "@/components/AgentStreamTrace";
 import { AppNav } from "@/components/AppNav";
 import { DataCatalogOverview } from "@/components/DataCatalogOverview";
 import { RagTab } from "@/components/RagTab";
+import { HybridTab } from "@/components/HybridTab";
 import type { AgentStreamPayload } from "@/lib/sql-agent/types";
 import { mapSpatialIntent } from "@/lib/sql-agent/mapIntent";
 
@@ -46,7 +47,8 @@ const MAX_REPAIR_ATTEMPTS = 5;
 const USE_QUERY_STREAM = process.env.NEXT_PUBLIC_AGENT_SSE === "true";
 
 export function HomeClient() {
-  const [mode, setMode] = useState<"sql" | "documents">("sql");
+  // TODO: single query box + query-router (SQL | RAG | HYBRID) — Hybrid tab is interim.
+  const [mode, setMode] = useState<"sql" | "documents" | "hybrid">("sql");
   const [executionId, setExecutionId] = useState<string | null>(null);
   const [generatedSql, setGeneratedSql] = useState<string | null>(null);
   const [generatedModel, setGeneratedModel] = useState<string | null>(null);
@@ -334,6 +336,16 @@ export function HomeClient() {
         >
           Documents
         </button>
+        <button
+          onClick={() => setMode("hybrid")}
+          className={`px-4 py-2 text-sm font-medium border-b-2 ${
+            mode === "hybrid"
+              ? "border-[var(--accent)] text-[var(--foreground)]"
+              : "border-transparent text-[var(--muted)] hover:text-[var(--foreground)]"
+          }`}
+        >
+          Hybrid
+        </button>
       </div>
 
       {mode === "sql" ? (
@@ -431,8 +443,10 @@ export function HomeClient() {
           />
         )}
         </>
-      ) : (
+      ) : mode === "documents" ? (
         <RagTab />
+      ) : (
+        <HybridTab />
       )}
     </main>
   );

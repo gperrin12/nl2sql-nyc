@@ -221,7 +221,7 @@ async function synthesize(
     model,
     max_tokens: 2048,
     system:
-      "You are an NYC civic intelligence assistant. Combine structured Athena data with government documents to answer questions accurately and with citations.",
+      "You are an NYC civic intelligence assistant combining structured data and government document context to answer questions about New York City. Your answers must be factual, well-cited, and acknowledge when sources conflict or when data is incomplete.",
     messages: [
       {
         role: "user",
@@ -276,29 +276,3 @@ export async function executeHybrid(question: string): Promise<HybridResponse> {
   };
 }
 
-// ---------------------------------------------------------------------------
-// Next.js API Route handler
-// POST /api/hybrid/query
-// ---------------------------------------------------------------------------
-
-export async function POST(req: Request): Promise<Response> {
-  try {
-    const { question } = await req.json();
-
-    if (!question || typeof question !== "string") {
-      return Response.json(
-        { error: "question is required and must be a string" },
-        { status: 400 }
-      );
-    }
-
-    const result = await executeHybrid(question);
-    return Response.json(result);
-  } catch (error) {
-    console.error("[hybrid/query] Unexpected error:", error);
-    return Response.json(
-      { error: "Internal error during hybrid query execution" },
-      { status: 500 }
-    );
-  }
-}
