@@ -8,6 +8,7 @@ import {
   hasTlcTripDistanceFilter,
   tlcTripFilterGuardrailReason,
 } from "@/lib/tlc-trip-filters";
+import { trimTrailingProseFromSql } from "@/lib/sanitize-agent-sql";
 import { fixWarehouseDateCasts } from "@/lib/warehouse-date-casts";
 
 export { fixNyc311IsoDateCasts, fixWarehouseDateCasts } from "@/lib/warehouse-date-casts";
@@ -22,7 +23,7 @@ export type GuardrailResult =
   | { ok: false; reason: string };
 
 export function checkSql(rawSql: string): GuardrailResult {
-  const sql = rawSql.trim();
+  const sql = trimTrailingProseFromSql(rawSql.trim());
   if (!sql) return { ok: false, reason: "Empty SQL" };
 
   // Single statement only — trailing semicolon is fine, but no second statement.

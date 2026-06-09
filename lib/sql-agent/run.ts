@@ -13,6 +13,7 @@ import {
 } from "@/lib/claude";
 import { listWarehouseTableNames, renderTablesForPrompt } from "@/lib/schemas";
 import { getProductionPromptVersion } from "@/lib/prompt-versions";
+import { trimTrailingProseFromSql } from "@/lib/sanitize-agent-sql";
 import type { AgentStreamPayload } from "./types";
 
 const DEFAULT_MODEL = "claude-sonnet-4-5";
@@ -81,6 +82,10 @@ function stripCodeFences(text: string): string {
   return fenced ? fenced[1] : text;
 }
 
+function finalizeExtractedSql(sql: string): string {
+  return trimTrailingProseFromSql(sql.trim());
+}
+
 /** Accept SQL when model wraps it in <sql> tags, ``` fences, or puts one sentence before the query. */
 function extractSqlFromText(text: string): string | null {
   const raw = text.trim();
@@ -89,29 +94,29 @@ function extractSqlFromText(text: string): string | null {
   const tagged = raw.match(/<sql>\s*([\s\S]*?)\s*<\/sql>/i);
   if (tagged) {
     const inner = tagged[1].trim();
-    if (/^\s*(WITH|SELECT)\b/i.test(inner)) return inner;
+    if (/^\s*(WITH|SELECT)\b/i.test(inner)) return finalizeExtractedSql(inner);
   }
 
   const unfenced = stripCodeFences(raw).trim();
-  if (/^\s*(WITH|SELECT)\b/i.test(unfenced)) return unfenced;
+  if (/^\s*(WITH|SELECT)\b/i.test(unfenced)) return finalizeExtractedSql(unfenced);
 
   const fenceRe = /```(?:sql)?\s*([\s\S]*?)```/gi;
   let fm: RegExpExecArray | null;
   while ((fm = fenceRe.exec(raw)) !== null) {
     const inner = fm[1].trim();
-    if (/^\s*(WITH|SELECT)\b/i.test(inner)) return inner;
+    if (/^\s*(WITH|SELECT)\b/i.test(inner)) return finalizeExtractedSql(inner);
   }
 
   const lineAnchored = raw.match(/(?:^|\n)(\s*(?:WITH|SELECT)\b[\s\S]*)/i);
   if (lineAnchored) {
     let sql = lineAnchored[1].trim().replace(/```[\s\S]*$/, "").trim();
-    if (/^\s*(WITH|SELECT)\b/i.test(sql)) return sql;
+    if (/^\s*(WITH|SELECT)\b/i.test(sql)) return finalizeExtractedSql(sql);
   }
 
   const afterIntro = raw.match(/[.:]\s*(\s*(?:WITH|SELECT)\b[\s\S]*)/i);
   if (afterIntro) {
     let sql = afterIntro[1].trim().replace(/```[\s\S]*$/, "").trim();
-    if (/^\s*(WITH|SELECT)\b/i.test(sql)) return sql;
+    if (/^\s*(WITH|SELECT)\b/i.test(sql)) return finalizeExtractedSql(sql);
   }
 
   return null;
