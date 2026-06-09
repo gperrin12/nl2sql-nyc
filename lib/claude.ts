@@ -1,5 +1,6 @@
 import type { TokenSummary } from "@/lib/query-run-tokens";
 import { getAnthropicClient } from "@/lib/anthropic-client";
+import { trimTrailingProseFromSql } from "@/lib/sanitize-agent-sql";
 import { renderSchemaForPrompt } from "./schemas";
 
 const DEFAULT_MODEL = "claude-sonnet-4-5";
@@ -70,7 +71,7 @@ export async function generateSql(question: string): Promise<SqlGenerationResult
     throw new Error("Claude returned no text content");
   }
 
-  const sql = stripCodeFences(textBlock.text).trim();
+  const sql = trimTrailingProseFromSql(stripCodeFences(textBlock.text).trim());
   return {
     sql,
     model,
@@ -106,7 +107,7 @@ export async function generateSqlWithRepair(
     throw new Error("Claude returned no text content");
   }
 
-  const sql = stripCodeFences(textBlock.text).trim();
+  const sql = trimTrailingProseFromSql(stripCodeFences(textBlock.text).trim());
   return {
     sql,
     model,

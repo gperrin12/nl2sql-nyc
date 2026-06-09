@@ -1,11 +1,11 @@
 /**
- * POST /api/rag/query
+ * POST /api/hybrid/query
  *
- * Thin HTTP wrapper around lib/rag/query.ts.
+ * Thin HTTP wrapper around lib/hybrid-query.ts.
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { ragConfigError, ragQuery } from "@/lib/rag/query";
+import { executeHybrid } from "@/lib/hybrid-query";
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
   let question: string;
@@ -21,22 +21,17 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   }
 
   try {
-    const configError = ragConfigError();
-    if (configError) {
-      return NextResponse.json({ error: configError }, { status: 503 });
-    }
-
-    const result = await ragQuery(question);
+    const result = await executeHybrid(question);
     return NextResponse.json(result);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    console.error("[rag/query] error:", err);
+    console.error("[hybrid/query] error:", err);
     return NextResponse.json(
       {
         error:
           process.env.NODE_ENV === "development"
             ? message
-            : "Internal server error",
+            : "Internal error during hybrid query execution",
       },
       { status: 500 }
     );
