@@ -16,6 +16,8 @@ function isProseLine(line: string): boolean {
   if (!trimmed) return false;
   if (trimmed.startsWith("--")) return false;
   if (SQL_LINE.test(trimmed)) return false;
+  // Trino/Athena function calls (ST_Point, ST_GEOMETRY_FROM_TEXT, etc.)
+  if (/\w+\s*\(/.test(trimmed)) return false;
   if (PROSE_LINE_START.test(trimmed)) return true;
   // English sentence: capital start, several words, no SQL operators.
   if (
