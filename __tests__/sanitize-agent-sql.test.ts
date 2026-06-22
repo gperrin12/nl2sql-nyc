@@ -33,4 +33,39 @@ SELECT n FROM cte LIMIT 10`;
   it("strips trailing semicolon", () => {
     expect(trimTrailingProseFromSql("SELECT 1 LIMIT 1;")).toBe("SELECT 1 LIMIT 1");
   });
+
+  it("keeps spatial SQL with ST_* function calls on continuation lines", () => {
+    const raw = `SELECT COUNT(*) AS noise_complaints
+FROM nyc_311 n
+JOIN census_tracts ct
+  ON ST_Within(
+       ST_Point(TRY_CAST(n.longitude AS DOUBLE), TRY_CAST(n.latitude AS DOUBLE)),
+       ST_GEOMETRY_FROM_TEXT(ct.geometry_wkt)
+     )
+WHERE n.year = '2025'
+  AND n.month = '08'
+  AND LOWER(n.complaint_type) LIKE '%noise%'
+  AND LOWER(ct.ntaname) LIKE 'bushwick%'
+  AND TRY_CAST(n.latitude AS DOUBLE) BETWEEN 40.4 AND 41.0
+  AND TRY_CAST(n.longitude AS DOUBLE) BETWEEN -74.3 AND -73.6`;
+
+    expect(trimTrailingProseFromSql(raw)).toBe(raw);
+  });
+
+  it("still removes prose after spatial SQL", () => {
+    const sql = `SELECT COUNT(*) AS noise_complaints
+FROM nyc_311 n
+JOIN census_tracts ct
+  ON ST_Within(
+       ST_Point(TRY_CAST(n.longitude AS DOUBLE), TRY_CAST(n.latitude AS DOUBLE)),
+       ST_GEOMETRY_FROM_TEXT(ct.geometry_wkt)
+     )
+WHERE n.year = '2025'
+LIMIT 1000`;
+    const raw = `${sql}
+
+Regarding noise complaint trends, volumes vary by season.`;
+
+    expect(trimTrailingProseFromSql(raw)).toBe(sql);
+  });
 });
