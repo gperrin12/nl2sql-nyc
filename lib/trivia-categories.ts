@@ -2,6 +2,18 @@
  * Trivia category catalog + session diversity (one plan per 10-question run).
  */
 
+export type TriviaDeck = "mta" | "311" | "grab-bag";
+
+export const DEFAULT_TRIVIA_DECK: TriviaDeck = "mta";
+
+export const TRIVIA_DECK_LABELS: Record<TriviaDeck, string> = {
+  mta: "MTA",
+  "311": "311",
+  "grab-bag": "Grab bag",
+};
+
+export const TRIVIA_DECK_OPTIONS: TriviaDeck[] = ["mta", "311", "grab-bag"];
+
 export type TriviaCategoryDef = {
   id: string;
   /** Topic family — at most one question per family in a 10-question session when possible. */
@@ -147,6 +159,20 @@ export const TRIVIA_CATEGORY_DEFS: TriviaCategoryDef[] = [
 
 const BY_ID = new Map(TRIVIA_CATEGORY_DEFS.map((d) => [d.id, d]));
 
+/** Category pool for a trivia deck (MTA-only, 311-only, or mixed grab bag). */
+export function categoriesForDeck(deck: TriviaDeck = DEFAULT_TRIVIA_DECK): TriviaCategoryDef[] {
+  switch (deck) {
+    case "mta":
+      return TRIVIA_CATEGORY_DEFS.filter((d) => d.family === "transit");
+    case "311":
+      return TRIVIA_CATEGORY_DEFS.filter(
+        (d) => d.family === "311" || d.family === "311_resolution"
+      );
+    case "grab-bag":
+      return TRIVIA_CATEGORY_DEFS;
+  }
+}
+
 export function getTriviaCategoryById(id: string): TriviaCategoryDef | undefined {
   return BY_ID.get(id);
 }
@@ -200,17 +226,18 @@ export function shuffle<T>(arr: T[]): T[] {
 }
 
 /**
- * Build a 10-question category plan: prefer one category per family, then fill
- * without repeating the same category id.
+ * Build a category plan for a session: prefer one category per family, then fill
+ * without repeating ids until the catalog is exhausted (then repeat for short decks).
  */
 export function buildSessionCategoryPlan(
   length: number,
   defs: TriviaCategoryDef[] = TRIVIA_CATEGORY_DEFS
 ): string[] {
-  if (length <= 0) return [];
+  const catalog = defs;
+  if (length <= 0 || catalog.length === 0) return [];
 
   const byFamily = new Map<string, TriviaCategoryDef[]>();
-  for (const d of defs) {
+  for (const d of catalog) {
     const list = byFamily.get(d.family) ?? [];
     list.push(d);
     byFamily.set(d.family, list);
@@ -229,8 +256,11 @@ export function buildSessionCategoryPlan(
   }
 
   while (plan.length < length) {
-    const remaining = defs.filter((d) => !usedIds.has(d.id));
-    if (remaining.length === 0) break;
+    let remaining = catalog.filter((d) => !usedIds.has(d.id));
+    if (remaining.length === 0) {
+      usedIds.clear();
+      remaining = [...catalog];
+    }
 
     const lastId = plan[plan.length - 1];
     const lastFamily = lastId ? BY_ID.get(lastId)?.family : undefined;
@@ -244,6 +274,8 @@ export function buildSessionCategoryPlan(
 }
 
 export type TriviaSessionConstraints = {
+  /** Question deck: MTA-only, 311-only, or mixed grab bag. */
+  deck?: TriviaDeck;
   /** Planned category for this slot (from buildSessionCategoryPlan). */
   categoryId?: string;
   /** Prior question texts in this session — model must not repeat. */
@@ -255,14 +287,16 @@ export type TriviaSessionConstraints = {
 export function pickCategoryForRequest(
   constraints?: TriviaSessionConstraints
 ): TriviaCategoryDef {
+  const catalog = categoriesForDeck(constraints?.deck ?? DEFAULT_TRIVIA_DECK);
+
   if (constraints?.categoryId) {
     const found = getTriviaCategoryById(constraints.categoryId);
-    if (found) return found;
+    if (found && catalog.some((d) => d.id === found.id)) return found;
   }
 
   const usedFamilies = new Set(constraints?.usedFamilies ?? []);
-  const unusedFamily = TRIVIA_CATEGORY_DEFS.filter((d) => !usedFamilies.has(d.family));
-  const pool = unusedFamily.length > 0 ? unusedFamily : TRIVIA_CATEGORY_DEFS;
+  const unusedFamily = catalog.filter((d) => !usedFamilies.has(d.family));
+  const pool = unusedFamily.length > 0 ? unusedFamily : catalog;
   return pool[Math.floor(Math.random() * pool.length)];
 }
 

@@ -9,6 +9,12 @@ import { TriviaLeaderboard } from "@/components/trivia/TriviaLeaderboard";
 import { useTriviaHiScores } from "@/lib/hooks/useTriviaHiScores";
 import { useTriviaQuestion } from "@/lib/hooks/useTriviaQuestion";
 import { useTriviaScore } from "@/lib/hooks/useTriviaScore";
+import {
+  DEFAULT_TRIVIA_DECK,
+  TRIVIA_DECK_LABELS,
+  TRIVIA_DECK_OPTIONS,
+  type TriviaDeck,
+} from "@/lib/trivia-categories";
 import { TRIVIA_SESSION_LENGTH } from "@/lib/trivia-hiscores";
 import {
   constraintsFromSession,
@@ -27,7 +33,27 @@ export function TriviaClient() {
   const [sessionAnswered, setSessionAnswered] = useState(0);
   const [newEntryId, setNewEntryId] = useState<string | null>(null);
   const [sessionKey, setSessionKey] = useState(0);
-  const sessionRef = useRef(createTriviaSessionState());
+  const [deck, setDeck] = useState<TriviaDeck>(DEFAULT_TRIVIA_DECK);
+  const sessionRef = useRef(createTriviaSessionState(DEFAULT_TRIVIA_DECK));
+
+  const resetSession = useCallback((nextDeck: TriviaDeck) => {
+    sessionRef.current = createTriviaSessionState(nextDeck);
+    setSessionKey((k) => k + 1);
+    setPhase("playing");
+    setSessionCorrect(0);
+    setSessionAnswered(0);
+    setNewEntryId(null);
+    setSelectedIndex(null);
+  }, []);
+
+  const handleDeckChange = useCallback(
+    (nextDeck: TriviaDeck) => {
+      if (nextDeck === deck) return;
+      setDeck(nextDeck);
+      resetSession(nextDeck);
+    },
+    [deck, resetSession]
+  );
 
   const getSessionConstraints = useCallback(
     () => constraintsFromSession(sessionRef.current),
@@ -107,13 +133,7 @@ export function TriviaClient() {
   };
 
   const handlePlayAgain = () => {
-    sessionRef.current = createTriviaSessionState();
-    setSessionKey((k) => k + 1);
-    setPhase("playing");
-    setSessionCorrect(0);
-    setSessionAnswered(0);
-    setNewEntryId(null);
-    setSelectedIndex(null);
+    resetSession(deck);
   };
 
   const viewLeaderboard = () => {
@@ -137,7 +157,7 @@ export function TriviaClient() {
       <AppNav />
 
       <header className="flex flex-wrap items-start justify-between gap-4">
-        <TriviaPageHeader />
+        <TriviaPageHeader deck={deck} onDeckChange={handleDeckChange} />
         <div className="text-right shrink-0 space-y-1">
           <p className="text-xs uppercase tracking-wide text-[var(--muted)]">
             {phase === "playing" ? "Session" : "Run"}
@@ -393,15 +413,43 @@ export function TriviaClient() {
   );
 }
 
-function TriviaPageHeader() {
+function TriviaPageHeader({
+  deck,
+  onDeckChange,
+}: {
+  deck: TriviaDeck;
+  onDeckChange: (deck: TriviaDeck) => void;
+}) {
   return (
-    <div className="space-y-1">
-      <h1 className="text-2xl font-semibold text-[var(--text)]">
-        NYC Data Trivia
-      </h1>
-      <p className="text-sm text-[var(--muted)]">
-        {TRIVIA_SESSION_LENGTH}-question runs · Athena-verified answers
-      </p>
+    <div className="space-y-3">
+      <div className="space-y-1">
+        <h1 className="text-2xl font-semibold text-[var(--text)]">
+          NYC Data Trivia
+        </h1>
+        <p className="text-sm text-[var(--muted)]">
+          {TRIVIA_DECK_LABELS[deck]}-themed · {TRIVIA_SESSION_LENGTH}-question
+          runs · Athena-verified answers
+        </p>
+      </div>
+      <nav className="flex items-center gap-1 rounded-lg border border-[var(--border)] bg-[var(--panel)] p-1 w-fit">
+        {TRIVIA_DECK_OPTIONS.map((option) => {
+          const active = deck === option;
+          return (
+            <button
+              key={option}
+              type="button"
+              onClick={() => onDeckChange(option)}
+              className={
+                active
+                  ? "rounded-md bg-[var(--bg)] px-3 py-1.5 text-xs font-medium text-[var(--text)] shadow-sm"
+                  : "rounded-md px-3 py-1.5 text-xs text-[var(--muted)] hover:text-[var(--text)]"
+              }
+            >
+              {TRIVIA_DECK_LABELS[option]}
+            </button>
+          );
+        })}
+      </nav>
     </div>
   );
 }

@@ -29,6 +29,7 @@ export const maxDuration = 120;
 const MAX_ATTEMPTS = 5;
 
 const BodySchema = z.object({
+  deck: z.enum(["mta", "311", "grab-bag"]).optional(),
   categoryId: z.string().optional(),
   excludeQuestions: z.array(z.string()).optional(),
   usedFamilies: z.array(z.string()).optional(),
@@ -55,6 +56,7 @@ export async function POST(req: NextRequest) {
     try {
       generated = await generateTriviaQuestion({
         session: {
+          deck: sessionBody.deck,
           categoryId: sessionBody.categoryId,
           excludeQuestions: sessionBody.excludeQuestions,
           usedFamilies: sessionBody.usedFamilies,
