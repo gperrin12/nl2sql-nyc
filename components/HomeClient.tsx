@@ -482,13 +482,6 @@ function BootHeader() {
           </span>
         </p>
       </CrtWelcome>
-
-      {/* Claude Code-style input prompt */}
-      <div className="crt-window crt-box flex items-center gap-2 px-4 py-3">
-        <span className="text-[var(--accent)]">{">"}</span>
-        <span className="text-[var(--text)]">ask in english</span>
-        <span className="crt-cursor" aria-hidden />
-      </div>
     </div>
   );
 }
