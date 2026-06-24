@@ -231,7 +231,6 @@ export function TriviaClient() {
             sessionCorrect={sessionCorrect}
             sessionAnswered={sessionAnswered}
             questionNumber={questionNumber}
-            categoryLabel={data?.categoryLabel}
             currentStreak={currentStreak}
             bestStreak={bestStreak}
             onViewLeaderboard={viewLeaderboard}
