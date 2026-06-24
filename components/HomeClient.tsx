@@ -7,6 +7,7 @@ import { SqlDisplay } from "@/components/SqlDisplay";
 import { ResultsPanel } from "@/components/ResultsPanel";
 import { AgentStreamTrace } from "@/components/AgentStreamTrace";
 import { AppNav } from "@/components/AppNav";
+import { CrtWelcome } from "@/components/CrtWelcome";
 import { DataCatalogOverview } from "@/components/DataCatalogOverview";
 import { RagTab } from "@/components/RagTab";
 import { HybridTab } from "@/components/HybridTab";
@@ -303,49 +304,32 @@ export function HomeClient() {
       !["SUCCEEDED", "FAILED", "CANCELLED"].includes(statusQuery.data.state));
 
   return (
-    <main className="max-w-6xl mx-auto p-6 space-y-6">
+    <main className="crt-root max-w-6xl mx-auto p-6 space-y-6">
+      <BootHeader />
+
       <AppNav />
 
-      <header className="space-y-1">
-        <h1 className="text-2xl font-semibold">NYC Civic Data — Ask in English</h1>
-        <p className="text-sm text-[var(--muted)]">
-          Natural language → Athena SQL across taxi trips, 311 service requests,
-          NYPD collisions, and ACS census tracts.
-        </p>
-      </header>
-
-      {/* Tab switcher */}
-      <div className="flex gap-2 border-b border-[var(--border)]">
-        <button
-          onClick={() => setMode("sql")}
-          className={`px-4 py-2 text-sm font-medium border-b-2 ${
-            mode === "sql"
-              ? "border-[var(--accent)] text-[var(--foreground)]"
-              : "border-transparent text-[var(--muted)] hover:text-[var(--foreground)]"
-          }`}
-        >
-          SQL Query
-        </button>
-        <button
-          onClick={() => setMode("documents")}
-          className={`px-4 py-2 text-sm font-medium border-b-2 ${
-            mode === "documents"
-              ? "border-[var(--accent)] text-[var(--foreground)]"
-              : "border-transparent text-[var(--muted)] hover:text-[var(--foreground)]"
-          }`}
-        >
-          Documents
-        </button>
-        <button
-          onClick={() => setMode("hybrid")}
-          className={`px-4 py-2 text-sm font-medium border-b-2 ${
-            mode === "hybrid"
-              ? "border-[var(--accent)] text-[var(--foreground)]"
-              : "border-transparent text-[var(--muted)] hover:text-[var(--foreground)]"
-          }`}
-        >
-          Hybrid
-        </button>
+      {/* Tab switcher — DOS function-key style */}
+      <div
+        role="tablist"
+        aria-label="Query mode"
+        className="flex flex-wrap gap-2"
+      >
+        {[
+          { id: "sql", label: "/sql" },
+          { id: "documents", label: "/docs" },
+          { id: "hybrid", label: "/hybrid" },
+        ].map(({ id, label }) => (
+          <button
+            key={id}
+            role="tab"
+            aria-selected={mode === id}
+            onClick={() => setMode(id as typeof mode)}
+            className="crt-tab px-4 py-1.5 text-sm font-medium"
+          >
+            {label}
+          </button>
+        ))}
       </div>
 
       {mode === "sql" ? (
@@ -480,6 +464,33 @@ async function consumeAgentSse(
       }
     }
   }
+}
+
+function BootHeader() {
+  return (
+    <div className="space-y-3">
+      <CrtWelcome>
+        <p className="text-[var(--muted)] text-sm">
+          natural language {"->"} athena sql :: mta subway ridership · taxi trips
+          · 311 requests · nypd collisions · acs census tracts
+        </p>
+        <p className="text-[var(--muted)] text-sm">
+          <span className="text-[var(--muted)]">tables: </span>
+          <span className="font-mono text-[var(--text)]/80">
+            mta_turnstile · gtp_tlc_data · nyc_311 · nypd_collisions ·
+            census_tract_demographics
+          </span>
+        </p>
+      </CrtWelcome>
+
+      {/* Claude Code-style input prompt */}
+      <div className="crt-window crt-box flex items-center gap-2 px-4 py-3">
+        <span className="text-[var(--accent)]">{">"}</span>
+        <span className="text-[var(--text)]">ask in english</span>
+        <span className="crt-cursor" aria-hidden />
+      </div>
+    </div>
+  );
 }
 
 function RepairPrompt({

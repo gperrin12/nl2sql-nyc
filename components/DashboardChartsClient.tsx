@@ -17,6 +17,7 @@ import {
   YAxis,
 } from "recharts";
 import { AppNav } from "@/components/AppNav";
+import { CrtWelcome } from "@/components/CrtWelcome";
 import { DashboardSubnav } from "@/components/DashboardSubnav";
 import { formatLatencyMs } from "@/lib/sql-metrics";
 
@@ -209,8 +210,14 @@ export function DashboardChartsClient() {
   };
 
   return (
-    <main className="max-w-[min(100%,90rem)] mx-auto p-6 space-y-6">
+    <main className="crt-root max-w-[min(100%,90rem)] mx-auto p-6 space-y-6">
       <AppNav />
+
+      <CrtWelcome>
+        <p className="text-[var(--muted)] text-sm">
+          eval dashboard :: cost · latency · error rate · judge score · routing
+        </p>
+      </CrtWelcome>
 
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div className="space-y-1">
