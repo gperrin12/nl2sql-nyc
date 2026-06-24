@@ -2,6 +2,7 @@
 
 import { useCallback, useRef, useState } from "react";
 import { AppNav } from "@/components/AppNav";
+import { CrtWelcome } from "@/components/CrtWelcome";
 import { SqlDisplay } from "@/components/SqlDisplay";
 import { TriviaGameOver } from "@/components/trivia/TriviaGameOver";
 import { TriviaNamePicker } from "@/components/trivia/TriviaNamePicker";
@@ -155,6 +156,12 @@ export function TriviaClient() {
   return (
     <main className="crt-root max-w-3xl mx-auto p-6 space-y-6">
       <AppNav />
+
+      <CrtWelcome>
+        <p className="text-[var(--muted)] text-sm">
+          nyc civic data trivia :: taxi · 311 · crashes · census · subway
+        </p>
+      </CrtWelcome>
 
       <header className="flex flex-wrap items-start justify-between gap-4">
         <TriviaPageHeader deck={deck} onDeckChange={handleDeckChange} />

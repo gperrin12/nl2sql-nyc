@@ -7,6 +7,7 @@ import { SqlDisplay } from "@/components/SqlDisplay";
 import { ResultsPanel } from "@/components/ResultsPanel";
 import { AgentStreamTrace } from "@/components/AgentStreamTrace";
 import { AppNav } from "@/components/AppNav";
+import { CrtWelcome } from "@/components/CrtWelcome";
 import { DataCatalogOverview } from "@/components/DataCatalogOverview";
 import { RagTab } from "@/components/RagTab";
 import { HybridTab } from "@/components/HybridTab";
@@ -467,24 +468,8 @@ async function consumeAgentSse(
 
 function BootHeader() {
   return (
-    <header className="crt-window p-5 space-y-5">
-      {/* Claude Code-style welcome box */}
-      <div className="crt-box p-4 space-y-2">
-        <p className="text-base">
-          <span className="crt-spark">✻</span>{" "}
-          <span className="text-[var(--text)]">Welcome to </span>
-          <span className="text-[var(--accent)] font-semibold">NL2SQL</span>
-          <span className="text-[var(--text)]"> — NYC civic data</span>
-          <span
-            className="crt-flag ml-2"
-            aria-label="New York City flag"
-            role="img"
-          >
-            <i />
-            <i />
-            <i />
-          </span>
-        </p>
+    <div className="space-y-3">
+      <CrtWelcome>
         <p className="text-[var(--muted)] text-sm">
           natural language {"->"} athena sql :: mta subway ridership · taxi trips
           · 311 requests · nypd collisions · acs census tracts
@@ -496,15 +481,15 @@ function BootHeader() {
             census_tract_demographics
           </span>
         </p>
-      </div>
+      </CrtWelcome>
 
       {/* Claude Code-style input prompt */}
-      <div className="crt-box flex items-center gap-2 px-4 py-3">
+      <div className="crt-window crt-box flex items-center gap-2 px-4 py-3">
         <span className="text-[var(--accent)]">{">"}</span>
         <span className="text-[var(--text)]">ask in english</span>
         <span className="crt-cursor" aria-hidden />
       </div>
-    </header>
+    </div>
   );
 }
 

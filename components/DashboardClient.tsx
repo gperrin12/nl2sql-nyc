@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AppNav } from "@/components/AppNav";
+import { CrtWelcome } from "@/components/CrtWelcome";
 import { DashboardSubnav } from "@/components/DashboardSubnav";
 import {
   EvalSummary,
@@ -405,6 +406,13 @@ export function DashboardClient() {
   return (
     <main className="crt-root max-w-[min(100%,90rem)] mx-auto p-6 space-y-6">
       <AppNav />
+
+      <CrtWelcome>
+        <p className="text-[var(--muted)] text-sm">
+          query detail :: judged eval runs from{" "}
+          <span className="font-mono text-[var(--text)]/80">nl2sql.query_runs</span>
+        </p>
+      </CrtWelcome>
 
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div className="space-y-1">
