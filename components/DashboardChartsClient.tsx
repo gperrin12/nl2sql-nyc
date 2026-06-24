@@ -209,7 +209,7 @@ export function DashboardChartsClient() {
   };
 
   return (
-    <main className="max-w-[min(100%,90rem)] mx-auto p-6 space-y-6">
+    <main className="crt-root max-w-[min(100%,90rem)] mx-auto p-6 space-y-6">
       <AppNav />
 
       <header className="flex flex-wrap items-start justify-between gap-4">

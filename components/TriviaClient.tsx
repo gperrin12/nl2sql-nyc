@@ -153,7 +153,7 @@ export function TriviaClient() {
     sessionAnswered < TRIVIA_SESSION_LENGTH || isLastQuestion;
 
   return (
-    <main className="max-w-3xl mx-auto p-6 space-y-6">
+    <main className="crt-root max-w-3xl mx-auto p-6 space-y-6">
       <AppNav />
 
       <header className="flex flex-wrap items-start justify-between gap-4">
