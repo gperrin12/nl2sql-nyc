@@ -1,0 +1,43 @@
+name: Weekly golden eval
+
+on:
+  schedule:
+    # Mondays 14:00 UTC (~weekly)
+    - cron: "0 14 * * 1"
+  workflow_dispatch:
+
+concurrency:
+  group: weekly-eval
+  cancel-in-progress: false
+
+jobs:
+  golden-eval:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - run: npm ci
+
+      - name: Run golden dataset eval
+        env:
+          NEON_DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+          ATHENA_DATABASE: ${{ secrets.ATHENA_DATABASE }}
+          ATHENA_OUTPUT_LOCATION: ${{ secrets.ATHENA_OUTPUT_LOCATION }}
+          ATHENA_WORKGROUP: ${{ secrets.ATHENA_WORKGROUP }}
+          CLAUDE_SQL_AGENT: "true"
+        run: npm run eval:golden
+
+      - name: Regression check after eval
+        env:
+          NEON_DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
+        run: npm run regression:check
