@@ -1,9 +1,14 @@
 import { NextResponse } from 'next/server';
+import { isAuthenticated } from '@/lib/auth';
 import { getPgPool, isDatabaseConfigured } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
+  if (!(await isAuthenticated())) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   if (!isDatabaseConfigured()) {
     return NextResponse.json({ error: 'Database not configured' }, { status: 503 });
   }

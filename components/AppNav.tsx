@@ -15,7 +15,10 @@ export function AppNav() {
   return (
     <nav className="flex items-center gap-4 text-sm border-b border-[var(--border)] pb-3 mb-4">
       {links.map(({ href, label }) => {
-        const active = pathname === href;
+        const active =
+          href === "/dashboard"
+            ? pathname === "/dashboard" || pathname.startsWith("/dashboard/")
+            : pathname === href;
         return (
           <Link
             key={href}
