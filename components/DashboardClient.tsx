@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AppNav } from "@/components/AppNav";
+import { DashboardSubnav } from "@/components/DashboardSubnav";
 import {
   EvalSummary,
   type BreakdownDimension,
@@ -405,25 +406,28 @@ export function DashboardClient() {
     <main className="max-w-[min(100%,90rem)] mx-auto p-6 space-y-6">
       <AppNav />
 
-      <header className="space-y-1">
-        <h1 className="text-2xl font-semibold text-[var(--text)]">
-          Query Dashboard
-        </h1>
-        <p className="text-sm text-[var(--muted)]">
-          Judged eval summary from{" "}
-          <span className="font-mono text-[var(--foreground)]">
-            nl2sql.query_runs
-          </span>
-          {" "}
-          · latest judged run per question
-          {deployFilter ? (
-            <>
-              {" "}
-              · deploy{" "}
-              <span className="font-mono">{deployFilter}</span>
-            </>
-          ) : null}
-        </p>
+      <header className="flex flex-wrap items-start justify-between gap-4">
+        <div className="space-y-1">
+          <h1 className="text-2xl font-semibold text-[var(--text)]">
+            Query detail
+          </h1>
+          <p className="text-sm text-[var(--muted)]">
+            Judged eval summary from{" "}
+            <span className="font-mono text-[var(--foreground)]">
+              nl2sql.query_runs
+            </span>
+            {" "}
+            · latest judged run per question
+            {deployFilter ? (
+              <>
+                {" "}
+                · deploy{" "}
+                <span className="font-mono">{deployFilter}</span>
+              </>
+            ) : null}
+          </p>
+        </div>
+        <DashboardSubnav />
       </header>
 
       <div className="rounded-lg border border-[var(--border)] bg-[var(--panel)] px-4 py-3">

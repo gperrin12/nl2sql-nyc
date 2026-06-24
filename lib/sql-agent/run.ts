@@ -109,13 +109,13 @@ function extractSqlFromText(text: string): string | null {
 
   const lineAnchored = raw.match(/(?:^|\n)(\s*(?:WITH|SELECT)\b[\s\S]*)/i);
   if (lineAnchored) {
-    let sql = lineAnchored[1].trim().replace(/```[\s\S]*$/, "").trim();
+    const sql = lineAnchored[1].trim().replace(/```[\s\S]*$/, "").trim();
     if (/^\s*(WITH|SELECT)\b/i.test(sql)) return finalizeExtractedSql(sql);
   }
 
   const afterIntro = raw.match(/[.:]\s*(\s*(?:WITH|SELECT)\b[\s\S]*)/i);
   if (afterIntro) {
-    let sql = afterIntro[1].trim().replace(/```[\s\S]*$/, "").trim();
+    const sql = afterIntro[1].trim().replace(/```[\s\S]*$/, "").trim();
     if (/^\s*(WITH|SELECT)\b/i.test(sql)) return finalizeExtractedSql(sql);
   }
 
