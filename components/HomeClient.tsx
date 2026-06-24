@@ -303,49 +303,32 @@ export function HomeClient() {
       !["SUCCEEDED", "FAILED", "CANCELLED"].includes(statusQuery.data.state));
 
   return (
-    <main className="max-w-6xl mx-auto p-6 space-y-6">
+    <main className="crt-root max-w-6xl mx-auto p-6 space-y-6">
+      <BootHeader />
+
       <AppNav />
 
-      <header className="space-y-1">
-        <h1 className="text-2xl font-semibold">NYC Civic Data — Ask in English</h1>
-        <p className="text-sm text-[var(--muted)]">
-          Natural language → Athena SQL across taxi trips, 311 service requests,
-          NYPD collisions, and ACS census tracts.
-        </p>
-      </header>
-
-      {/* Tab switcher */}
-      <div className="flex gap-2 border-b border-[var(--border)]">
-        <button
-          onClick={() => setMode("sql")}
-          className={`px-4 py-2 text-sm font-medium border-b-2 ${
-            mode === "sql"
-              ? "border-[var(--accent)] text-[var(--foreground)]"
-              : "border-transparent text-[var(--muted)] hover:text-[var(--foreground)]"
-          }`}
-        >
-          SQL Query
-        </button>
-        <button
-          onClick={() => setMode("documents")}
-          className={`px-4 py-2 text-sm font-medium border-b-2 ${
-            mode === "documents"
-              ? "border-[var(--accent)] text-[var(--foreground)]"
-              : "border-transparent text-[var(--muted)] hover:text-[var(--foreground)]"
-          }`}
-        >
-          Documents
-        </button>
-        <button
-          onClick={() => setMode("hybrid")}
-          className={`px-4 py-2 text-sm font-medium border-b-2 ${
-            mode === "hybrid"
-              ? "border-[var(--accent)] text-[var(--foreground)]"
-              : "border-transparent text-[var(--muted)] hover:text-[var(--foreground)]"
-          }`}
-        >
-          Hybrid
-        </button>
+      {/* Tab switcher — DOS function-key style */}
+      <div
+        role="tablist"
+        aria-label="Query mode"
+        className="flex flex-wrap gap-2"
+      >
+        {[
+          { id: "sql", label: "/sql" },
+          { id: "documents", label: "/docs" },
+          { id: "hybrid", label: "/hybrid" },
+        ].map(({ id, label }) => (
+          <button
+            key={id}
+            role="tab"
+            aria-selected={mode === id}
+            onClick={() => setMode(id as typeof mode)}
+            className="crt-tab px-4 py-1.5 text-sm font-medium"
+          >
+            {label}
+          </button>
+        ))}
       </div>
 
       {mode === "sql" ? (
@@ -480,6 +463,78 @@ async function consumeAgentSse(
       }
     }
   }
+}
+
+/** Subway-line bullets — Massimo Vignelli NYC subway map motif. */
+const SUBWAY_LINES: { label: string; bg: string; fg?: string }[] = [
+  { label: "1", bg: "#ee352e" },
+  { label: "4", bg: "#00933c" },
+  { label: "7", bg: "#b933ad" },
+  { label: "A", bg: "#0039a6" },
+  { label: "B", bg: "#ff6319" },
+  { label: "N", bg: "#fccc0a", fg: "#04060e" },
+  { label: "G", bg: "#6cbe45" },
+  { label: "L", bg: "#a7a9ac" },
+];
+
+function BootHeader() {
+  return (
+    <header className="crt-window p-5 space-y-5">
+      {/* Claude Code-style welcome box */}
+      <div className="crt-box p-4 space-y-2">
+        <p className="text-base">
+          <span className="crt-spark">✻</span>{" "}
+          <span className="text-[var(--text)]">Welcome to </span>
+          <span className="text-[var(--accent)] font-semibold">NL2SQL</span>
+          <span className="text-[var(--text)]"> — NYC civic data</span>
+          <span
+            className="crt-flag ml-2"
+            aria-label="New York City flag"
+            role="img"
+          >
+            <i />
+            <i />
+            <i />
+          </span>
+        </p>
+        <p className="text-[var(--muted)] text-sm">
+          natural language {"->"} athena sql :: taxi trips · 311 requests · nypd
+          collisions · mta subway ridership · acs census tracts
+        </p>
+        <p className="text-[var(--muted)] text-sm">
+          <span className="text-[var(--muted)]">tables: </span>
+          <span className="font-mono text-[var(--text)]/80">
+            gtp_tlc_data · nyc_311 · nypd_collisions · mta_turnstile ·
+            census_tract_demographics
+          </span>
+        </p>
+      </div>
+
+      {/* Subway-line bullet strip — Massimo Vignelli motif */}
+      <div className="flex flex-wrap items-center gap-2">
+        {SUBWAY_LINES.map(({ label, bg, fg }) => (
+          <span
+            key={label}
+            className="crt-bullet"
+            style={{ background: bg, color: fg ?? "#ffffff" }}
+            aria-hidden
+          >
+            {label}
+          </span>
+        ))}
+        <span className="text-[var(--muted)] text-sm pl-1">
+          ride the data uptown
+        </span>
+      </div>
+
+      {/* Claude Code-style input prompt */}
+      <div className="crt-box flex items-center gap-2 px-4 py-3">
+        <span className="text-[var(--accent)]">{">"}</span>
+        <span className="text-[var(--text)]">ask in english</span>
+        <span className="crt-cursor" aria-hidden />
+      </div>
+    </header>
+  );
 }
 
 function RepairPrompt({

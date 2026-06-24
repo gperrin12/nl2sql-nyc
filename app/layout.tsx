@@ -1,6 +1,15 @@
 import type { Metadata } from "next";
+import { JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
+
+// Terminal/monospace face — Claude Code feel. Drives both UI and code.
+const jetbrainsMono = JetBrains_Mono({
+  weight: ["400", "500", "600", "700"],
+  subsets: ["latin"],
+  display: "swap",
+  variable: "--font-mono-dos",
+});
 
 export const metadata: Metadata = {
   title: "NL → SQL: NYC Civic Data",
@@ -9,7 +18,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="en" className={jetbrainsMono.variable}>
       <body>
         <Providers>{children}</Providers>
       </body>

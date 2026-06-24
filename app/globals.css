@@ -87,3 +87,214 @@ html, body {
   );
   opacity: 0.55;
 }
+
+/* ============================================================
+   CRT / MS-DOS terminal theme — scoped to the home page only.
+   NYC flag palette: deep blue-black bg, orange + white text.
+   ============================================================ */
+.crt-root {
+  /* NYC flag colors mapped onto the existing CSS-variable system so
+     shared child components inherit the terminal look automatically. */
+  --bg: #04060e;
+  --panel: #080d1c;
+  --panel-2: #0b1326;
+  --border: #1f4a8c;          /* dim NYC flag blue */
+  --text: #f2efe6;            /* warm phosphor white */
+  --foreground: #f2efe6;
+  --muted: #6c86bb;           /* faded blue-grey */
+  --accent: #ff6319;          /* MTA / subway orange */
+  --accent-dim: #b8480f;
+  --error: #ff5b4d;
+  --nyc-blue: #2a6ad6;
+  --nyc-orange: #ff6319;
+  --crt-glow: 0 0 6px rgba(255, 99, 25, 0.35);
+  /* Terminal face for everything. */
+  --font-terminal: var(--font-mono-dos), ui-monospace, "SFMono-Regular", "Menlo", monospace;
+  /* NYC subway signage face — used only for the line bullets. */
+  --font-subway: "Helvetica Neue", Helvetica, Arial, "Liberation Sans", sans-serif;
+
+  position: relative;
+  min-height: 100vh;
+  background:
+    radial-gradient(120% 100% at 50% 0%, rgba(42, 106, 214, 0.1), transparent 60%),
+    var(--bg);
+  color: var(--text);
+  font-family: var(--font-terminal);
+  letter-spacing: 0;
+  text-shadow: 0 0 1px rgba(242, 239, 230, 0.2);
+}
+
+.crt-root {
+  font-size: 15px;
+  line-height: 1.55;
+}
+
+/* Code / SQL / ASCII banner stay in a legible mono, not Helvetica. */
+.crt-root pre,
+.crt-root code,
+.crt-root .font-mono {
+  font-family: var(--font-mono-dos), ui-monospace, "SFMono-Regular", monospace;
+  letter-spacing: 0;
+  text-shadow: none;
+}
+
+/* Soft rounded corners — Claude Code terminal boxes, not blocky DOS. */
+.crt-root [class*="rounded"] {
+  border-radius: 8px !important;
+}
+
+/* Glowing borders. */
+.crt-root [class*="border"] {
+  border-color: var(--border);
+}
+
+/* Headings glow like phosphor. */
+.crt-root h1,
+.crt-root h2,
+.crt-root h3 {
+  color: var(--accent);
+  text-shadow: var(--crt-glow);
+  font-weight: 700;
+  letter-spacing: 0;
+}
+
+/* Scanlines overlay across the whole screen. */
+.crt-root::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    0deg,
+    rgba(0, 0, 0, 0) 0px,
+    rgba(0, 0, 0, 0) 2px,
+    rgba(0, 0, 0, 0.28) 3px,
+    rgba(0, 0, 0, 0.28) 4px
+  );
+  mix-blend-mode: multiply;
+}
+
+/* Vignette + faint flicker. */
+.crt-root::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 49;
+  pointer-events: none;
+  background: radial-gradient(
+    120% 120% at 50% 50%,
+    transparent 60%,
+    rgba(0, 0, 0, 0.55) 100%
+  );
+  animation: crt-flicker 4.5s infinite steps(60);
+}
+
+@keyframes crt-flicker {
+  0%, 96%, 100% { opacity: 1; }
+  97% { opacity: 0.94; }
+  98% { opacity: 0.99; }
+  99% { opacity: 0.93; }
+}
+
+/* Blinking block cursor. */
+@keyframes crt-blink {
+  0%, 49% { opacity: 1; }
+  50%, 100% { opacity: 0; }
+}
+.crt-cursor {
+  display: inline-block;
+  width: 0.6em;
+  height: 1em;
+  margin-left: 0.1em;
+  background: var(--accent);
+  box-shadow: var(--crt-glow);
+  vertical-align: text-bottom;
+  animation: crt-blink 1.1s steps(1) infinite;
+}
+
+/* Claude Code-style window: thin rounded border with a soft glow. */
+.crt-window {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--panel);
+  box-shadow:
+    inset 0 0 60px rgba(42, 106, 214, 0.06),
+    0 0 24px rgba(0, 0, 0, 0.4);
+}
+
+/* Claude Code-style boxes drawn inside the window. */
+.crt-box {
+  border: 1px solid var(--accent-dim);
+  border-radius: 10px;
+  background: rgba(255, 99, 25, 0.03);
+}
+
+/* The Claude sparkle. */
+.crt-spark {
+  color: var(--accent);
+  text-shadow: var(--crt-glow);
+  font-weight: 700;
+}
+
+/* NYC flag stripe motif. */
+.crt-flag {
+  display: inline-grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  height: 0.9em;
+  width: 2.4em;
+  border: 1px solid rgba(242, 239, 230, 0.4);
+  vertical-align: middle;
+}
+.crt-flag > i { display: block; }
+.crt-flag > i:nth-child(1) { background: var(--nyc-blue); }
+.crt-flag > i:nth-child(2) { background: #f2efe6; }
+.crt-flag > i:nth-child(3) { background: var(--nyc-orange); }
+
+/* Subway-line bullet motif. */
+.crt-bullet {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.6em;
+  height: 1.6em;
+  border-radius: 9999px !important;
+  font-family: var(--font-subway);
+  font-weight: 700;
+  font-size: 0.85em;
+  letter-spacing: -0.02em;
+  color: #04060e;
+  text-shadow: none;
+  box-shadow: 0 0 8px rgba(0, 0, 0, 0.4);
+}
+
+/* Slash-command style tabs (active state via aria-selected). */
+.crt-tab {
+  border: 1px solid var(--border) !important;
+  border-radius: 8px !important;
+  background: rgba(42, 106, 214, 0.06);
+  color: var(--muted);
+  letter-spacing: 0;
+}
+.crt-tab:hover {
+  color: var(--text);
+  border-color: var(--accent-dim) !important;
+}
+.crt-tab[aria-selected="true"] {
+  background: rgba(255, 99, 25, 0.12);
+  color: var(--accent) !important;
+  border-color: var(--accent) !important;
+  text-shadow: var(--crt-glow);
+}
+
+/* Selection styling. */
+.crt-root ::selection {
+  background: var(--accent);
+  color: #04060e;
+  text-shadow: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .crt-root::after { animation: none; }
+  .crt-cursor { animation: none; }
+}
