@@ -117,6 +117,7 @@ export async function generateTriviaQuestion(options?: {
     DEFAULT_TRIVIA_MODEL;
 
   const sessionConstraints: TriviaSessionConstraints = {
+    deck: options?.session?.deck,
     categoryId: options?.categoryId ?? options?.session?.categoryId,
     excludeQuestions: options?.session?.excludeQuestions,
     usedFamilies: options?.session?.usedFamilies,

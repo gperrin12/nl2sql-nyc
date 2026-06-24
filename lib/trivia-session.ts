@@ -1,20 +1,30 @@
 import { TRIVIA_SESSION_LENGTH } from "@/lib/trivia-hiscores";
 import {
   buildSessionCategoryPlan,
+  categoriesForDeck,
+  DEFAULT_TRIVIA_DECK,
   getTriviaCategoryById,
+  type TriviaDeck,
   type TriviaSessionConstraints,
 } from "@/lib/trivia-categories";
 
 export type TriviaSessionState = {
+  deck: TriviaDeck;
   categoryPlan: string[];
   planIndex: number;
   recentQuestions: string[];
   usedFamilies: string[];
 };
 
-export function createTriviaSessionState(): TriviaSessionState {
+export function createTriviaSessionState(
+  deck: TriviaDeck = DEFAULT_TRIVIA_DECK
+): TriviaSessionState {
   return {
-    categoryPlan: buildSessionCategoryPlan(TRIVIA_SESSION_LENGTH),
+    deck,
+    categoryPlan: buildSessionCategoryPlan(
+      TRIVIA_SESSION_LENGTH,
+      categoriesForDeck(deck)
+    ),
     planIndex: 0,
     recentQuestions: [],
     usedFamilies: [],
@@ -26,6 +36,7 @@ export function constraintsFromSession(
 ): TriviaSessionConstraints {
   const categoryId = state.categoryPlan[state.planIndex];
   return {
+    deck: state.deck,
     categoryId,
     excludeQuestions:
       state.recentQuestions.length > 0
