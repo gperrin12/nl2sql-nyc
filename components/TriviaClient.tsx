@@ -163,58 +163,7 @@ export function TriviaClient() {
         </p>
       </CrtWelcome>
 
-      <header className="flex flex-wrap items-start justify-between gap-4">
-        <TriviaPageHeader deck={deck} onDeckChange={handleDeckChange} />
-        <div className="text-right shrink-0 space-y-1">
-          <p className="text-xs uppercase tracking-wide text-[var(--muted)]">
-            {phase === "playing" ? "Session" : "Run"}
-          </p>
-          <p className="text-2xl font-semibold tabular-nums text-[var(--accent)] font-mono">
-            {sessionCorrect}{" "}
-            <span className="text-base font-normal text-[var(--muted)]">
-              / {sessionAnswered}
-            </span>
-          </p>
-          {phase === "playing" && (
-            <>
-              <p className="text-xs text-[var(--muted)] font-mono uppercase">
-                Q {questionNumber} / {TRIVIA_SESSION_LENGTH}
-              </p>
-              {data?.categoryLabel && (
-                <p
-                  className="text-[10px] text-[var(--muted)] normal-case max-w-[14rem] ml-auto line-clamp-2"
-                  title={data.categoryLabel}
-                >
-                  {data.categoryLabel}
-                </p>
-              )}
-            </>
-          )}
-          {currentStreak > 0 && phase === "playing" && (
-            <p className="text-xs text-[var(--muted)]">
-              Streak{" "}
-              <span className="text-[var(--accent)]">{currentStreak}</span>
-              {bestStreak > 0 && (
-                <span className="text-[var(--muted)]">
-                  {" "}
-                  · best {bestStreak}
-                </span>
-              )}
-            </p>
-          )}
-          <div className="flex flex-col items-end gap-1">
-            {phase === "playing" && (
-              <button
-                type="button"
-                onClick={viewLeaderboard}
-                className="text-xs text-[var(--muted)] hover:text-[var(--accent)] underline font-mono uppercase"
-              >
-                High Scores
-              </button>
-            )}
-          </div>
-        </div>
-      </header>
+      <TriviaPageHeader deck={deck} onDeckChange={handleDeckChange} />
 
       {phase === "gameover" && (
         <TriviaGameOver
@@ -276,7 +225,17 @@ export function TriviaClient() {
       )}
 
       {phase === "playing" && showSkeleton && (
-        <TriviaSkeleton message={advancing ? "Loading next question…" : undefined} />
+        <>
+          <TriviaSkeleton message={advancing ? "Loading next question…" : undefined} />
+          <TriviaSessionStats
+            sessionCorrect={sessionCorrect}
+            sessionAnswered={sessionAnswered}
+            questionNumber={questionNumber}
+            currentStreak={currentStreak}
+            bestStreak={bestStreak}
+            onViewLeaderboard={viewLeaderboard}
+          />
+        </>
       )}
 
       {phase === "playing" && data && showQuestion && (
@@ -321,6 +280,16 @@ export function TriviaClient() {
               );
             })}
           </div>
+
+          <TriviaSessionStats
+            sessionCorrect={sessionCorrect}
+            sessionAnswered={sessionAnswered}
+            questionNumber={questionNumber}
+            categoryLabel={data.categoryLabel}
+            currentStreak={currentStreak}
+            bestStreak={bestStreak}
+            onViewLeaderboard={viewLeaderboard}
+          />
 
           {answered && (
             <div className="space-y-4">
@@ -428,35 +397,92 @@ function TriviaPageHeader({
   onDeckChange: (deck: TriviaDeck) => void;
 }) {
   return (
-    <div className="space-y-3">
-      <div className="space-y-1">
-        <h1 className="text-2xl font-semibold text-[var(--text)]">
-          NYC Data Trivia
-        </h1>
-        <p className="text-sm text-[var(--muted)]">
-          {TRIVIA_DECK_LABELS[deck]}-themed · {TRIVIA_SESSION_LENGTH}-question
-          runs · Athena-verified answers
-        </p>
+    <nav className="flex items-center gap-1 rounded-lg border border-[var(--border)] bg-[var(--panel)] p-1 w-fit">
+      {TRIVIA_DECK_OPTIONS.map((option) => {
+        const active = deck === option;
+        return (
+          <button
+            key={option}
+            type="button"
+            onClick={() => onDeckChange(option)}
+            className={
+              active
+                ? "rounded-md bg-[var(--bg)] px-3 py-1.5 text-xs font-medium text-[var(--text)] shadow-sm"
+                : "rounded-md px-3 py-1.5 text-xs text-[var(--muted)] hover:text-[var(--text)]"
+            }
+          >
+            {TRIVIA_DECK_LABELS[option]}
+          </button>
+        );
+      })}
+    </nav>
+  );
+}
+
+function TriviaSessionStats({
+  sessionCorrect,
+  sessionAnswered,
+  questionNumber,
+  categoryLabel,
+  currentStreak,
+  bestStreak,
+  onViewLeaderboard,
+}: {
+  sessionCorrect: number;
+  sessionAnswered: number;
+  questionNumber: number;
+  categoryLabel?: string;
+  currentStreak: number;
+  bestStreak: number;
+  onViewLeaderboard: () => void;
+}) {
+  return (
+    <div className="rounded-lg border border-[var(--border)] bg-[var(--panel)] px-4 py-3 space-y-2">
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+        <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
+          <div>
+            <p className="text-[10px] uppercase tracking-wide text-[var(--muted)]">
+              Session
+            </p>
+            <p className="text-xl font-semibold tabular-nums text-[var(--accent)] font-mono">
+              {sessionCorrect}{" "}
+              <span className="text-sm font-normal text-[var(--muted)]">
+                / {sessionAnswered}
+              </span>
+            </p>
+          </div>
+          <p className="text-xs text-[var(--muted)] font-mono uppercase">
+            Q {questionNumber} / {TRIVIA_SESSION_LENGTH}
+          </p>
+          {currentStreak > 0 && (
+            <p className="text-xs text-[var(--muted)]">
+              Streak{" "}
+              <span className="text-[var(--accent)]">{currentStreak}</span>
+              {bestStreak > 0 && (
+                <span>
+                  {" "}
+                  · best {bestStreak}
+                </span>
+              )}
+            </p>
+          )}
+        </div>
+        <button
+          type="button"
+          onClick={onViewLeaderboard}
+          className="text-xs text-[var(--muted)] hover:text-[var(--accent)] underline font-mono uppercase shrink-0"
+        >
+          High Scores
+        </button>
       </div>
-      <nav className="flex items-center gap-1 rounded-lg border border-[var(--border)] bg-[var(--panel)] p-1 w-fit">
-        {TRIVIA_DECK_OPTIONS.map((option) => {
-          const active = deck === option;
-          return (
-            <button
-              key={option}
-              type="button"
-              onClick={() => onDeckChange(option)}
-              className={
-                active
-                  ? "rounded-md bg-[var(--bg)] px-3 py-1.5 text-xs font-medium text-[var(--text)] shadow-sm"
-                  : "rounded-md px-3 py-1.5 text-xs text-[var(--muted)] hover:text-[var(--text)]"
-              }
-            >
-              {TRIVIA_DECK_LABELS[option]}
-            </button>
-          );
-        })}
-      </nav>
+      {categoryLabel && (
+        <p
+          className="text-[10px] text-[var(--muted)] line-clamp-2"
+          title={categoryLabel}
+        >
+          {categoryLabel}
+        </p>
+      )}
     </div>
   );
 }
