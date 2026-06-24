@@ -465,18 +465,6 @@ async function consumeAgentSse(
   }
 }
 
-/** Subway-line bullets — Massimo Vignelli NYC subway map motif. */
-const SUBWAY_LINES: { label: string; bg: string; fg?: string }[] = [
-  { label: "1", bg: "#ee352e" },
-  { label: "4", bg: "#00933c" },
-  { label: "7", bg: "#b933ad" },
-  { label: "A", bg: "#0039a6" },
-  { label: "B", bg: "#ff6319" },
-  { label: "N", bg: "#fccc0a", fg: "#04060e" },
-  { label: "G", bg: "#6cbe45" },
-  { label: "L", bg: "#a7a9ac" },
-];
-
 function BootHeader() {
   return (
     <header className="crt-window p-5 space-y-5">
@@ -498,33 +486,16 @@ function BootHeader() {
           </span>
         </p>
         <p className="text-[var(--muted)] text-sm">
-          natural language {"->"} athena sql :: taxi trips · 311 requests · nypd
-          collisions · mta subway ridership · acs census tracts
+          natural language {"->"} athena sql :: mta subway ridership · taxi trips
+          · 311 requests · nypd collisions · acs census tracts
         </p>
         <p className="text-[var(--muted)] text-sm">
           <span className="text-[var(--muted)]">tables: </span>
           <span className="font-mono text-[var(--text)]/80">
-            gtp_tlc_data · nyc_311 · nypd_collisions · mta_turnstile ·
+            mta_turnstile · gtp_tlc_data · nyc_311 · nypd_collisions ·
             census_tract_demographics
           </span>
         </p>
-      </div>
-
-      {/* Subway-line bullet strip — Massimo Vignelli motif */}
-      <div className="flex flex-wrap items-center gap-2">
-        {SUBWAY_LINES.map(({ label, bg, fg }) => (
-          <span
-            key={label}
-            className="crt-bullet"
-            style={{ background: bg, color: fg ?? "#ffffff" }}
-            aria-hidden
-          >
-            {label}
-          </span>
-        ))}
-        <span className="text-[var(--muted)] text-sm pl-1">
-          ride the data uptown
-        </span>
       </div>
 
       {/* Claude Code-style input prompt */}

@@ -110,8 +110,6 @@ html, body {
   --crt-glow: 0 0 6px rgba(255, 99, 25, 0.35);
   /* Terminal face for everything. */
   --font-terminal: var(--font-mono-dos), ui-monospace, "SFMono-Regular", "Menlo", monospace;
-  /* NYC subway signage face — used only for the line bullets. */
-  --font-subway: "Helvetica Neue", Helvetica, Arial, "Liberation Sans", sans-serif;
 
   position: relative;
   min-height: 100vh;
@@ -250,23 +248,6 @@ html, body {
 .crt-flag > i:nth-child(1) { background: var(--nyc-blue); }
 .crt-flag > i:nth-child(2) { background: #f2efe6; }
 .crt-flag > i:nth-child(3) { background: var(--nyc-orange); }
-
-/* Subway-line bullet motif. */
-.crt-bullet {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 1.6em;
-  height: 1.6em;
-  border-radius: 9999px !important;
-  font-family: var(--font-subway);
-  font-weight: 700;
-  font-size: 0.85em;
-  letter-spacing: -0.02em;
-  color: #04060e;
-  text-shadow: none;
-  box-shadow: 0 0 8px rgba(0, 0, 0, 0.4);
-}
 
 /* Slash-command style tabs (active state via aria-selected). */
 .crt-tab {
