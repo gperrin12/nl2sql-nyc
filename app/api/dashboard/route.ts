@@ -1,7 +1,13 @@
 import { NextResponse } from 'next/server';
-import { getPgPool } from '@/lib/db';
+import { getPgPool, isDatabaseConfigured } from '@/lib/db';
+
+export const dynamic = 'force-dynamic';
 
 export async function GET() {
+  if (!isDatabaseConfigured()) {
+    return NextResponse.json({ error: 'Database not configured' }, { status: 503 });
+  }
+
   const pool = getPgPool();
   if (!pool) {
     return NextResponse.json({ error: 'Database not configured' }, { status: 503 });
@@ -51,8 +57,8 @@ export async function GET() {
           SELECT
             date_trunc('day', created_at)::date AS day,
             COUNT(*)::int AS sample_count,
-            percentile_cont(0.5) WITHIN GROUP (ORDER BY runtime_ms)::float8 AS p50_ms,
-            percentile_cont(0.95) WITHIN GROUP (ORDER BY runtime_ms)::float8 AS p95_ms
+            (percentile_cont(0.5) WITHIN GROUP (ORDER BY runtime_ms))::float8 AS p50_ms,
+            (percentile_cont(0.95) WITHIN GROUP (ORDER BY runtime_ms))::float8 AS p95_ms
           FROM nl2sql.query_runs
           WHERE created_at >= NOW() - INTERVAL '30 days'
             AND runtime_ms IS NOT NULL
@@ -131,6 +137,13 @@ export async function GET() {
       scoreTrend: scoreTrend.rows,
       routing: routing.rows,
     });
+  } catch (e) {
+    const detail = e instanceof Error ? e.message : String(e);
+    console.error('[dashboard]', detail);
+    return NextResponse.json(
+      { error: 'Failed to load dashboard metrics', detail },
+      { status: 502 }
+    );
   } finally {
     client.release();
   }
