@@ -129,7 +129,7 @@ export async function GET() {
             2
           )::float8 AS pct
         FROM nl2sql.routing_log
-        WHERE created_at >= NOW() - INTERVAL '7 days'
+        WHERE timestamp >= NOW() - INTERVAL '7 days'
         GROUP BY route
         ORDER BY count DESC
       `),
