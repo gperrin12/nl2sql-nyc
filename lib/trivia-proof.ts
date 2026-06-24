@@ -348,7 +348,6 @@ export function formatOptionsMismatchFeedback(
   results: Pick<AthenaResults, "columns" | "rows">,
   options: string[]
 ): string {
-  const winner = findRankingWinner(results.columns, results.rows);
   const cols = resolveRankingColumns(results.columns, results.rows);
   const labelCol = cols?.labelColumn ?? "answer_label";
   const rowLabels = results.rows

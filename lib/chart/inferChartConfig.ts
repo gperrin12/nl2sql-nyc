@@ -165,7 +165,7 @@ function findNumericColumns(
   return columns.filter((c) => isNumericColumn(c, rows));
 }
 
-function compareX(a: string | null, b: string | null, xKey: string): number {
+function compareX(a: string | null, b: string | null): number {
   const sa = a ?? "";
   const sb = b ?? "";
   const na = parseNum(sa);
@@ -190,7 +190,7 @@ export function sortRowsForChart(
   const copy = [...rows];
 
   if (chartType === "line") {
-    copy.sort((a, b) => compareX(a[xKey], b[xKey], xKey));
+    copy.sort((a, b) => compareX(a[xKey], b[xKey]));
     return copy;
   }
 

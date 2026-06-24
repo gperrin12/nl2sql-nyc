@@ -206,18 +206,3 @@ export async function POST(req: NextRequest) {
 function errorMessage(e: unknown): string {
   return e instanceof Error ? e.message : String(e);
 }
-
-function findRankingWinnerForFeedback(
-  results: Awaited<ReturnType<typeof waitForAthenaResults>>
-): string | null {
-  const { columns, rows } = results;
-  if (!rows.length) return null;
-  const label = columns[0];
-  const metric = columns[1];
-  if (!label) return null;
-  const parts = rows.slice(0, 4).map((r) => {
-    const m = metric ? ` (${metric}=${r[metric]})` : "";
-    return `${r[label]}${m}`;
-  });
-  return parts.join("; ");
-}

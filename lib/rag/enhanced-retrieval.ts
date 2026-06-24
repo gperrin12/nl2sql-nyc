@@ -11,7 +11,6 @@
 
 import { hybridSearch, DEFAULT_ALPHA } from "./hybrid-search";
 import { rerank } from "./llm-reranker";
-import type { HybridSearchResult } from "./hybrid-search";
 
 export type RagChunk = {
   id: number;
