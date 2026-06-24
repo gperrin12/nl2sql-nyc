@@ -246,7 +246,7 @@ export function DashboardChartsClient() {
         </div>
       ) : (
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-          <ChartCard title="Cost trend" subtitle="Last 30 days · daily total USD">
+          <ChartCard title="Total cost" subtitle="Last 30 days · daily sum USD">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={costData} margin={{ top: 8, right: 12, left: 0, bottom: 4 }}>
                 <CartesianGrid stroke="var(--border)" strokeOpacity={0.3} />
@@ -259,17 +259,8 @@ export function DashboardChartsClient() {
                 <Tooltip
                   contentStyle={TOOLTIP_STYLE}
                   labelFormatter={(label) => formatDayLabel(String(label))}
-                  formatter={(value, name) => {
-                    if (name === "total_cost_usd") {
-                      return [formatUsd(Number(value)), "Total cost"];
-                    }
-                    if (name === "avg_cost_usd") {
-                      return [formatUsd(Number(value)), "Avg cost"];
-                    }
-                    return [String(value ?? ""), String(name)];
-                  }}
+                  formatter={(value) => [formatUsd(Number(value)), "Total cost"]}
                 />
-                <Legend wrapperStyle={{ fontSize: 11 }} />
                 <Line
                   type="monotone"
                   dataKey="total_cost_usd"
@@ -278,6 +269,25 @@ export function DashboardChartsClient() {
                   strokeWidth={2}
                   dot={{ r: 2 }}
                 />
+              </LineChart>
+            </ResponsiveContainer>
+          </ChartCard>
+
+          <ChartCard title="Average cost per query" subtitle="Last 30 days · daily avg USD">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={costData} margin={{ top: 8, right: 12, left: 0, bottom: 4 }}>
+                <CartesianGrid stroke="var(--border)" strokeOpacity={0.3} />
+                <XAxis dataKey="day" {...axisDayProps} />
+                <YAxis
+                  tick={{ fill: "var(--muted)", fontSize: 11 }}
+                  tickFormatter={(v) => formatUsd(Number(v))}
+                  width={56}
+                />
+                <Tooltip
+                  contentStyle={TOOLTIP_STYLE}
+                  labelFormatter={(label) => formatDayLabel(String(label))}
+                  formatter={(value) => [formatUsd(Number(value)), "Avg cost"]}
+                />
                 <Line
                   type="monotone"
                   dataKey="avg_cost_usd"
@@ -285,6 +295,7 @@ export function DashboardChartsClient() {
                   stroke={COLORS[1]}
                   strokeWidth={2}
                   dot={{ r: 2 }}
+                  connectNulls
                 />
               </LineChart>
             </ResponsiveContainer>
@@ -331,14 +342,15 @@ export function DashboardChartsClient() {
             </ResponsiveContainer>
           </ChartCard>
 
-          <ChartCard title="Eval score trend" subtitle="Last 30 days · daily avg judge score">
+          <ChartCard title="Eval score trend" subtitle="Last 30 days · daily avg judge score (1–5)">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={scoreData} margin={{ top: 8, right: 12, left: 0, bottom: 4 }}>
                 <CartesianGrid stroke="var(--border)" strokeOpacity={0.3} />
                 <XAxis dataKey="day" {...axisDayProps} />
                 <YAxis
                   tick={{ fill: "var(--muted)", fontSize: 11 }}
-                  domain={[0, 100]}
+                  domain={[1, 5]}
+                  ticks={[1, 2, 3, 4, 5]}
                   width={40}
                 />
                 <Tooltip
@@ -346,7 +358,7 @@ export function DashboardChartsClient() {
                   labelFormatter={(label) => formatDayLabel(String(label))}
                   formatter={(value, name) => {
                     if (name === "avg_score") {
-                      return [Number(value).toFixed(1), "Avg score"];
+                      return [`${Number(value).toFixed(2)}/5`, "Avg score"];
                     }
                     if (name === "judged_count") {
                       return [String(value), "Judged runs"];
