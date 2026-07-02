@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useRef, useState } from "react";
+import Link from "next/link";
 import { AppNav } from "@/components/AppNav";
 import { CrtWelcome } from "@/components/CrtWelcome";
 import { SqlDisplay } from "@/components/SqlDisplay";
@@ -163,7 +164,15 @@ export function TriviaClient() {
         </p>
       </CrtWelcome>
 
-      <TriviaPageHeader deck={deck} onDeckChange={handleDeckChange} />
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <TriviaPageHeader deck={deck} onDeckChange={handleDeckChange} />
+        <Link
+          href="/trivia/live"
+          className="rounded-md border-2 border-[var(--accent)] px-4 py-2 text-xs font-medium text-[var(--accent)] hover:bg-[var(--accent)] hover:text-black transition-colors font-mono uppercase tracking-wide"
+        >
+          ▶ Play with friends
+        </Link>
+      </div>
 
       {phase === "gameover" && (
         <TriviaGameOver
