@@ -31,7 +31,8 @@
     "run:adversarial": "tsx scripts/run-adversarial.ts",
     "run:adversarial:dry": "tsx scripts/run-adversarial.ts --dry-run",
     "run:adversarial:migrate": "tsx scripts/run-adversarial.ts --migrate",
-    "regression:check": "tsx scripts/regression-check.ts"
+    "regression:check": "tsx scripts/regression-check.ts",
+    "migrate": "tsx scripts/apply-migrations.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.32.0",

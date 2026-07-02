@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { isAuthenticated } from "@/lib/auth";
 import { getPgPool } from "@/lib/db";
 import {
+  shouldAutoReveal,
   toPublicQuestion,
   type PublicTriviaRoomQuestion,
   type TriviaRoomQuestion,
@@ -16,6 +17,7 @@ type RoomRow = {
   current_index: number;
   question_started_at: string | null;
   question_duration_seconds: number;
+  answer_revealed: boolean;
 };
 
 type PlayerRow = {
@@ -43,11 +45,12 @@ export async function GET(
 
   const { code } = await params;
   const roomCode = code.toUpperCase();
+  const playerId = req.nextUrl.searchParams.get("playerId") ?? undefined;
 
   try {
     const roomRes = await pool.query<RoomRow>(
       `SELECT status, host_player_id, questions, current_index,
-              question_started_at, question_duration_seconds
+              question_started_at, question_duration_seconds, answer_revealed
          FROM trivia_rooms
         WHERE code = $1`,
       [roomCode]
@@ -58,6 +61,7 @@ export async function GET(
 
     const room = roomRes.rows[0];
     const isFinished = room.status === "finished";
+    const isPlaying = room.status === "playing";
 
     // correct_count is only meaningful (and only computed) once the game ends.
     const playersRes = await pool.query<PlayerRow>(
@@ -84,13 +88,64 @@ export async function GET(
 
     const totalQuestions = room.questions.length;
 
-    let currentQuestion: PublicTriviaRoomQuestion | null = null;
-    if (
-      room.status === "playing" &&
+    const hasLiveQuestion =
+      isPlaying &&
       room.current_index >= 0 &&
-      room.current_index < totalQuestions
+      room.current_index < totalQuestions;
+
+    // How many players have locked in an answer for the current question, and
+    // the requesting player's own answer (so their UI survives a refresh).
+    let answeredCount = 0;
+    let yourChoiceIndex: number | null = null;
+    if (hasLiveQuestion) {
+      const answersRes = await pool.query<{ player_id: string; choice_index: number }>(
+        `SELECT player_id, choice_index
+           FROM trivia_room_answers
+          WHERE room_code = $1 AND question_index = $2`,
+        [roomCode, room.current_index]
+      );
+      answeredCount = answersRes.rowCount ?? 0;
+      if (playerId) {
+        const mine = answersRes.rows.find((r) => r.player_id === playerId);
+        yourChoiceIndex = mine ? mine.choice_index : null;
+      }
+    }
+
+    // Auto-reveal: the countdown runs server-side, so polling (host or player)
+    // is what actually flips the reveal. Everyone but the host is expected to
+    // answer, so once they all have — or once the timer expires — lock the
+    // question and expose the correct answer to everyone at once. Persisted so
+    // the answer route rejects any late submissions after this point.
+    let answerRevealed = isPlaying && room.answer_revealed;
+    if (
+      hasLiveQuestion &&
+      !answerRevealed &&
+      shouldAutoReveal({
+        startedAt: room.question_started_at,
+        durationSeconds: room.question_duration_seconds,
+        answeredCount,
+        expectedAnswerers: playersRes.rows.filter(
+          (p) => p.id !== room.host_player_id
+        ).length,
+      })
     ) {
-      currentQuestion = toPublicQuestion(room.questions[room.current_index]);
+      await pool.query(
+        `UPDATE trivia_rooms
+            SET answer_revealed = true
+          WHERE code = $1 AND status = 'playing'
+            AND current_index = $2 AND answer_revealed = false`,
+        [roomCode, room.current_index]
+      );
+      answerRevealed = true;
+    }
+
+    let currentQuestion: PublicTriviaRoomQuestion | null = null;
+    let revealedCorrectIndex: number | null = null;
+    if (hasLiveQuestion) {
+      const q = room.questions[room.current_index];
+      currentQuestion = toPublicQuestion(q);
+      // The correct answer is only ever exposed once the question is revealed.
+      if (answerRevealed) revealedCorrectIndex = q.correctIndex;
     }
 
     return NextResponse.json({
@@ -101,6 +156,10 @@ export async function GET(
       totalQuestions,
       players,
       currentQuestion,
+      answerRevealed,
+      revealedCorrectIndex,
+      answeredCount,
+      you: playerId ? { choiceIndex: yourChoiceIndex } : null,
     });
   } catch (e) {
     return NextResponse.json(

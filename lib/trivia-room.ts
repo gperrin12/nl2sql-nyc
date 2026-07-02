@@ -32,6 +32,12 @@ const ROOM_CODE_LENGTH = 6;
 const ROOM_CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
 
 /**
+ * Per-question countdown. When it runs out (or everyone has answered) the answer
+ * auto-locks and the correct choice is revealed to everyone at once.
+ */
+export const ROOM_QUESTION_DURATION_SECONDS = 30;
+
+/**
  * 6-char room code from an unambiguous alphabet. Not guaranteed unique — the
  * caller retries the insert on a unique-violation and generates a fresh code.
  */
@@ -64,6 +70,30 @@ export function computeTimeRemaining(
   if (!Number.isFinite(started)) return 0;
   const elapsedSeconds = (Date.now() - started) / 1000;
   return Math.max(0, Math.ceil(durationSeconds - elapsedSeconds));
+}
+
+/**
+ * Decide whether the current question's answer should auto-reveal. Reveal when
+ * the countdown has run out, or when every player who can answer already has
+ * (i.e. before the timer, so the room doesn't wait needlessly). `expectedAnswerers`
+ * excludes the host, who runs the game and never submits an answer — passing 0
+ * disables the "everyone answered" path so a host-only room only reveals on time.
+ */
+export function shouldAutoReveal({
+  startedAt,
+  durationSeconds,
+  answeredCount,
+  expectedAnswerers,
+}: {
+  startedAt: string | null;
+  durationSeconds: number;
+  answeredCount: number;
+  expectedAnswerers: number;
+}): boolean {
+  if (startedAt && computeTimeRemaining(startedAt, durationSeconds) <= 0) {
+    return true;
+  }
+  return expectedAnswerers > 0 && answeredCount >= expectedAnswerers;
 }
 
 /**

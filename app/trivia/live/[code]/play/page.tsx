@@ -1,10 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { AppNav } from "@/components/AppNav";
 import { CrtWelcome } from "@/components/CrtWelcome";
+import { TriviaCountdown } from "@/components/trivia/TriviaCountdown";
 import { TriviaRoomStandings } from "@/components/trivia/TriviaRoomStandings";
 import { useTriviaRoomState } from "@/lib/hooks/useTriviaRoomState";
 
@@ -28,13 +29,6 @@ function readIdentity(
   }
 }
 
-type AnswerResult = {
-  questionIndex: number;
-  choiceIndex: number;
-  correctIndex: number;
-  correct: boolean;
-};
-
 export default function TriviaLivePlayPage() {
   const params = useParams();
   const code = (Array.isArray(params.code) ? params.code[0] : params.code) ?? "";
@@ -42,9 +36,11 @@ export default function TriviaLivePlayPage() {
   const [playerId, setPlayerId] = useState<string | undefined>(undefined);
   const [identityChecked, setIdentityChecked] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [answer, setAnswer] = useState<AnswerResult | null>(null);
+  const [myChoice, setMyChoice] = useState<number | null>(null);
+  const [answeredIndex, setAnsweredIndex] = useState<number | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
-  const answeredIndexRef = useRef<number | null>(null);
+  const [timeUp, setTimeUp] = useState(false);
+  const [timedQuestion, setTimedQuestion] = useState<number | null>(null);
 
   useEffect(() => {
     const id = readIdentity(code);
@@ -52,22 +48,43 @@ export default function TriviaLivePlayPage() {
     setIdentityChecked(true);
   }, [code]);
 
-  const { state, loading, error } = useTriviaRoomState({ code, playerId });
+  const { state, loading, error, refresh } = useTriviaRoomState({
+    code,
+    playerId,
+  });
 
-  // Clear the local answer whenever the host advances to a new question.
+  // Reset the local pick whenever the host advances to a new question.
   useEffect(() => {
     if (!state) return;
-    if (answeredIndexRef.current !== state.currentIndex) {
-      answeredIndexRef.current = null;
-      setAnswer(null);
+    if (answeredIndex !== state.currentIndex) {
+      setMyChoice(null);
       setSubmitError(null);
+      setAnsweredIndex(null);
     }
-  }, [state]);
+  }, [state, answeredIndex]);
+
+  // Clear the "time's up" lock when a new question starts.
+  useEffect(() => {
+    if (state && timedQuestion !== state.currentIndex) {
+      setTimeUp(false);
+      setTimedQuestion(state.currentIndex);
+    }
+  }, [state, timedQuestion]);
+
+  // The server is the source of truth for whether/what this player answered
+  // (survives refresh); fall back to the optimistic local pick.
+  const chosenIndex = state?.you?.choiceIndex ?? myChoice;
+  const answered = chosenIndex != null;
+  const revealed =
+    state != null &&
+    state.answerRevealed &&
+    state.revealedCorrectIndex != null;
 
   const submitAnswer = useCallback(
     async (choiceIndex: number) => {
       if (!state || !playerId || submitting) return;
-      if (answer && answer.questionIndex === state.currentIndex) return;
+      if (state.answerRevealed || timeUp) return;
+      if (chosenIndex != null) return;
 
       const questionIndex = state.currentIndex;
       setSubmitting(true);
@@ -81,33 +98,23 @@ export default function TriviaLivePlayPage() {
             body: JSON.stringify({ playerId, questionIndex, choiceIndex }),
           }
         );
-        const data = (await res.json()) as {
-          correct?: boolean;
-          correctIndex?: number;
-          error?: string;
-          detail?: string;
-        };
-        if (!res.ok || typeof data.correctIndex !== "number") {
+        const data = (await res.json()) as { error?: string; detail?: string };
+        if (!res.ok) {
           throw new Error(data.detail ?? data.error ?? "Failed to submit");
         }
-        answeredIndexRef.current = questionIndex;
-        setAnswer({
-          questionIndex,
-          choiceIndex,
-          correctIndex: data.correctIndex,
-          correct: Boolean(data.correct),
-        });
+        setAnsweredIndex(questionIndex);
+        setMyChoice(choiceIndex);
       } catch (e) {
         setSubmitError(e instanceof Error ? e.message : "Failed to submit");
       } finally {
         setSubmitting(false);
       }
     },
-    [answer, code, playerId, state, submitting]
+    [chosenIndex, code, playerId, state, submitting, timeUp]
   );
 
-  const answeredThisQuestion =
-    answer != null && state != null && answer.questionIndex === state.currentIndex;
+  const correctIndex = state?.revealedCorrectIndex ?? null;
+  const isCorrect = revealed && chosenIndex != null && chosenIndex === correctIndex;
 
   return (
     <main className="crt-root max-w-3xl mx-auto p-6 space-y-6">
@@ -115,7 +122,7 @@ export default function TriviaLivePlayPage() {
 
       <CrtWelcome>
         <p className="text-[var(--muted)] text-sm">
-          live trivia :: room {code} — answer before the host moves on
+          live trivia :: room {code} — answer and wait for the host to reveal
         </p>
       </CrtWelcome>
 
@@ -163,6 +170,16 @@ export default function TriviaLivePlayPage() {
             <p className="text-lg font-medium leading-relaxed text-[var(--text)]">
               {state.currentQuestion.question}
             </p>
+            {!revealed && (
+              <TriviaCountdown
+                startedAt={state.questionStartedAt}
+                durationSeconds={state.durationSeconds}
+                onExpire={() => {
+                  setTimeUp(true);
+                  void refresh();
+                }}
+              />
+            )}
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -170,23 +187,28 @@ export default function TriviaLivePlayPage() {
               const label = LABELS[index] ?? String(index + 1);
               let style =
                 "border-[var(--border)] bg-[var(--panel)] hover:border-[var(--accent-dim)]";
-              if (answeredThisQuestion && answer) {
-                if (index === answer.correctIndex) {
+              if (revealed) {
+                if (index === correctIndex) {
                   style =
                     "border-emerald-500/60 bg-emerald-500/10 text-[var(--text)]";
-                } else if (index === answer.choiceIndex) {
+                } else if (index === chosenIndex) {
                   style =
                     "border-[var(--error)]/60 bg-[var(--error)]/10 text-[var(--text)]";
                 } else {
                   style = "border-[var(--border)] bg-[var(--panel)] opacity-60";
                 }
+              } else if (answered && index === chosenIndex) {
+                // Locked-in pick, but not yet revealed — neutral highlight only.
+                style = "border-[var(--accent)] bg-[var(--accent)]/10 text-[var(--text)]";
               }
 
               return (
                 <button
                   key={`${label}-${choice}`}
                   type="button"
-                  disabled={answeredThisQuestion || submitting || !playerId}
+                  disabled={
+                    answered || revealed || submitting || timeUp || !playerId
+                  }
                   onClick={() => void submitAnswer(index)}
                   className={`flex items-start gap-3 rounded-lg border px-4 py-3 text-left text-sm transition-colors disabled:cursor-default ${style}`}
                 >
@@ -205,25 +227,41 @@ export default function TriviaLivePlayPage() {
             </p>
           )}
 
-          {answeredThisQuestion && answer && (
+          {revealed && (
             <div
               className={`rounded-lg border px-4 py-3 text-sm ${
-                answer.correct
+                isCorrect
                   ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-300"
                   : "border-[var(--error)]/40 bg-[var(--error)]/10 text-[var(--error)]"
               }`}
             >
-              {answer.correct
-                ? "Correct! Waiting for the host to move on…"
-                : `Not quite — the answer was ${
-                    LABELS[answer.correctIndex] ?? answer.correctIndex + 1
-                  }. Waiting for the host…`}
+              {chosenIndex == null
+                ? `Time's up — the answer was ${
+                    LABELS[correctIndex ?? 0] ?? (correctIndex ?? 0) + 1
+                  }: ${state.currentQuestion.choices[correctIndex ?? 0]}`
+                : isCorrect
+                  ? "Correct!"
+                  : `Not quite — the answer was ${
+                      LABELS[correctIndex ?? 0] ?? (correctIndex ?? 0) + 1
+                    }: ${state.currentQuestion.choices[correctIndex ?? 0]}`}
             </div>
           )}
 
-          {!answeredThisQuestion && (
+          {!revealed && answered && (
+            <div className="rounded-lg border border-[var(--accent)]/40 bg-[var(--accent)]/10 px-4 py-3 text-sm text-[var(--accent)]">
+              Answer locked in — waiting for the reveal…
+            </div>
+          )}
+
+          {!revealed && !answered && timeUp && (
+            <div className="rounded-lg border border-[var(--error)]/40 bg-[var(--error)]/10 px-4 py-3 text-sm text-[var(--error)]">
+              Time&apos;s up — answers are locked. Waiting for the reveal…
+            </div>
+          )}
+
+          {!revealed && !answered && !timeUp && (
             <p className="text-xs text-center text-[var(--muted)]">
-              Pick an answer before the host advances.
+              Pick an answer before the timer runs out.
             </p>
           )}
         </div>

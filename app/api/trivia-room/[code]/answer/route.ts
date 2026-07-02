@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { isAuthenticated } from "@/lib/auth";
 import { getPgPool } from "@/lib/db";
-import type { TriviaRoomQuestion } from "@/lib/trivia-room";
+import { computeTimeRemaining, type TriviaRoomQuestion } from "@/lib/trivia-room";
 
 export const dynamic = "force-dynamic";
 
@@ -15,6 +15,9 @@ const BodySchema = z.object({
 type RoomRow = {
   status: "lobby" | "playing" | "finished";
   current_index: number;
+  answer_revealed: boolean;
+  question_started_at: string | null;
+  question_duration_seconds: number;
   questions: TriviaRoomQuestion[];
 };
 
@@ -49,7 +52,8 @@ export async function POST(
 
   try {
     const roomRes = await pool.query<RoomRow>(
-      `SELECT status, current_index, questions
+      `SELECT status, current_index, answer_revealed,
+              question_started_at, question_duration_seconds, questions
          FROM trivia_rooms
         WHERE code = $1`,
       [roomCode]
@@ -74,6 +78,29 @@ export async function POST(
       );
     }
 
+    // Once the answer is revealed, answers are locked for the current question.
+    if (room.answer_revealed) {
+      return NextResponse.json(
+        { error: "Answers are locked — this question has been revealed" },
+        { status: 409 }
+      );
+    }
+
+    // The countdown is authoritative: reject anything submitted after the window
+    // closes, even if a poll hasn't flipped answer_revealed yet.
+    if (
+      room.question_started_at &&
+      computeTimeRemaining(
+        room.question_started_at,
+        room.question_duration_seconds
+      ) <= 0
+    ) {
+      return NextResponse.json(
+        { error: "Time's up — answers are locked for this question" },
+        { status: 409 }
+      );
+    }
+
     const question = room.questions[body.questionIndex];
     if (!question) {
       return NextResponse.json(
@@ -88,9 +115,10 @@ export async function POST(
       );
     }
 
-    // Server is the sole source of truth for the correct answer.
-    const correctIndex = question.correctIndex;
-    const isCorrect = body.choiceIndex === correctIndex;
+    // Server is the sole source of truth for the correct answer. Scored now but
+    // NOT revealed to the player — correctness is disclosed only when the host
+    // reveals (via the state endpoint), so an early reaction can't tip others off.
+    const isCorrect = body.choiceIndex === question.correctIndex;
 
     // ON CONFLICT guards double-submit; RETURNING tells us whether this was the
     // first answer so we only ever score a question once per player.
@@ -112,7 +140,7 @@ export async function POST(
       );
     }
 
-    return NextResponse.json({ correct: isCorrect, correctIndex });
+    return NextResponse.json({ recorded: true });
   } catch (e) {
     return NextResponse.json(
       {
