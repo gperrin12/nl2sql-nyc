@@ -15,7 +15,10 @@ import {
   formatTriviaSenseFeedback,
   validateTriviaQuestionSense,
 } from "@/lib/trivia-sense";
-import { validateTlcProofDistances } from "@/lib/tlc-trip-filters";
+import {
+  validateTlcProofDistances,
+  validateTlcZoneMinPickups,
+} from "@/lib/tlc-trip-filters";
 import {
   findRankingMetricTie,
   formatOptionsMismatchFeedback,
@@ -123,6 +126,17 @@ export async function generateVerifiedTriviaQuestion(
     if (!tlcDist.ok) {
       lastSql = guard.sql;
       lastFeedback = tlcDist.reason;
+      continue;
+    }
+
+    const zoneSample = validateTlcZoneMinPickups(
+      guard.sql,
+      results.columns,
+      results.rows
+    );
+    if (!zoneSample.ok) {
+      lastSql = guard.sql;
+      lastFeedback = zoneSample.reason;
       continue;
     }
 
