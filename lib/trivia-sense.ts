@@ -11,6 +11,17 @@ type Dataset = "311" | "collisions" | "taxi" | "census" | "transit";
 const RATE_LIKE =
   /\b(per|ratio|rate|rates|for every|divided by|quotient|proportion|relative to|compared to|versus|vs\.?)\b/i;
 
+/**
+ * The verification pipeline always treats the HIGHEST-metric row as the answer
+ * (lib/trivia-proof.ts) and the model is told to ORDER BY metric DESC LIMIT 4 —
+ * which also truncates the true minimum out of the result set. So "lowest /
+ * least / fewest / fastest" style questions are structurally unanswerable here
+ * and are rejected; the pipeline just regenerates a "most / highest" question.
+ * "at least" is excluded so it isn't mistaken for the superlative "least".
+ */
+const MIN_DIRECTION_RE =
+  /\b(lowest|fewest|smallest|minimum|bottom|fastest|quickest|shortest)\b|(?<!at\s)\bleast\b/i;
+
 const DATASET_PATTERNS: { id: Dataset; re: RegExp }[] = [
   { id: "311", re: /\b311\b|complaint|service request|rodent|noise complaint/i },
   { id: "collisions", re: /\bcollision|crash|motor vehicle|injur(y|ies)|nypd/i },
@@ -179,6 +190,16 @@ export function validateTriviaQuestionSense(
 
   for (const { re, reason } of BANNED_QUESTION_PATTERNS) {
     if (re.test(q)) return { ok: false, reason };
+  }
+
+  if (MIN_DIRECTION_RE.test(q)) {
+    return {
+      ok: false,
+      reason:
+        "Minimum-direction questions (lowest / least / fewest / smallest / fastest) are not supported — " +
+        "the verifier always picks the HIGHEST-metric row, and ORDER BY DESC LIMIT 4 drops the true minimum. " +
+        "Ask a highest/most/top ranking instead.",
+    };
   }
 
   const cross = checkCrossDatasetRate(q);

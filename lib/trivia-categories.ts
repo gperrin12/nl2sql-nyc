@@ -186,11 +186,13 @@ export function getCategoryGenerationHint(categoryId: string): string | undefine
       "Options = the four zone names returned by SQL. " +
       "Also filter trip_distance <= 50 miles — averages should be tens of miles, not 300+.",
     "taxi-zone-rank":
-      "Use taxi_zones.zone as answer_label. Filter trips: trip_distance 0–50 miles, valid zone IDs, fare 0–500 before AVG/COUNT.",
+      "Use taxi_zones.zone as answer_label. Filter trips: trip_distance 0–50 miles, valid zone IDs, fare 0–500 before AVG/COUNT. " +
+      "SELECT COUNT(*) AS trip_count and HAVING COUNT(*) >= 100 so low-volume zones can't win.",
     "taxi-borough-pickups":
       "If comparing boroughs, answer_label must be taxi_zones.borough (Title Case). Filter trip_distance <= 50 miles on gtp_tlc_data.",
     "taxi-distance":
-      "Average trip distance by zone — MUST filter trip_distance > 0 AND <= 50 miles before AVG; typical NYC zone averages are under 15 mi.",
+      "Average trip distance by zone — MUST filter trip_distance > 0 AND <= 50 miles before AVG; typical NYC zone averages are under 15 mi. " +
+      "SELECT COUNT(*) AS trip_count and HAVING COUNT(*) >= 100 so a zone with a few trips can't top the ranking.",
     "taxi-fare-tip":
       "Filter trip_distance and fare_amount sanity (distance <= 50 mi, fare 0–500) before tip or fare aggregates.",
     "taxi-hourly":

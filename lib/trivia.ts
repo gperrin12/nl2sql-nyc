@@ -7,7 +7,10 @@ import {
   pickCategoryForRequest,
   type TriviaSessionConstraints,
 } from "@/lib/trivia-categories";
-import { TLC_TRIP_FILTER_PROMPT_RULE } from "@/lib/tlc-trip-filters";
+import {
+  TLC_TRIP_FILTER_PROMPT_RULE,
+  TLC_ZONE_MIN_PICKUPS_PROMPT_RULE,
+} from "@/lib/tlc-trip-filters";
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 const DEFAULT_TRIVIA_MODEL = "claude-3-5-haiku-20241022";
@@ -53,6 +56,7 @@ SQL RULES (critical):
 - TLC joins: TRY_CAST(pulocationid AS BIGINT) = TRY_CAST(locationid AS BIGINT); never TRIM(locationid).
 - Never SUBSTRING on timestamp columns — use day_of_week() for weekday/weekend.
 - ${TLC_TRIP_FILTER_PROMPT_RULE}
+- ${TLC_ZONE_MIN_PICKUPS_PROMPT_RULE}
 - No DDL/DML.
 
 REAL-WORLD SENSE (mandatory — trivial SQL is not enough):
@@ -62,6 +66,7 @@ REAL-WORLD SENSE (mandatory — trivial SQL is not enough):
 - One primary dataset per question; SQL should mainly aggregate ONE fact table (optional dimension join to taxi_zones or census for labels/denominators).
 
 DESIGN:
+- DIRECTION: only ask "highest / most / top / largest / busiest / longest / slowest" style questions where the answer is the row with the MAX metric. NEVER ask for the lowest/least/fewest/smallest/fastest/shortest — the answer is always the HIGHEST-metric row after ORDER BY metric DESC, and a minimum question would be scored wrong.
 - correctIndex MUST be the option that matches the row with the HIGHEST numeric metric in your SQL result (not merely any row that appears). After ORDER BY metric DESC, the first row's answer_label must equal options[correctIndex].
 - Ranking questions MUST have exactly ONE winner in the proof result: no two rows with the same top metric and different answer_label values. Use LIMIT 1 after ORDER BY, or a tie-break column (e.g. borough ASC). ACS median income is often top-coded at 250001 — avoid questions where Manhattan and Brooklyn (or others) tie at that cap; pick another metric, tract-level filter, or comparison where one option uniquely wins.
 - Distractors should be real NYC boroughs, zones, or plausible numbers — not joke answers.
