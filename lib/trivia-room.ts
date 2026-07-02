@@ -1,15 +1,16 @@
 /**
  * Helpers for room-code multiplayer trivia (/trivia/live).
- * No framework code here — pure functions plus the room-creation question builder,
- * which reuses the existing /api/trivia/question path (the same endpoint
- * useTriviaQuestion.ts hits) so we never build a second question generator.
+ * Pure functions plus the room-creation question builder, which calls the shared
+ * in-process trivia generator/verifier (lib/trivia-generate-verified) — the same
+ * pipeline /api/trivia/question uses — so there is never a second generator and
+ * no fragile HTTP self-call.
  */
 
 import {
   buildSessionCategoryPlan,
   categoriesForDeck,
 } from "@/lib/trivia-categories";
-import type { TriviaQuestionResponse } from "@/lib/trivia-fetch";
+import { generateVerifiedTriviaQuestion } from "@/lib/trivia-generate-verified";
 
 /** A single locked question stored in trivia_rooms.questions (JSONB). */
 export type TriviaRoomQuestion = {
@@ -65,44 +66,34 @@ export function computeTimeRemaining(
   return Math.max(0, Math.ceil(durationSeconds - elapsedSeconds));
 }
 
-/** Base URL for server-side calls to our own API (matches lib/replay.ts). */
-function internalBaseUrl(): string {
-  const explicit = process.env.APP_URL?.trim();
-  if (explicit) return explicit.replace(/\/$/, "");
-  const vercel = process.env.VERCEL_URL?.trim();
-  if (vercel) return `https://${vercel.replace(/\/$/, "")}`;
-  return "http://localhost:3000";
-}
-
 /**
  * Build a fixed, identical array of questions for a room at creation time by
- * calling the existing verified trivia question endpoint once per slot. Each
+ * running the shared in-process trivia generator/verifier once per slot. Each
  * slot gets a distinct category from the grab-bag session plan for variety.
- * Requests run in parallel; a couple of failures are tolerated as long as we
- * still meet the minimum length.
+ * Slots run in parallel; a few failures are tolerated as long as at least one
+ * question verifies, but if every slot fails we surface the first real reason.
  */
 export async function buildLockedQuestionSet(
   length: number
 ): Promise<TriviaRoomQuestion[]> {
-  const base = internalBaseUrl();
   const plan = buildSessionCategoryPlan(length, categoriesForDeck("grab-bag"));
 
-  const requests = Array.from({ length }, (_, i) =>
-    fetchOneRoomQuestion(base, plan[i])
+  const settled = await Promise.all(
+    Array.from({ length }, (_, i) => generateOneRoomQuestion(plan[i]))
   );
-  const settled = await Promise.all(requests);
-  const questions = settled.filter(
-    (r): r is { ok: true; question: TriviaRoomQuestion } => r.ok
-  ).map((r) => r.question);
+
+  const questions = settled
+    .filter((r): r is { ok: true; question: TriviaRoomQuestion } => r.ok)
+    .map((r) => r.question);
 
   if (questions.length === 0) {
-    // Surface the underlying reason (e.g. wrong base URL, 502 from Anthropic /
-    // Athena) instead of a blanket failure — otherwise this is undebuggable.
-    const firstReason = settled.find((r) => !r.ok);
-    const reason = firstReason && !firstReason.ok ? firstReason.reason : "unknown error";
+    // Surface the underlying reason (e.g. Anthropic/Athena failure) instead of
+    // a blanket failure — otherwise this is undebuggable.
+    const firstFailure = settled.find((r) => !r.ok);
+    const reason =
+      firstFailure && !firstFailure.ok ? firstFailure.reason : "unknown error";
     throw new Error(
-      `Failed to generate any trivia questions for the room ` +
-        `(called ${base}/api/trivia/question): ${reason}`
+      `Failed to generate any trivia questions for the room: ${reason}`
     );
   }
 
@@ -113,66 +104,31 @@ type RoomQuestionResult =
   | { ok: true; question: TriviaRoomQuestion }
   | { ok: false; reason: string };
 
-async function fetchOneRoomQuestion(
-  base: string,
+async function generateOneRoomQuestion(
   categoryId: string | undefined
 ): Promise<RoomQuestionResult> {
-  let res: Response;
   try {
-    res = await fetch(`${base}/api/trivia/question`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ deck: "grab-bag", categoryId }),
-      cache: "no-store",
+    const result = await generateVerifiedTriviaQuestion({
+      deck: "grab-bag",
+      categoryId,
     });
-  } catch (e) {
-    // Network-level failure — almost always a wrong base URL/port for the
-    // server calling itself.
-    return {
-      ok: false,
-      reason: `fetch failed: ${e instanceof Error ? e.message : String(e)}`,
-    };
-  }
-
-  if (!res.ok) {
-    let detail = "";
-    try {
-      const err = (await res.json()) as { error?: string; detail?: string };
-      detail = err.detail ?? err.error ?? "";
-    } catch {
-      // response body not JSON
+    if (!result.ok) {
+      return { ok: false, reason: result.detail || result.error };
     }
+    const { question } = result;
     return {
-      ok: false,
-      reason: `HTTP ${res.status}${detail ? `: ${detail}` : ""}`,
+      ok: true,
+      question: {
+        question: question.question,
+        choices: question.options,
+        correctIndex: question.correctIndex,
+        categoryLabel: question.categoryLabel ?? "",
+      },
     };
-  }
-
-  let data: TriviaQuestionResponse;
-  try {
-    data = (await res.json()) as TriviaQuestionResponse;
   } catch (e) {
     return {
       ok: false,
-      reason: `invalid JSON response: ${e instanceof Error ? e.message : String(e)}`,
+      reason: e instanceof Error ? e.message : String(e),
     };
   }
-
-  if (
-    typeof data.question !== "string" ||
-    !Array.isArray(data.options) ||
-    typeof data.correctIndex !== "number"
-  ) {
-    return { ok: false, reason: "response missing question/options/correctIndex" };
-  }
-
-  return {
-    ok: true,
-    question: {
-      question: data.question,
-      choices: data.options,
-      correctIndex: data.correctIndex,
-      categoryLabel: data.categoryLabel ?? "",
-    },
-  };
 }
