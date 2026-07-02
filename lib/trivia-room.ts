@@ -92,43 +92,87 @@ export async function buildLockedQuestionSet(
   );
   const settled = await Promise.all(requests);
   const questions = settled.filter(
-    (q): q is TriviaRoomQuestion => q !== null
-  );
+    (r): r is { ok: true; question: TriviaRoomQuestion } => r.ok
+  ).map((r) => r.question);
 
   if (questions.length === 0) {
-    throw new Error("Failed to generate any trivia questions for the room");
+    // Surface the underlying reason (e.g. wrong base URL, 502 from Anthropic /
+    // Athena) instead of a blanket failure — otherwise this is undebuggable.
+    const firstReason = settled.find((r) => !r.ok);
+    const reason = firstReason && !firstReason.ok ? firstReason.reason : "unknown error";
+    throw new Error(
+      `Failed to generate any trivia questions for the room ` +
+        `(called ${base}/api/trivia/question): ${reason}`
+    );
   }
 
   return questions;
 }
 
+type RoomQuestionResult =
+  | { ok: true; question: TriviaRoomQuestion }
+  | { ok: false; reason: string };
+
 async function fetchOneRoomQuestion(
   base: string,
   categoryId: string | undefined
-): Promise<TriviaRoomQuestion | null> {
+): Promise<RoomQuestionResult> {
+  let res: Response;
   try {
-    const res = await fetch(`${base}/api/trivia/question`, {
+    res = await fetch(`${base}/api/trivia/question`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ deck: "grab-bag", categoryId }),
       cache: "no-store",
     });
-    if (!res.ok) return null;
-    const data = (await res.json()) as TriviaQuestionResponse;
-    if (
-      typeof data.question !== "string" ||
-      !Array.isArray(data.options) ||
-      typeof data.correctIndex !== "number"
-    ) {
-      return null;
+  } catch (e) {
+    // Network-level failure — almost always a wrong base URL/port for the
+    // server calling itself.
+    return {
+      ok: false,
+      reason: `fetch failed: ${e instanceof Error ? e.message : String(e)}`,
+    };
+  }
+
+  if (!res.ok) {
+    let detail = "";
+    try {
+      const err = (await res.json()) as { error?: string; detail?: string };
+      detail = err.detail ?? err.error ?? "";
+    } catch {
+      // response body not JSON
     }
     return {
+      ok: false,
+      reason: `HTTP ${res.status}${detail ? `: ${detail}` : ""}`,
+    };
+  }
+
+  let data: TriviaQuestionResponse;
+  try {
+    data = (await res.json()) as TriviaQuestionResponse;
+  } catch (e) {
+    return {
+      ok: false,
+      reason: `invalid JSON response: ${e instanceof Error ? e.message : String(e)}`,
+    };
+  }
+
+  if (
+    typeof data.question !== "string" ||
+    !Array.isArray(data.options) ||
+    typeof data.correctIndex !== "number"
+  ) {
+    return { ok: false, reason: "response missing question/options/correctIndex" };
+  }
+
+  return {
+    ok: true,
+    question: {
       question: data.question,
       choices: data.options,
       correctIndex: data.correctIndex,
       categoryLabel: data.categoryLabel ?? "",
-    };
-  } catch {
-    return null;
-  }
+    },
+  };
 }
