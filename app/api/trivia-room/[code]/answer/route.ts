@@ -15,6 +15,7 @@ const BodySchema = z.object({
 type RoomRow = {
   status: "lobby" | "playing" | "finished";
   current_index: number;
+  answer_revealed: boolean;
   questions: TriviaRoomQuestion[];
 };
 
@@ -49,7 +50,7 @@ export async function POST(
 
   try {
     const roomRes = await pool.query<RoomRow>(
-      `SELECT status, current_index, questions
+      `SELECT status, current_index, answer_revealed, questions
          FROM trivia_rooms
         WHERE code = $1`,
       [roomCode]
@@ -74,6 +75,14 @@ export async function POST(
       );
     }
 
+    // Once the host reveals, answers are locked for the current question.
+    if (room.answer_revealed) {
+      return NextResponse.json(
+        { error: "Answers are locked — the host has revealed this question" },
+        { status: 409 }
+      );
+    }
+
     const question = room.questions[body.questionIndex];
     if (!question) {
       return NextResponse.json(
@@ -88,9 +97,10 @@ export async function POST(
       );
     }
 
-    // Server is the sole source of truth for the correct answer.
-    const correctIndex = question.correctIndex;
-    const isCorrect = body.choiceIndex === correctIndex;
+    // Server is the sole source of truth for the correct answer. Scored now but
+    // NOT revealed to the player — correctness is disclosed only when the host
+    // reveals (via the state endpoint), so an early reaction can't tip others off.
+    const isCorrect = body.choiceIndex === question.correctIndex;
 
     // ON CONFLICT guards double-submit; RETURNING tells us whether this was the
     // first answer so we only ever score a question once per player.
@@ -112,7 +122,7 @@ export async function POST(
       );
     }
 
-    return NextResponse.json({ correct: isCorrect, correctIndex });
+    return NextResponse.json({ recorded: true });
   } catch (e) {
     return NextResponse.json(
       {

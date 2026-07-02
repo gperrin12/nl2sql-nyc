@@ -10,6 +10,7 @@ CREATE TABLE IF NOT EXISTS trivia_rooms (
   current_index INT NOT NULL DEFAULT 0,
   question_started_at TIMESTAMPTZ,
   question_duration_seconds INT NOT NULL DEFAULT 20,
+  answer_revealed BOOLEAN NOT NULL DEFAULT false,  -- host reveals the answer for the current question; locks further answers
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 

@@ -19,6 +19,14 @@ export type TriviaRoomState = {
   totalQuestions: number;
   players: TriviaRoomPlayer[];
   currentQuestion: PublicTriviaRoomQuestion | null;
+  /** True once the host reveals the current question's answer. */
+  answerRevealed: boolean;
+  /** Correct choice index for the current question — only set after reveal. */
+  revealedCorrectIndex: number | null;
+  /** How many players have locked in an answer for the current question. */
+  answeredCount: number;
+  /** The requesting player's own answer to the current question, if any. */
+  you: { choiceIndex: number | null } | null;
 };
 
 /** Slow the poll to 5s once the game is over — nothing else will change. */

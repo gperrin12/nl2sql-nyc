@@ -70,7 +70,9 @@ export async function POST(
                      AND current_index + 1 < jsonb_array_length(questions)
                   THEN now()
                 ELSE question_started_at
-              END
+              END,
+              -- Each new question starts hidden again; the host must reveal it.
+              answer_revealed = false
         WHERE code = $1 AND host_player_id = $2
         RETURNING status, current_index`,
       [roomCode, body.playerId]
