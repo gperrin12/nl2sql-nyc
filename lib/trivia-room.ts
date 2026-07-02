@@ -99,38 +99,60 @@ export function shouldAutoReveal({
   return expectedAnswerers > 0 && answeredCount >= expectedAnswerers;
 }
 
+// Initial pass + this many retry rounds to backfill slots that failed
+// verification. Bounded so a persistently failing generator can't loop forever.
+const MAX_BUILD_ROUNDS = 4;
+
 /**
- * Build a fixed, identical array of questions for a room at creation time by
- * running the shared in-process trivia generator/verifier once per slot. Each
- * slot gets a distinct category from the grab-bag session plan for variety.
- * Slots run in parallel; a few failures are tolerated as long as at least one
- * question verifies, but if every slot fails we surface the first real reason.
+ * Build a fixed array of `length` verified questions for a room at creation
+ * time, running the shared in-process trivia generator/verifier once per slot.
+ * Each slot gets a distinct category from the grab-bag session plan for variety.
+ *
+ * Verification (sense/proof checks + the Athena query) rejects some questions,
+ * so the first parallel pass often comes up short. We retry only the shortfall,
+ * in parallel, over a few bounded rounds until we hit the exact count. If we
+ * genuinely can't reach it we return whatever verified (a slightly shorter room
+ * beats a failed creation); only a completely empty result throws.
  */
 export async function buildLockedQuestionSet(
   length: number
 ): Promise<TriviaRoomQuestion[]> {
   const plan = buildSessionCategoryPlan(length, categoriesForDeck("grab-bag"));
 
-  const settled = await Promise.all(
-    Array.from({ length }, (_, i) => generateOneRoomQuestion(plan[i]))
-  );
+  const questions: TriviaRoomQuestion[] = [];
+  let lastFailure: string | null = null;
 
-  const questions = settled
-    .filter((r): r is { ok: true; question: TriviaRoomQuestion } => r.ok)
-    .map((r) => r.question);
+  for (
+    let round = 0;
+    round < MAX_BUILD_ROUNDS && questions.length < length;
+    round++
+  ) {
+    const remaining = length - questions.length;
+    const settled = await Promise.all(
+      Array.from({ length: remaining }, (_, i) => {
+        // Keep category variety across rounds by continuing through the plan.
+        const planIndex = (questions.length + i) % plan.length;
+        return generateOneRoomQuestion(plan[planIndex]);
+      })
+    );
+
+    for (const r of settled) {
+      if (r.ok) questions.push(r.question);
+      else lastFailure = r.reason;
+    }
+  }
 
   if (questions.length === 0) {
     // Surface the underlying reason (e.g. Anthropic/Athena failure) instead of
     // a blanket failure — otherwise this is undebuggable.
-    const firstFailure = settled.find((r) => !r.ok);
-    const reason =
-      firstFailure && !firstFailure.ok ? firstFailure.reason : "unknown error";
     throw new Error(
-      `Failed to generate any trivia questions for the room: ${reason}`
+      `Failed to generate any trivia questions for the room: ${lastFailure ?? "unknown error"}`
     );
   }
 
-  return questions;
+  // Never exceed the requested count (rounds are sized to the shortfall, so this
+  // is just a safety clamp).
+  return questions.slice(0, length);
 }
 
 type RoomQuestionResult =
