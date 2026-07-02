@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { isAuthenticated } from "@/lib/auth";
 import { getPgPool } from "@/lib/db";
-import type { TriviaRoomQuestion } from "@/lib/trivia-room";
+import { computeTimeRemaining, type TriviaRoomQuestion } from "@/lib/trivia-room";
 
 export const dynamic = "force-dynamic";
 
@@ -16,6 +16,8 @@ type RoomRow = {
   status: "lobby" | "playing" | "finished";
   current_index: number;
   answer_revealed: boolean;
+  question_started_at: string | null;
+  question_duration_seconds: number;
   questions: TriviaRoomQuestion[];
 };
 
@@ -50,7 +52,8 @@ export async function POST(
 
   try {
     const roomRes = await pool.query<RoomRow>(
-      `SELECT status, current_index, answer_revealed, questions
+      `SELECT status, current_index, answer_revealed,
+              question_started_at, question_duration_seconds, questions
          FROM trivia_rooms
         WHERE code = $1`,
       [roomCode]
@@ -75,10 +78,25 @@ export async function POST(
       );
     }
 
-    // Once the host reveals, answers are locked for the current question.
+    // Once the answer is revealed, answers are locked for the current question.
     if (room.answer_revealed) {
       return NextResponse.json(
-        { error: "Answers are locked — the host has revealed this question" },
+        { error: "Answers are locked — this question has been revealed" },
+        { status: 409 }
+      );
+    }
+
+    // The countdown is authoritative: reject anything submitted after the window
+    // closes, even if a poll hasn't flipped answer_revealed yet.
+    if (
+      room.question_started_at &&
+      computeTimeRemaining(
+        room.question_started_at,
+        room.question_duration_seconds
+      ) <= 0
+    ) {
+      return NextResponse.json(
+        { error: "Time's up — answers are locked for this question" },
         { status: 409 }
       );
     }

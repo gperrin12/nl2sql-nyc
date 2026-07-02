@@ -4,7 +4,11 @@ import { z } from "zod";
 import { isAuthenticated } from "@/lib/auth";
 import { getPgPool } from "@/lib/db";
 import { TRIVIA_SESSION_LENGTH } from "@/lib/trivia-hiscores";
-import { buildLockedQuestionSet, generateRoomCode } from "@/lib/trivia-room";
+import {
+  buildLockedQuestionSet,
+  generateRoomCode,
+  ROOM_QUESTION_DURATION_SECONDS,
+} from "@/lib/trivia-room";
 
 export const dynamic = "force-dynamic";
 // Building the locked question set generates + verifies TRIVIA_SESSION_LENGTH
@@ -62,9 +66,10 @@ export async function POST(req: NextRequest) {
     const candidate = generateRoomCode();
     try {
       await pool.query(
-        `INSERT INTO trivia_rooms (code, host_player_id, questions)
-         VALUES ($1, $2, $3::jsonb)`,
-        [candidate, playerId, questionsJson]
+        `INSERT INTO trivia_rooms
+           (code, host_player_id, questions, question_duration_seconds)
+         VALUES ($1, $2, $3::jsonb, $4)`,
+        [candidate, playerId, questionsJson, ROOM_QUESTION_DURATION_SECONDS]
       );
       code = candidate;
       break;

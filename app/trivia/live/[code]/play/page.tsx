@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import { AppNav } from "@/components/AppNav";
 import { CrtWelcome } from "@/components/CrtWelcome";
+import { TriviaCountdown } from "@/components/trivia/TriviaCountdown";
 import { TriviaRoomStandings } from "@/components/trivia/TriviaRoomStandings";
 import { useTriviaRoomState } from "@/lib/hooks/useTriviaRoomState";
 
@@ -38,6 +39,8 @@ export default function TriviaLivePlayPage() {
   const [myChoice, setMyChoice] = useState<number | null>(null);
   const [answeredIndex, setAnsweredIndex] = useState<number | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [timeUp, setTimeUp] = useState(false);
+  const [timedQuestion, setTimedQuestion] = useState<number | null>(null);
 
   useEffect(() => {
     const id = readIdentity(code);
@@ -45,7 +48,10 @@ export default function TriviaLivePlayPage() {
     setIdentityChecked(true);
   }, [code]);
 
-  const { state, loading, error } = useTriviaRoomState({ code, playerId });
+  const { state, loading, error, refresh } = useTriviaRoomState({
+    code,
+    playerId,
+  });
 
   // Reset the local pick whenever the host advances to a new question.
   useEffect(() => {
@@ -56,6 +62,14 @@ export default function TriviaLivePlayPage() {
       setAnsweredIndex(null);
     }
   }, [state, answeredIndex]);
+
+  // Clear the "time's up" lock when a new question starts.
+  useEffect(() => {
+    if (state && timedQuestion !== state.currentIndex) {
+      setTimeUp(false);
+      setTimedQuestion(state.currentIndex);
+    }
+  }, [state, timedQuestion]);
 
   // The server is the source of truth for whether/what this player answered
   // (survives refresh); fall back to the optimistic local pick.
@@ -69,7 +83,7 @@ export default function TriviaLivePlayPage() {
   const submitAnswer = useCallback(
     async (choiceIndex: number) => {
       if (!state || !playerId || submitting) return;
-      if (state.answerRevealed) return;
+      if (state.answerRevealed || timeUp) return;
       if (chosenIndex != null) return;
 
       const questionIndex = state.currentIndex;
@@ -96,7 +110,7 @@ export default function TriviaLivePlayPage() {
         setSubmitting(false);
       }
     },
-    [chosenIndex, code, playerId, state, submitting]
+    [chosenIndex, code, playerId, state, submitting, timeUp]
   );
 
   const correctIndex = state?.revealedCorrectIndex ?? null;
@@ -156,6 +170,16 @@ export default function TriviaLivePlayPage() {
             <p className="text-lg font-medium leading-relaxed text-[var(--text)]">
               {state.currentQuestion.question}
             </p>
+            {!revealed && (
+              <TriviaCountdown
+                startedAt={state.questionStartedAt}
+                durationSeconds={state.durationSeconds}
+                onExpire={() => {
+                  setTimeUp(true);
+                  void refresh();
+                }}
+              />
+            )}
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -182,7 +206,9 @@ export default function TriviaLivePlayPage() {
                 <button
                   key={`${label}-${choice}`}
                   type="button"
-                  disabled={answered || revealed || submitting || !playerId}
+                  disabled={
+                    answered || revealed || submitting || timeUp || !playerId
+                  }
                   onClick={() => void submitAnswer(index)}
                   className={`flex items-start gap-3 rounded-lg border px-4 py-3 text-left text-sm transition-colors disabled:cursor-default ${style}`}
                 >
@@ -223,13 +249,19 @@ export default function TriviaLivePlayPage() {
 
           {!revealed && answered && (
             <div className="rounded-lg border border-[var(--accent)]/40 bg-[var(--accent)]/10 px-4 py-3 text-sm text-[var(--accent)]">
-              Answer locked in — waiting for the host to reveal…
+              Answer locked in — waiting for the reveal…
             </div>
           )}
 
-          {!revealed && !answered && (
+          {!revealed && !answered && timeUp && (
+            <div className="rounded-lg border border-[var(--error)]/40 bg-[var(--error)]/10 px-4 py-3 text-sm text-[var(--error)]">
+              Time&apos;s up — answers are locked. Waiting for the reveal…
+            </div>
+          )}
+
+          {!revealed && !answered && !timeUp && (
             <p className="text-xs text-center text-[var(--muted)]">
-              Pick an answer before the host reveals.
+              Pick an answer before the timer runs out.
             </p>
           )}
         </div>

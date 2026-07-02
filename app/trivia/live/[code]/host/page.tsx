@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { AppNav } from "@/components/AppNav";
 import { CrtWelcome } from "@/components/CrtWelcome";
+import { TriviaCountdown } from "@/components/trivia/TriviaCountdown";
 import { TriviaRoomStandings } from "@/components/trivia/TriviaRoomStandings";
 import { useTriviaRoomState } from "@/lib/hooks/useTriviaRoomState";
 
@@ -181,6 +182,15 @@ export default function TriviaLiveHostPage() {
                 {state.currentQuestion.question}
               </p>
             )}
+            {!state.answerRevealed && (
+              <div className="mx-auto max-w-sm pt-2">
+                <TriviaCountdown
+                  startedAt={state.questionStartedAt}
+                  durationSeconds={state.durationSeconds}
+                  onExpire={() => void refresh()}
+                />
+              </div>
+            )}
             {state.answerRevealed &&
               state.currentQuestion &&
               state.revealedCorrectIndex != null && (
@@ -217,10 +227,11 @@ export default function TriviaLiveHostPage() {
             <>
               <div className="rounded-lg border border-[var(--border)] bg-[var(--panel)] px-4 py-3 text-center">
                 <p className="text-sm text-[var(--text)] font-mono">
-                  {state.answeredCount} / {state.players.length} answered
+                  {state.answeredCount} / {Math.max(state.players.length - 1, 0)}{" "}
+                  answered
                 </p>
                 <p className="text-[10px] uppercase tracking-wide text-[var(--muted)]">
-                  Scores stay hidden until you reveal
+                  Reveals automatically when the timer ends or everyone answers
                 </p>
               </div>
               <button
@@ -229,10 +240,10 @@ export default function TriviaLiveHostPage() {
                 disabled={!playerId || revealing}
                 className="w-full px-6 py-3 rounded-md border-2 border-[var(--accent)] text-[var(--accent)] text-sm font-medium hover:bg-[var(--accent)] hover:text-black transition-colors disabled:opacity-40 font-mono uppercase tracking-wide"
               >
-                {revealing ? "Revealing…" : "Reveal answer"}
+                {revealing ? "Revealing…" : "Reveal now"}
               </button>
               <p className="text-center text-xs text-[var(--muted)]">
-                Locks in all answers and shows the correct one to everyone.
+                Skip the timer and reveal the correct answer to everyone now.
               </p>
             </>
           )}

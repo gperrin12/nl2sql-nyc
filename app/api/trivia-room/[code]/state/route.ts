@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { isAuthenticated } from "@/lib/auth";
 import { getPgPool } from "@/lib/db";
 import {
+  shouldAutoReveal,
   toPublicQuestion,
   type PublicTriviaRoomQuestion,
   type TriviaRoomQuestion,
@@ -61,7 +62,6 @@ export async function GET(
     const room = roomRes.rows[0];
     const isFinished = room.status === "finished";
     const isPlaying = room.status === "playing";
-    const answerRevealed = isPlaying && room.answer_revealed;
 
     // correct_count is only meaningful (and only computed) once the game ends.
     const playersRes = await pool.query<PlayerRow>(
@@ -93,15 +93,6 @@ export async function GET(
       room.current_index >= 0 &&
       room.current_index < totalQuestions;
 
-    let currentQuestion: PublicTriviaRoomQuestion | null = null;
-    let revealedCorrectIndex: number | null = null;
-    if (hasLiveQuestion) {
-      const q = room.questions[room.current_index];
-      currentQuestion = toPublicQuestion(q);
-      // The correct answer is only ever exposed after the host reveals.
-      if (answerRevealed) revealedCorrectIndex = q.correctIndex;
-    }
-
     // How many players have locked in an answer for the current question, and
     // the requesting player's own answer (so their UI survives a refresh).
     let answeredCount = 0;
@@ -118,6 +109,43 @@ export async function GET(
         const mine = answersRes.rows.find((r) => r.player_id === playerId);
         yourChoiceIndex = mine ? mine.choice_index : null;
       }
+    }
+
+    // Auto-reveal: the countdown runs server-side, so polling (host or player)
+    // is what actually flips the reveal. Everyone but the host is expected to
+    // answer, so once they all have — or once the timer expires — lock the
+    // question and expose the correct answer to everyone at once. Persisted so
+    // the answer route rejects any late submissions after this point.
+    let answerRevealed = isPlaying && room.answer_revealed;
+    if (
+      hasLiveQuestion &&
+      !answerRevealed &&
+      shouldAutoReveal({
+        startedAt: room.question_started_at,
+        durationSeconds: room.question_duration_seconds,
+        answeredCount,
+        expectedAnswerers: playersRes.rows.filter(
+          (p) => p.id !== room.host_player_id
+        ).length,
+      })
+    ) {
+      await pool.query(
+        `UPDATE trivia_rooms
+            SET answer_revealed = true
+          WHERE code = $1 AND status = 'playing'
+            AND current_index = $2 AND answer_revealed = false`,
+        [roomCode, room.current_index]
+      );
+      answerRevealed = true;
+    }
+
+    let currentQuestion: PublicTriviaRoomQuestion | null = null;
+    let revealedCorrectIndex: number | null = null;
+    if (hasLiveQuestion) {
+      const q = room.questions[room.current_index];
+      currentQuestion = toPublicQuestion(q);
+      // The correct answer is only ever exposed once the question is revealed.
+      if (answerRevealed) revealedCorrectIndex = q.correctIndex;
     }
 
     return NextResponse.json({
