@@ -5,6 +5,11 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { AppNav } from "@/components/AppNav";
 import { CrtWelcome } from "@/components/CrtWelcome";
+import {
+  DEFAULT_ROOM_QUESTION_COUNT,
+  ROOM_QUESTION_COUNT_OPTIONS,
+  type RoomQuestionCount,
+} from "@/lib/trivia-room-constants";
 
 function rememberIdentity(code: string, playerId: string, nickname: string) {
   try {
@@ -20,6 +25,9 @@ function rememberIdentity(code: string, playerId: string, nickname: string) {
 export default function TriviaLiveLandingPage() {
   const router = useRouter();
   const [hostNickname, setHostNickname] = useState("");
+  const [questionCount, setQuestionCount] = useState<RoomQuestionCount>(
+    DEFAULT_ROOM_QUESTION_COUNT
+  );
   const [joinCode, setJoinCode] = useState("");
   const [joinNickname, setJoinNickname] = useState("");
   const [hosting, setHosting] = useState(false);
@@ -35,7 +43,7 @@ export default function TriviaLiveLandingPage() {
       const res = await fetch("/api/trivia-room", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ hostNickname: nickname }),
+        body: JSON.stringify({ hostNickname: nickname, questionCount }),
       });
       const data = (await res.json()) as {
         code?: string;
@@ -130,6 +138,32 @@ export default function TriviaLiveLandingPage() {
             maxLength={24}
             className="w-full rounded-md border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text)] outline-none focus:border-[var(--accent-dim)]"
           />
+          <div className="space-y-1.5">
+            <p className="text-[10px] uppercase tracking-wide text-[var(--muted)] font-mono">
+              Questions per round
+            </p>
+            <div className="grid grid-cols-3 gap-2">
+              {ROOM_QUESTION_COUNT_OPTIONS.map((count) => {
+                const active = questionCount === count;
+                return (
+                  <button
+                    key={count}
+                    type="button"
+                    onClick={() => setQuestionCount(count)}
+                    disabled={hosting}
+                    aria-pressed={active}
+                    className={`rounded-md border px-3 py-2 text-sm font-mono tabular-nums transition-colors disabled:opacity-40 ${
+                      active
+                        ? "border-[var(--accent)] bg-[var(--accent)]/10 text-[var(--accent)]"
+                        : "border-[var(--border)] bg-[var(--bg)] text-[var(--text)] hover:border-[var(--accent-dim)]"
+                    }`}
+                  >
+                    {count}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
           <button
             type="button"
             onClick={() => void handleHost()}
