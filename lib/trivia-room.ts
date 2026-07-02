@@ -12,6 +12,15 @@ import {
 } from "@/lib/trivia-categories";
 import { generateVerifiedTriviaQuestion } from "@/lib/trivia-generate-verified";
 
+// Re-exported so server callers can keep importing constants from lib/trivia-room.
+export {
+  ROOM_QUESTION_DURATION_SECONDS,
+  ROOM_QUESTION_COUNT_OPTIONS,
+  DEFAULT_ROOM_QUESTION_COUNT,
+  isValidRoomQuestionCount,
+  type RoomQuestionCount,
+} from "@/lib/trivia-room-constants";
+
 /** A single locked question stored in trivia_rooms.questions (JSONB). */
 export type TriviaRoomQuestion = {
   question: string;
@@ -30,12 +39,6 @@ export type PublicTriviaRoomQuestion = {
 const ROOM_CODE_LENGTH = 6;
 // Uppercase letters + digits, minus visually ambiguous chars (0/O, 1/I/L).
 const ROOM_CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
-
-/**
- * Per-question countdown. When it runs out (or everyone has answered) the answer
- * auto-locks and the correct choice is revealed to everyone at once.
- */
-export const ROOM_QUESTION_DURATION_SECONDS = 30;
 
 /**
  * 6-char room code from an unambiguous alphabet. Not guaranteed unique — the

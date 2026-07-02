@@ -3,12 +3,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { isAuthenticated } from "@/lib/auth";
 import { getPgPool } from "@/lib/db";
-import { TRIVIA_SESSION_LENGTH } from "@/lib/trivia-hiscores";
 import {
-  buildLockedQuestionSet,
-  generateRoomCode,
+  DEFAULT_ROOM_QUESTION_COUNT,
+  ROOM_QUESTION_COUNT_OPTIONS,
   ROOM_QUESTION_DURATION_SECONDS,
-} from "@/lib/trivia-room";
+} from "@/lib/trivia-room-constants";
+import { buildLockedQuestionSet, generateRoomCode } from "@/lib/trivia-room";
 
 export const dynamic = "force-dynamic";
 // Building the locked question set generates + verifies TRIVIA_SESSION_LENGTH
@@ -20,6 +20,14 @@ const PG_UNIQUE_VIOLATION = "23505";
 
 const BodySchema = z.object({
   hostNickname: z.string().trim().min(1).max(24),
+  questionCount: z
+    .number()
+    .int()
+    .refine(
+      (n) => (ROOM_QUESTION_COUNT_OPTIONS as readonly number[]).includes(n),
+      { message: `questionCount must be one of ${ROOM_QUESTION_COUNT_OPTIONS.join(", ")}` }
+    )
+    .optional(),
 });
 
 export async function POST(req: NextRequest) {
@@ -40,14 +48,18 @@ export async function POST(req: NextRequest) {
     body = BodySchema.parse(await req.json());
   } catch {
     return NextResponse.json(
-      { error: "hostNickname is required (1–24 chars)" },
+      {
+        error: `hostNickname is required (1–24 chars) and questionCount must be one of ${ROOM_QUESTION_COUNT_OPTIONS.join(", ")}`,
+      },
       { status: 400 }
     );
   }
 
+  const questionCount = body.questionCount ?? DEFAULT_ROOM_QUESTION_COUNT;
+
   let questions;
   try {
-    questions = await buildLockedQuestionSet(TRIVIA_SESSION_LENGTH);
+    questions = await buildLockedQuestionSet(questionCount);
   } catch (e) {
     return NextResponse.json(
       {
