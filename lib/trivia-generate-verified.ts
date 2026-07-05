@@ -23,6 +23,7 @@ import {
   TriviaGenerationError,
 } from "@/lib/trivia";
 import {
+  checkMtaFareColumnsBanned,
   formatTriviaSenseFeedback,
   validateTriviaQuestionSense,
 } from "@/lib/trivia-sense";
@@ -147,6 +148,13 @@ export async function generateVerifiedTriviaQuestion(
     if (!guard.ok) {
       lastSql = generated.sql;
       lastFeedback = guard.reason;
+      continue;
+    }
+
+    const mtaFareSql = checkMtaFareColumnsBanned(guard.sql);
+    if (!mtaFareSql.ok) {
+      lastSql = guard.sql;
+      lastFeedback = mtaFareSql.reason;
       continue;
     }
 

@@ -58,7 +58,7 @@ OPTIONS ↔ SQL (mandatory workflow):
 3. correctIndex points to whichever option equals the TOP row's answer_label after ORDER BY metric DESC.
 4. The question text must ask about the same entities as answer_label (if SQL returns taxi zone names, options and question are about those zones).
 
-ALLOWED TABLES ONLY: nyc_311, nypd_collisions, gtp_tlc_data, taxi_zones, census_tracts, census_tract_demographics.
+ALLOWED TABLES ONLY: nyc_311, nypd_collisions, gtp_tlc_data, taxi_zones, census_tracts, census_tract_demographics, mta_turnstile.
 
 SQL RULES (critical):
 - Partitioned tables (gtp_tlc_data, nypd_collisions, nyc_311): always filter year (and month when practical). year/month are VARCHAR — use quoted literals (year = '2025').
