@@ -9,7 +9,7 @@
  * Per-question countdown. When it runs out (or everyone has answered) the answer
  * auto-locks and the correct choice is revealed to everyone at once.
  */
-export const ROOM_QUESTION_DURATION_SECONDS = 30;
+export const ROOM_QUESTION_DURATION_SECONDS = 60;
 
 /** Round lengths the host can pick when creating a room. */
 export const ROOM_QUESTION_COUNT_OPTIONS = [10, 15, 20] as const;
