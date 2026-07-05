@@ -108,7 +108,7 @@ export default function TriviaLiveLandingPage() {
           Live Rooms
         </h1>
         <Link
-          href="/trivia"
+          href="/"
           className="text-xs text-[var(--muted)] hover:text-[var(--accent)] underline font-mono uppercase"
         >
           Solo mode

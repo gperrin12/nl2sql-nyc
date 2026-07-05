@@ -1,5 +1,5 @@
-import { HomeClient } from "@/components/HomeClient";
+import { TriviaClient } from "@/components/TriviaClient";
 
 export default function Home() {
-  return <HomeClient />;
+  return <TriviaClient />;
 }
