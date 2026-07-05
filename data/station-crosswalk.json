@@ -1,0 +1,3426 @@
+[
+  {
+    "station_complex_id": "1",
+    "station_complex": "Astoria-Ditmars Blvd (N,W)",
+    "geoid": "36081011500",
+    "ntaname": "Astoria (North)-Ditmars-Steinway",
+    "boroname": "Queens",
+    "daytime_routes": "N,W"
+  },
+  {
+    "station_complex_id": "10",
+    "station_complex": "49 St (N,R,W)",
+    "geoid": "36061012500",
+    "ntaname": "Midtown-Times Square",
+    "boroname": "Manhattan",
+    "daytime_routes": "N,R,W"
+  },
+  {
+    "station_complex_id": "100",
+    "station_complex": "Hewes St (M,J)",
+    "geoid": "36047052900",
+    "ntaname": "South Williamsburg",
+    "boroname": "Brooklyn",
+    "daytime_routes": "J,M"
+  },
+  {
+    "station_complex_id": "101",
+    "station_complex": "Marcy Av (M,J,Z)",
+    "geoid": "36047052900",
+    "ntaname": "South Williamsburg",
+    "boroname": "Brooklyn",
+    "daytime_routes": "J,M,Z"
+  },
+  {
+    "station_complex_id": "103",
+    "station_complex": "Bowery (J,Z)",
+    "geoid": "36061001800",
+    "ntaname": "Lower East Side",
+    "boroname": "Manhattan",
+    "daytime_routes": "J,Z"
+  },
+  {
+    "station_complex_id": "107",
+    "station_complex": "Broad St (J,Z)",
+    "geoid": "36061000700",
+    "ntaname": "Financial District-Battery Park City",
+    "boroname": "Manhattan",
+    "daytime_routes": "J,Z"
+  },
+  {
+    "station_complex_id": "108",
+    "station_complex": "Middle Village-Metropolitan Av (M)",
+    "geoid": "36081061301",
+    "ntaname": "Ridgewood",
+    "boroname": "Queens",
+    "daytime_routes": "M"
+  },
+  {
+    "station_complex_id": "109",
+    "station_complex": "Fresh Pond Rd (M)",
+    "geoid": "36081061301",
+    "ntaname": "Ridgewood",
+    "boroname": "Queens",
+    "daytime_routes": "M"
+  },
+  {
+    "station_complex_id": "110",
+    "station_complex": "Forest Av (M)",
+    "geoid": "36081058900",
+    "ntaname": "Ridgewood",
+    "boroname": "Queens",
+    "daytime_routes": "M"
+  },
+  {
+    "station_complex_id": "111",
+    "station_complex": "Seneca Av (M)",
+    "geoid": "36081054900",
+    "ntaname": "Ridgewood",
+    "boroname": "Queens",
+    "daytime_routes": "M"
+  },
+  {
+    "station_complex_id": "113",
+    "station_complex": "Knickerbocker Av (M)",
+    "geoid": "36047043100",
+    "ntaname": "Bushwick (West)",
+    "boroname": "Brooklyn",
+    "daytime_routes": "M"
+  },
+  {
+    "station_complex_id": "114",
+    "station_complex": "Central Av (M)",
+    "geoid": "36047042300",
+    "ntaname": "Bushwick (West)",
+    "boroname": "Brooklyn",
+    "daytime_routes": "M"
+  },
+  {
+    "station_complex_id": "118",
+    "station_complex": "3 Av (L)",
+    "geoid": "36061004800",
+    "ntaname": "Gramercy",
+    "boroname": "Manhattan",
+    "daytime_routes": "L"
+  },
+  {
+    "station_complex_id": "119",
+    "station_complex": "1 Av (L)",
+    "geoid": "36061003400",
+    "ntaname": "East Village",
+    "boroname": "Manhattan",
+    "daytime_routes": "L"
+  },
+  {
+    "station_complex_id": "120",
+    "station_complex": "Bedford Av (L)",
+    "geoid": "36047055300",
+    "ntaname": "Williamsburg",
+    "boroname": "Brooklyn",
+    "daytime_routes": "L"
+  },
+  {
+    "station_complex_id": "122",
+    "station_complex": "Graham Av (L)",
+    "geoid": "36047049700",
+    "ntaname": "East Williamsburg",
+    "boroname": "Brooklyn",
+    "daytime_routes": "L"
+  },
+  {
+    "station_complex_id": "123",
+    "station_complex": "Grand St (L)",
+    "geoid": "36047049500",
+    "ntaname": "East Williamsburg",
+    "boroname": "Brooklyn",
+    "daytime_routes": "L"
+  },
+  {
+    "station_complex_id": "124",
+    "station_complex": "Montrose Av (L)",
+    "geoid": "36047049302",
+    "ntaname": "East Williamsburg",
+    "boroname": "Brooklyn",
+    "daytime_routes": "L"
+  },
+  {
+    "station_complex_id": "125",
+    "station_complex": "Morgan Av (L)",
+    "geoid": "36047045300",
+    "ntaname": "East Williamsburg",
+    "boroname": "Brooklyn",
+    "daytime_routes": "L"
+  },
+  {
+    "station_complex_id": "126",
+    "station_complex": "Jefferson St (L)",
+    "geoid": "36047044700",
+    "ntaname": "Bushwick (West)",
+    "boroname": "Brooklyn",
+    "daytime_routes": "L"
+  },
+  {
+    "station_complex_id": "127",
+    "station_complex": "DeKalb Av (L)",
+    "geoid": "36047044300",
+    "ntaname": "Bushwick (West)",
+    "boroname": "Brooklyn",
+    "daytime_routes": "L"
+  },
+  {
+    "station_complex_id": "129",
+    "station_complex": "Halsey St (L)",
+    "geoid": "36081055500",
+    "ntaname": "Ridgewood",
+    "boroname": "Queens",
+    "daytime_routes": "L"
+  },
+  {
+    "station_complex_id": "13",
+    "station_complex": "28 St (R,W)",
+    "geoid": "36061007600",
+    "ntaname": "Midtown South-Flatiron-Union Square",
+    "boroname": "Manhattan",
+    "daytime_routes": "R,W"
+  },
+  {
+    "station_complex_id": "130",
+    "station_complex": "Wilson Av (L)",
+    "geoid": "36047040900",
+    "ntaname": "Bushwick (East)",
+    "boroname": "Brooklyn",
+    "daytime_routes": "L"
+  },
+  {
+    "station_complex_id": "131",
+    "station_complex": "Bushwick Av-Aberdeen St (L)",
+    "geoid": "36047040500",
+    "ntaname": "Bushwick (East)",
+    "boroname": "Brooklyn",
+    "daytime_routes": "L"
+  },
+  {
+    "station_complex_id": "133",
+    "station_complex": "Atlantic Av (L)",
+    "geoid": "36047114400",
+    "ntaname": "East New York (North)",
+    "boroname": "Brooklyn",
+    "daytime_routes": "L"
+  },
+  {
+    "station_complex_id": "134",
+    "station_complex": "Sutter Av (L)",
+    "geoid": "36047090800",
+    "ntaname": "Brownsville",
+    "boroname": "Brooklyn",
+    "daytime_routes": "L"
+  },
+  {
+    "station_complex_id": "135",
+    "station_complex": "Livonia Av (L)",
+    "geoid": "36047091000",
+    "ntaname": "Brownsville",
+    "boroname": "Brooklyn",
+    "daytime_routes": "L"
+  },
+  {
+    "station_complex_id": "136",
+    "station_complex": "New Lots Av (L)",
+    "geoid": "36047092000",
+    "ntaname": "Brownsville",
+    "boroname": "Brooklyn",
+    "daytime_routes": "L"
+  },
+  {
+    "station_complex_id": "137",
+    "station_complex": "East 105 St (L)",
+    "geoid": "36047109800",
+    "ntaname": "East New York-New Lots",
+    "boroname": "Brooklyn",
+    "daytime_routes": "L"
+  },
+  {
+    "station_complex_id": "138",
+    "station_complex": "Canarsie-Rockaway Pkwy (L)",
+    "geoid": "36047097400",
+    "ntaname": "Canarsie",
+    "boroname": "Brooklyn",
+    "daytime_routes": "L"
+  },
+  {
+    "station_complex_id": "14",
+    "station_complex": "23 St (R,W)",
+    "geoid": "36061005600",
+    "ntaname": "Midtown South-Flatiron-Union Square",
+    "boroname": "Manhattan",
+    "daytime_routes": "R,W"
+  },
+  {
+    "station_complex_id": "141",
+    "station_complex": "Park Pl (S)",
+    "geoid": "36047030500",
+    "ntaname": "Crown Heights (North)",
+    "boroname": "Brooklyn",
+    "daytime_routes": "S"
+  },
+  {
+    "station_complex_id": "143",
+    "station_complex": "Inwood-207 St (A)",
+    "geoid": "36061030300",
+    "ntaname": "Inwood",
+    "boroname": "Manhattan",
+    "daytime_routes": "A"
+  },
+  {
+    "station_complex_id": "144",
+    "station_complex": "Dyckman St (A)",
+    "geoid": "36061028700",
+    "ntaname": "Washington Heights (North)",
+    "boroname": "Manhattan",
+    "daytime_routes": "A"
+  },
+  {
+    "station_complex_id": "145",
+    "station_complex": "190 St (A)",
+    "geoid": "36061028100",
+    "ntaname": "Washington Heights (North)",
+    "boroname": "Manhattan",
+    "daytime_routes": "A"
+  },
+  {
+    "station_complex_id": "146",
+    "station_complex": "181 St (A)",
+    "geoid": "36061027300",
+    "ntaname": "Washington Heights (North)",
+    "boroname": "Manhattan",
+    "daytime_routes": "A"
+  },
+  {
+    "station_complex_id": "147",
+    "station_complex": "175 St (A)",
+    "geoid": "36061026300",
+    "ntaname": "Washington Heights (South)",
+    "boroname": "Manhattan",
+    "daytime_routes": "A"
+  },
+  {
+    "station_complex_id": "149",
+    "station_complex": "163 St-Amsterdam Av (C)",
+    "geoid": "36061024301",
+    "ntaname": "Washington Heights (South)",
+    "boroname": "Manhattan",
+    "daytime_routes": "C"
+  },
+  {
+    "station_complex_id": "150",
+    "station_complex": "155 St (C)",
+    "geoid": "36061023501",
+    "ntaname": "Hamilton Heights-Sugar Hill",
+    "boroname": "Manhattan",
+    "daytime_routes": "C"
+  },
+  {
+    "station_complex_id": "151",
+    "station_complex": "145 St (A,C,B,D)",
+    "geoid": "36061023100",
+    "ntaname": "Hamilton Heights-Sugar Hill",
+    "boroname": "Manhattan",
+    "daytime_routes": "A,B,C,D"
+  },
+  {
+    "station_complex_id": "152",
+    "station_complex": "135 St (C,B)",
+    "geoid": "36061021703",
+    "ntaname": "Manhattanville-West Harlem",
+    "boroname": "Manhattan",
+    "daytime_routes": "B,C"
+  },
+  {
+    "station_complex_id": "153",
+    "station_complex": "125 St (A,C,B,D)",
+    "geoid": "36061020901",
+    "ntaname": "Morningside Heights",
+    "boroname": "Manhattan",
+    "daytime_routes": "A,B,C,D"
+  },
+  {
+    "station_complex_id": "154",
+    "station_complex": "116 St (C,B)",
+    "geoid": "36061021800",
+    "ntaname": "Harlem (South)",
+    "boroname": "Manhattan",
+    "daytime_routes": "B,C"
+  },
+  {
+    "station_complex_id": "155",
+    "station_complex": "Cathedral Pkwy (110 St) (C,B)",
+    "geoid": "36061019702",
+    "ntaname": "Harlem (South)",
+    "boroname": "Manhattan",
+    "daytime_routes": "B,C"
+  },
+  {
+    "station_complex_id": "156",
+    "station_complex": "103 St (C,B)",
+    "geoid": "36061018900",
+    "ntaname": "Upper West Side-Manhattan Valley",
+    "boroname": "Manhattan",
+    "daytime_routes": "B,C"
+  },
+  {
+    "station_complex_id": "157",
+    "station_complex": "96 St (C,B)",
+    "geoid": "36061014300",
+    "ntaname": "Central Park",
+    "boroname": "Manhattan",
+    "daytime_routes": "B,C"
+  },
+  {
+    "station_complex_id": "158",
+    "station_complex": "86 St (C,B)",
+    "geoid": "36061014300",
+    "ntaname": "Central Park",
+    "boroname": "Manhattan",
+    "daytime_routes": "B,C"
+  },
+  {
+    "station_complex_id": "159",
+    "station_complex": "81 St-Museum of Natural History (C,B)",
+    "geoid": "36061014300",
+    "ntaname": "Central Park",
+    "boroname": "Manhattan",
+    "daytime_routes": "B,C"
+  },
+  {
+    "station_complex_id": "16",
+    "station_complex": "8 St-NYU (R,W)",
+    "geoid": "36061005700",
+    "ntaname": "Greenwich Village",
+    "boroname": "Manhattan",
+    "daytime_routes": "R,W"
+  },
+  {
+    "station_complex_id": "160",
+    "station_complex": "72 St (C,B)",
+    "geoid": "36061014300",
+    "ntaname": "Central Park",
+    "boroname": "Manhattan",
+    "daytime_routes": "B,C"
+  },
+  {
+    "station_complex_id": "162",
+    "station_complex": "50 St (C,E)",
+    "geoid": "36061013300",
+    "ntaname": "Hell's Kitchen",
+    "boroname": "Manhattan",
+    "daytime_routes": "C,E"
+  },
+  {
+    "station_complex_id": "164",
+    "station_complex": "34 St-Penn Station (A,C,E)",
+    "geoid": "36061010900",
+    "ntaname": "Midtown-Times Square",
+    "boroname": "Manhattan",
+    "daytime_routes": "A,C,E"
+  },
+  {
+    "station_complex_id": "165",
+    "station_complex": "23 St (C,E)",
+    "geoid": "36061009100",
+    "ntaname": "Chelsea-Hudson Yards",
+    "boroname": "Manhattan",
+    "daytime_routes": "C,E"
+  },
+  {
+    "station_complex_id": "167",
+    "station_complex": "W 4 St-Wash Sq (A,C,E,B,D,F,M)",
+    "geoid": "36061007100",
+    "ntaname": "West Village",
+    "boroname": "Manhattan",
+    "daytime_routes": "A,B,C,D,E,F,M"
+  },
+  {
+    "station_complex_id": "168",
+    "station_complex": "Spring St (C,E)",
+    "geoid": "36061003700",
+    "ntaname": "SoHo-Little Italy-Hudson Square",
+    "boroname": "Manhattan",
+    "daytime_routes": "C,E"
+  },
+  {
+    "station_complex_id": "169",
+    "station_complex": "Canal St (A,C,E)",
+    "geoid": "36061003300",
+    "ntaname": "Tribeca-Civic Center",
+    "boroname": "Manhattan",
+    "daytime_routes": "A,C,E"
+  },
+  {
+    "station_complex_id": "17",
+    "station_complex": "Prince St (R,W)",
+    "geoid": "36061004300",
+    "ntaname": "SoHo-Little Italy-Hudson Square",
+    "boroname": "Manhattan",
+    "daytime_routes": "R,W"
+  },
+  {
+    "station_complex_id": "173",
+    "station_complex": "High St (A,C)",
+    "geoid": "36047001300",
+    "ntaname": "Downtown Brooklyn-DUMBO-Boerum Hill",
+    "boroname": "Brooklyn",
+    "daytime_routes": "A,C"
+  },
+  {
+    "station_complex_id": "175",
+    "station_complex": "Hoyt-Schermerhorn Sts (A,C,G)",
+    "geoid": "36047004100",
+    "ntaname": "Downtown Brooklyn-DUMBO-Boerum Hill",
+    "boroname": "Brooklyn",
+    "daytime_routes": "A,C,G"
+  },
+  {
+    "station_complex_id": "176",
+    "station_complex": "Lafayette Av (C)",
+    "geoid": "36047018100",
+    "ntaname": "Fort Greene",
+    "boroname": "Brooklyn",
+    "daytime_routes": "C"
+  },
+  {
+    "station_complex_id": "177",
+    "station_complex": "Clinton-Washington Avs (C)",
+    "geoid": "36047019900",
+    "ntaname": "Clinton Hill",
+    "boroname": "Brooklyn",
+    "daytime_routes": "C"
+  },
+  {
+    "station_complex_id": "179",
+    "station_complex": "Nostrand Av (A,C)",
+    "geoid": "36047024500",
+    "ntaname": "Bedford-Stuyvesant (West)",
+    "boroname": "Brooklyn",
+    "daytime_routes": "A,C"
+  },
+  {
+    "station_complex_id": "180",
+    "station_complex": "Kingston-Throop Avs (C)",
+    "geoid": "36047026900",
+    "ntaname": "Bedford-Stuyvesant (West)",
+    "boroname": "Brooklyn",
+    "daytime_routes": "C"
+  },
+  {
+    "station_complex_id": "181",
+    "station_complex": "Utica Av (A,C)",
+    "geoid": "36047027100",
+    "ntaname": "Bedford-Stuyvesant (East)",
+    "boroname": "Brooklyn",
+    "daytime_routes": "A,C"
+  },
+  {
+    "station_complex_id": "182",
+    "station_complex": "Ralph Av (C)",
+    "geoid": "36047030100",
+    "ntaname": "Ocean Hill",
+    "boroname": "Brooklyn",
+    "daytime_routes": "C"
+  },
+  {
+    "station_complex_id": "183",
+    "station_complex": "Rockaway Av (C)",
+    "geoid": "36047030100",
+    "ntaname": "Ocean Hill",
+    "boroname": "Brooklyn",
+    "daytime_routes": "C"
+  },
+  {
+    "station_complex_id": "185",
+    "station_complex": "Liberty Av (C)",
+    "geoid": "36047119800",
+    "ntaname": "East New York (North)",
+    "boroname": "Brooklyn",
+    "daytime_routes": "C"
+  },
+  {
+    "station_complex_id": "186",
+    "station_complex": "Van Siclen Av (C)",
+    "geoid": "36047115200",
+    "ntaname": "East New York (North)",
+    "boroname": "Brooklyn",
+    "daytime_routes": "C"
+  },
+  {
+    "station_complex_id": "187",
+    "station_complex": "Shepherd Av (C)",
+    "geoid": "36047116600",
+    "ntaname": "East New York (North)",
+    "boroname": "Brooklyn",
+    "daytime_routes": "C"
+  },
+  {
+    "station_complex_id": "188",
+    "station_complex": "Euclid Av (A,C)",
+    "geoid": "36047119600",
+    "ntaname": "East New York-City Line",
+    "boroname": "Brooklyn",
+    "daytime_routes": "A,C"
+  },
+  {
+    "station_complex_id": "189",
+    "station_complex": "Grant Av (A)",
+    "geoid": "36047120200",
+    "ntaname": "East New York-City Line",
+    "boroname": "Brooklyn",
+    "daytime_routes": "A"
+  },
+  {
+    "station_complex_id": "190",
+    "station_complex": "80 St (A)",
+    "geoid": "36081004401",
+    "ntaname": "Ozone Park",
+    "boroname": "Queens",
+    "daytime_routes": "A"
+  },
+  {
+    "station_complex_id": "191",
+    "station_complex": "88 St (A)",
+    "geoid": "36081005400",
+    "ntaname": "Ozone Park",
+    "boroname": "Queens",
+    "daytime_routes": "A"
+  },
+  {
+    "station_complex_id": "192",
+    "station_complex": "Rockaway Blvd (A)",
+    "geoid": "36081008600",
+    "ntaname": "Ozone Park",
+    "boroname": "Queens",
+    "daytime_routes": "A"
+  },
+  {
+    "station_complex_id": "193",
+    "station_complex": "104 St (A)",
+    "geoid": "36081009400",
+    "ntaname": "South Ozone Park",
+    "boroname": "Queens",
+    "daytime_routes": "A"
+  },
+  {
+    "station_complex_id": "194",
+    "station_complex": "111 St (A)",
+    "geoid": "36081009600",
+    "ntaname": "South Ozone Park",
+    "boroname": "Queens",
+    "daytime_routes": "A"
+  },
+  {
+    "station_complex_id": "195",
+    "station_complex": "Ozone Park-Lefferts Blvd (A)",
+    "geoid": "36081010600",
+    "ntaname": "South Ozone Park",
+    "boroname": "Queens",
+    "daytime_routes": "A"
+  },
+  {
+    "station_complex_id": "196",
+    "station_complex": "Aqueduct Racetrack (A)",
+    "geoid": "36081086400",
+    "ntaname": "South Ozone Park",
+    "boroname": "Queens",
+    "daytime_routes": "A"
+  },
+  {
+    "station_complex_id": "197",
+    "station_complex": "Aqueduct-N Conduit Av (A)",
+    "geoid": "36081008800",
+    "ntaname": "Ozone Park",
+    "boroname": "Queens",
+    "daytime_routes": "A"
+  },
+  {
+    "station_complex_id": "198",
+    "station_complex": "Howard Beach-JFK Airport (A)",
+    "geoid": "36081071600",
+    "ntaname": "John F. Kennedy International Airport",
+    "boroname": "Queens",
+    "daytime_routes": "A"
+  },
+  {
+    "station_complex_id": "199",
+    "station_complex": "Broad Channel (A,S)",
+    "geoid": "36081107201",
+    "ntaname": "Breezy Point-Belle Harbor-Rockaway Park-Broad Channel",
+    "boroname": "Queens",
+    "daytime_routes": "A,S"
+  },
+  {
+    "station_complex_id": "2",
+    "station_complex": "Astoria Blvd (N,W)",
+    "geoid": "36081012500",
+    "ntaname": "Astoria (North)-Ditmars-Steinway",
+    "boroname": "Queens",
+    "daytime_routes": "N,W"
+  },
+  {
+    "station_complex_id": "20",
+    "station_complex": "City Hall (R,W)",
+    "geoid": "36061003100",
+    "ntaname": "Tribeca-Civic Center",
+    "boroname": "Manhattan",
+    "daytime_routes": "R,W"
+  },
+  {
+    "station_complex_id": "200",
+    "station_complex": "Beach 90 St (A,S)",
+    "geoid": "36081094202",
+    "ntaname": "Rockaway Beach-Arverne-Edgemere",
+    "boroname": "Queens",
+    "daytime_routes": "A,S"
+  },
+  {
+    "station_complex_id": "201",
+    "station_complex": "Beach 98 St (A,S)",
+    "geoid": "36081094201",
+    "ntaname": "Rockaway Beach-Arverne-Edgemere",
+    "boroname": "Queens",
+    "daytime_routes": "A,S"
+  },
+  {
+    "station_complex_id": "202",
+    "station_complex": "Beach 105 St (A,S)",
+    "geoid": "36081093800",
+    "ntaname": "Breezy Point-Belle Harbor-Rockaway Park-Broad Channel",
+    "boroname": "Queens",
+    "daytime_routes": "A,S"
+  },
+  {
+    "station_complex_id": "203",
+    "station_complex": "Rockaway Park-Beach 116 St (A,S)",
+    "geoid": "36081093800",
+    "ntaname": "Breezy Point-Belle Harbor-Rockaway Park-Broad Channel",
+    "boroname": "Queens",
+    "daytime_routes": "A,S"
+  },
+  {
+    "station_complex_id": "204",
+    "station_complex": "Beach 67 St (A)",
+    "geoid": "36081095400",
+    "ntaname": "Rockaway Beach-Arverne-Edgemere",
+    "boroname": "Queens",
+    "daytime_routes": "A"
+  },
+  {
+    "station_complex_id": "205",
+    "station_complex": "Beach 60 St (A)",
+    "geoid": "36081097202",
+    "ntaname": "Rockaway Beach-Arverne-Edgemere",
+    "boroname": "Queens",
+    "daytime_routes": "A"
+  },
+  {
+    "station_complex_id": "206",
+    "station_complex": "Beach 44 St (A)",
+    "geoid": "36081097202",
+    "ntaname": "Rockaway Beach-Arverne-Edgemere",
+    "boroname": "Queens",
+    "daytime_routes": "A"
+  },
+  {
+    "station_complex_id": "207",
+    "station_complex": "Beach 36 St (A)",
+    "geoid": "36081099200",
+    "ntaname": "Far Rockaway-Bayswater",
+    "boroname": "Queens",
+    "daytime_routes": "A"
+  },
+  {
+    "station_complex_id": "208",
+    "station_complex": "Beach 25 St (A)",
+    "geoid": "36081099801",
+    "ntaname": "Far Rockaway-Bayswater",
+    "boroname": "Queens",
+    "daytime_routes": "A"
+  },
+  {
+    "station_complex_id": "209",
+    "station_complex": "Far Rockaway-Mott Av (A)",
+    "geoid": "36081100803",
+    "ntaname": "Far Rockaway-Bayswater",
+    "boroname": "Queens",
+    "daytime_routes": "A"
+  },
+  {
+    "station_complex_id": "210",
+    "station_complex": "Norwood-205 St (D)",
+    "geoid": "36005042300",
+    "ntaname": "Norwood",
+    "boroname": "Bronx",
+    "daytime_routes": "D"
+  },
+  {
+    "station_complex_id": "211",
+    "station_complex": "Bedford Park Blvd (B,D)",
+    "geoid": "36005041300",
+    "ntaname": "Bedford Park",
+    "boroname": "Bronx",
+    "daytime_routes": "B,D"
+  },
+  {
+    "station_complex_id": "212",
+    "station_complex": "Kingsbridge Rd (B,D)",
+    "geoid": "36005040302",
+    "ntaname": "Bedford Park",
+    "boroname": "Bronx",
+    "daytime_routes": "B,D"
+  },
+  {
+    "station_complex_id": "213",
+    "station_complex": "Fordham Rd (B,D)",
+    "geoid": "36005023702",
+    "ntaname": "Fordham Heights",
+    "boroname": "Bronx",
+    "daytime_routes": "B,D"
+  },
+  {
+    "station_complex_id": "214",
+    "station_complex": "182-183 Sts (B,D)",
+    "geoid": "36005038301",
+    "ntaname": "Fordham Heights",
+    "boroname": "Bronx",
+    "daytime_routes": "B,D"
+  },
+  {
+    "station_complex_id": "215",
+    "station_complex": "Tremont Av (B,D)",
+    "geoid": "36005023501",
+    "ntaname": "Mount Hope",
+    "boroname": "Bronx",
+    "daytime_routes": "B,D"
+  },
+  {
+    "station_complex_id": "216",
+    "station_complex": "174-175 Sts (B,D)",
+    "geoid": "36005022701",
+    "ntaname": "Mount Hope",
+    "boroname": "Bronx",
+    "daytime_routes": "B,D"
+  },
+  {
+    "station_complex_id": "217",
+    "station_complex": "170 St (B,D)",
+    "geoid": "36005022500",
+    "ntaname": "Mount Eden-Claremont (West)",
+    "boroname": "Bronx",
+    "daytime_routes": "B,D"
+  },
+  {
+    "station_complex_id": "218",
+    "station_complex": "167 St (B,D)",
+    "geoid": "36005019700",
+    "ntaname": "Concourse-Concourse Village",
+    "boroname": "Bronx",
+    "daytime_routes": "B,D"
+  },
+  {
+    "station_complex_id": "22",
+    "station_complex": "Rector St (R,W)",
+    "geoid": "36061001300",
+    "ntaname": "Financial District-Battery Park City",
+    "boroname": "Manhattan",
+    "daytime_routes": "R,W"
+  },
+  {
+    "station_complex_id": "220",
+    "station_complex": "155 St (B,D)",
+    "geoid": "36061024302",
+    "ntaname": "Harlem (North)",
+    "boroname": "Manhattan",
+    "daytime_routes": "B,D"
+  },
+  {
+    "station_complex_id": "221",
+    "station_complex": "21 St-Queensbridge (M)",
+    "geoid": "36081002500",
+    "ntaname": "Queensbridge-Ravenswood-Dutch Kills",
+    "boroname": "Queens",
+    "daytime_routes": "M"
+  },
+  {
+    "station_complex_id": "222",
+    "station_complex": "Roosevelt Island (M)",
+    "geoid": "36061023804",
+    "ntaname": "Upper East Side-Lenox Hill-Roosevelt Island",
+    "boroname": "Manhattan",
+    "daytime_routes": "M"
+  },
+  {
+    "station_complex_id": "223",
+    "station_complex": "Lexington Av/63 St (M,Q)",
+    "geoid": "36061012000",
+    "ntaname": "Upper East Side-Carnegie Hill",
+    "boroname": "Manhattan",
+    "daytime_routes": "M,Q"
+  },
+  {
+    "station_complex_id": "224",
+    "station_complex": "57 St (M)",
+    "geoid": "36061013700",
+    "ntaname": "Midtown-Times Square",
+    "boroname": "Manhattan",
+    "daytime_routes": "M"
+  },
+  {
+    "station_complex_id": "225",
+    "station_complex": "47-50 Sts-Rockefeller Ctr (B,D,F,M)",
+    "geoid": "36061012500",
+    "ntaname": "Midtown-Times Square",
+    "boroname": "Manhattan",
+    "daytime_routes": "B,D,F,M"
+  },
+  {
+    "station_complex_id": "228",
+    "station_complex": "23 St (F,M)",
+    "geoid": "36061005800",
+    "ntaname": "Midtown South-Flatiron-Union Square",
+    "boroname": "Manhattan",
+    "daytime_routes": "F,M"
+  },
+  {
+    "station_complex_id": "231",
+    "station_complex": "Grand St (B,D)",
+    "geoid": "36061001800",
+    "ntaname": "Lower East Side",
+    "boroname": "Manhattan",
+    "daytime_routes": "B,D"
+  },
+  {
+    "station_complex_id": "232",
+    "station_complex": "2 Av (F)",
+    "geoid": "36061003602",
+    "ntaname": "East Village",
+    "boroname": "Manhattan",
+    "daytime_routes": "F"
+  },
+  {
+    "station_complex_id": "234",
+    "station_complex": "East Broadway (F)",
+    "geoid": "36061000600",
+    "ntaname": "Chinatown-Two Bridges",
+    "boroname": "Manhattan",
+    "daytime_routes": "F"
+  },
+  {
+    "station_complex_id": "235",
+    "station_complex": "York St (F)",
+    "geoid": "36047002100",
+    "ntaname": "Downtown Brooklyn-DUMBO-Boerum Hill",
+    "boroname": "Brooklyn",
+    "daytime_routes": "F"
+  },
+  {
+    "station_complex_id": "236",
+    "station_complex": "Bergen St (F,G)",
+    "geoid": "36047006901",
+    "ntaname": "Downtown Brooklyn-DUMBO-Boerum Hill",
+    "boroname": "Brooklyn",
+    "daytime_routes": "F,G"
+  },
+  {
+    "station_complex_id": "237",
+    "station_complex": "Carroll St (F,G)",
+    "geoid": "36047007700",
+    "ntaname": "Carroll Gardens-Cobble Hill-Gowanus-Red Hook",
+    "boroname": "Brooklyn",
+    "daytime_routes": "F,G"
+  },
+  {
+    "station_complex_id": "238",
+    "station_complex": "Smith-9 Sts (F,G)",
+    "geoid": "36047011902",
+    "ntaname": "Carroll Gardens-Cobble Hill-Gowanus-Red Hook",
+    "boroname": "Brooklyn",
+    "daytime_routes": "F,G"
+  },
+  {
+    "station_complex_id": "240",
+    "station_complex": "7 Av (F,G)",
+    "geoid": "36047015100",
+    "ntaname": "Park Slope",
+    "boroname": "Brooklyn",
+    "daytime_routes": "F,G"
+  },
+  {
+    "station_complex_id": "241",
+    "station_complex": "15 St-Prospect Park (F,G)",
+    "geoid": "36047016900",
+    "ntaname": "Windsor Terrace-South Slope",
+    "boroname": "Brooklyn",
+    "daytime_routes": "F,G"
+  },
+  {
+    "station_complex_id": "242",
+    "station_complex": "Fort Hamilton Pkwy (F,G)",
+    "geoid": "36047050401",
+    "ntaname": "Windsor Terrace-South Slope",
+    "boroname": "Brooklyn",
+    "daytime_routes": "F,G"
+  },
+  {
+    "station_complex_id": "243",
+    "station_complex": "Church Av (F,G)",
+    "geoid": "36047049600",
+    "ntaname": "Kensington",
+    "boroname": "Brooklyn",
+    "daytime_routes": "F,G"
+  },
+  {
+    "station_complex_id": "244",
+    "station_complex": "Ditmas Av (F)",
+    "geoid": "36047048600",
+    "ntaname": "Kensington",
+    "boroname": "Brooklyn",
+    "daytime_routes": "F"
+  },
+  {
+    "station_complex_id": "245",
+    "station_complex": "18 Av (F)",
+    "geoid": "36047048000",
+    "ntaname": "Flatbush (West)-Ditmas Park-Parkville",
+    "boroname": "Brooklyn",
+    "daytime_routes": "F"
+  },
+  {
+    "station_complex_id": "246",
+    "station_complex": "Avenue I (F)",
+    "geoid": "36047046202",
+    "ntaname": "Mapleton-Midwood (West)",
+    "boroname": "Brooklyn",
+    "daytime_routes": "F"
+  },
+  {
+    "station_complex_id": "247",
+    "station_complex": "Bay Pkwy (F)",
+    "geoid": "36047045000",
+    "ntaname": "Mapleton-Midwood (West)",
+    "boroname": "Brooklyn",
+    "daytime_routes": "F"
+  },
+  {
+    "station_complex_id": "248",
+    "station_complex": "Avenue N (F)",
+    "geoid": "36047044600",
+    "ntaname": "Mapleton-Midwood (West)",
+    "boroname": "Brooklyn",
+    "daytime_routes": "F"
+  },
+  {
+    "station_complex_id": "249",
+    "station_complex": "Avenue P (F)",
+    "geoid": "36047043800",
+    "ntaname": "Mapleton-Midwood (West)",
+    "boroname": "Brooklyn",
+    "daytime_routes": "F"
+  },
+  {
+    "station_complex_id": "250",
+    "station_complex": "Kings Hwy (F)",
+    "geoid": "36047041401",
+    "ntaname": "Gravesend (East)-Homecrest",
+    "boroname": "Brooklyn",
+    "daytime_routes": "F"
+  },
+  {
+    "station_complex_id": "251",
+    "station_complex": "Avenue U (F)",
+    "geoid": "36047039800",
+    "ntaname": "Gravesend (East)-Homecrest",
+    "boroname": "Brooklyn",
+    "daytime_routes": "F"
+  },
+  {
+    "station_complex_id": "252",
+    "station_complex": "Avenue X (F)",
+    "geoid": "36047030800",
+    "ntaname": "Gravesend (South)",
+    "boroname": "Brooklyn",
+    "daytime_routes": "F"
+  },
+  {
+    "station_complex_id": "253",
+    "station_complex": "Neptune Av (F)",
+    "geoid": "36047034800",
+    "ntaname": "Coney Island-Sea Gate",
+    "boroname": "Brooklyn",
+    "daytime_routes": "F"
+  },
+  {
+    "station_complex_id": "254",
+    "station_complex": "Jamaica-179 St (F)",
+    "geoid": "36081046800",
+    "ntaname": "Jamaica",
+    "boroname": "Queens",
+    "daytime_routes": "F"
+  },
+  {
+    "station_complex_id": "255",
+    "station_complex": "169 St (F)",
+    "geoid": "36081046000",
+    "ntaname": "Jamaica",
+    "boroname": "Queens",
+    "daytime_routes": "F"
+  },
+  {
+    "station_complex_id": "256",
+    "station_complex": "Parsons Blvd (F)",
+    "geoid": "36081023600",
+    "ntaname": "Jamaica",
+    "boroname": "Queens",
+    "daytime_routes": "F"
+  },
+  {
+    "station_complex_id": "257",
+    "station_complex": "Sutphin Blvd (F)",
+    "geoid": "36081023800",
+    "ntaname": "Jamaica",
+    "boroname": "Queens",
+    "daytime_routes": "F"
+  },
+  {
+    "station_complex_id": "258",
+    "station_complex": "Briarwood (E,F)",
+    "geoid": "36081021603",
+    "ntaname": "Kew Gardens",
+    "boroname": "Queens",
+    "daytime_routes": "E,F"
+  },
+  {
+    "station_complex_id": "259",
+    "station_complex": "Kew Gardens-Union Tpke (E,F)",
+    "geoid": "36081038302",
+    "ntaname": "Flushing Meadows-Corona Park",
+    "boroname": "Queens",
+    "daytime_routes": "E,F"
+  },
+  {
+    "station_complex_id": "26",
+    "station_complex": "DeKalb Av (B,Q,R)",
+    "geoid": "36047001502",
+    "ntaname": "Downtown Brooklyn-DUMBO-Boerum Hill",
+    "boroname": "Brooklyn",
+    "daytime_routes": "B,Q,R"
+  },
+  {
+    "station_complex_id": "260",
+    "station_complex": "75 Av (E,F)",
+    "geoid": "36081076901",
+    "ntaname": "Forest Hills",
+    "boroname": "Queens",
+    "daytime_routes": "E,F"
+  },
+  {
+    "station_complex_id": "261",
+    "station_complex": "Forest Hills-71 Av (E,F,M,R)",
+    "geoid": "36081073900",
+    "ntaname": "Forest Hills",
+    "boroname": "Queens",
+    "daytime_routes": "E,F,M,R"
+  },
+  {
+    "station_complex_id": "262",
+    "station_complex": "67 Av (M,R)",
+    "geoid": "36081071306",
+    "ntaname": "Forest Hills",
+    "boroname": "Queens",
+    "daytime_routes": "M,R"
+  },
+  {
+    "station_complex_id": "263",
+    "station_complex": "63 Dr-Rego Park (M,R)",
+    "geoid": "36081069300",
+    "ntaname": "Rego Park",
+    "boroname": "Queens",
+    "daytime_routes": "M,R"
+  },
+  {
+    "station_complex_id": "264",
+    "station_complex": "Woodhaven Blvd (M,R)",
+    "geoid": "36081068300",
+    "ntaname": "Elmhurst",
+    "boroname": "Queens",
+    "daytime_routes": "M,R"
+  },
+  {
+    "station_complex_id": "265",
+    "station_complex": "Grand Av-Newtown (M,R)",
+    "geoid": "36081047300",
+    "ntaname": "Elmhurst",
+    "boroname": "Queens",
+    "daytime_routes": "M,R"
+  },
+  {
+    "station_complex_id": "266",
+    "station_complex": "Elmhurst Av (M,R)",
+    "geoid": "36081027101",
+    "ntaname": "Elmhurst",
+    "boroname": "Queens",
+    "daytime_routes": "M,R"
+  },
+  {
+    "station_complex_id": "268",
+    "station_complex": "65 St (M,R)",
+    "geoid": "36081029300",
+    "ntaname": "Woodside",
+    "boroname": "Queens",
+    "daytime_routes": "M,R"
+  },
+  {
+    "station_complex_id": "269",
+    "station_complex": "Northern Blvd (M,R)",
+    "geoid": "36081025500",
+    "ntaname": "Woodside",
+    "boroname": "Queens",
+    "daytime_routes": "M,R"
+  },
+  {
+    "station_complex_id": "270",
+    "station_complex": "46 St (M,R)",
+    "geoid": "36081015300",
+    "ntaname": "Astoria (East)-Woodside (North)",
+    "boroname": "Queens",
+    "daytime_routes": "M,R"
+  },
+  {
+    "station_complex_id": "271",
+    "station_complex": "Steinway St (M,R)",
+    "geoid": "36081015500",
+    "ntaname": "Astoria (East)-Woodside (North)",
+    "boroname": "Queens",
+    "daytime_routes": "M,R"
+  },
+  {
+    "station_complex_id": "272",
+    "station_complex": "36 St (M,R)",
+    "geoid": "36081017102",
+    "ntaname": "Sunnyside Yards (North)",
+    "boroname": "Queens",
+    "daytime_routes": "M,R"
+  },
+  {
+    "station_complex_id": "273",
+    "station_complex": "Queens Plaza (E,F,R)",
+    "geoid": "36081003301",
+    "ntaname": "Queensbridge-Ravenswood-Dutch Kills",
+    "boroname": "Queens",
+    "daytime_routes": "E,F,R"
+  },
+  {
+    "station_complex_id": "276",
+    "station_complex": "5 Av/53 St (E,F)",
+    "geoid": "36061010200",
+    "ntaname": "Midtown-Times Square",
+    "boroname": "Manhattan",
+    "daytime_routes": "E,F"
+  },
+  {
+    "station_complex_id": "277",
+    "station_complex": "7 Av (E,B,D)",
+    "geoid": "36061013100",
+    "ntaname": "Midtown-Times Square",
+    "boroname": "Manhattan",
+    "daytime_routes": "B,D,E"
+  },
+  {
+    "station_complex_id": "278",
+    "station_complex": "Jamaica Center-Parsons/Archer (E,J,Z)",
+    "geoid": "36081024600",
+    "ntaname": "Jamaica",
+    "boroname": "Queens",
+    "daytime_routes": "E,J,Z"
+  },
+  {
+    "station_complex_id": "279",
+    "station_complex": "Sutphin Blvd-Archer Av-JFK Airport (E,J,Z)",
+    "geoid": "36081020800",
+    "ntaname": "Jamaica",
+    "boroname": "Queens",
+    "daytime_routes": "E,J,Z"
+  },
+  {
+    "station_complex_id": "28",
+    "station_complex": "Union St (R)",
+    "geoid": "36047013300",
+    "ntaname": "Park Slope",
+    "boroname": "Brooklyn",
+    "daytime_routes": "R"
+  },
+  {
+    "station_complex_id": "280",
+    "station_complex": "Jamaica-Van Wyck (E)",
+    "geoid": "36081021602",
+    "ntaname": "Kew Gardens",
+    "boroname": "Queens",
+    "daytime_routes": "E"
+  },
+  {
+    "station_complex_id": "282",
+    "station_complex": "21 St (G)",
+    "geoid": "36081000701",
+    "ntaname": "Long Island City-Hunters Point",
+    "boroname": "Queens",
+    "daytime_routes": "G"
+  },
+  {
+    "station_complex_id": "283",
+    "station_complex": "Greenpoint Av (G)",
+    "geoid": "36047057500",
+    "ntaname": "Greenpoint",
+    "boroname": "Brooklyn",
+    "daytime_routes": "G"
+  },
+  {
+    "station_complex_id": "284",
+    "station_complex": "Nassau Av (G)",
+    "geoid": "36047056900",
+    "ntaname": "Greenpoint",
+    "boroname": "Brooklyn",
+    "daytime_routes": "G"
+  },
+  {
+    "station_complex_id": "286",
+    "station_complex": "Broadway (G)",
+    "geoid": "36047051100",
+    "ntaname": "East Williamsburg",
+    "boroname": "Brooklyn",
+    "daytime_routes": "G"
+  },
+  {
+    "station_complex_id": "287",
+    "station_complex": "Flushing Av (G)",
+    "geoid": "36047050700",
+    "ntaname": "South Williamsburg",
+    "boroname": "Brooklyn",
+    "daytime_routes": "G"
+  },
+  {
+    "station_complex_id": "288",
+    "station_complex": "Myrtle-Willoughby Avs (G)",
+    "geoid": "36047025901",
+    "ntaname": "Bedford-Stuyvesant (West)",
+    "boroname": "Brooklyn",
+    "daytime_routes": "G"
+  },
+  {
+    "station_complex_id": "289",
+    "station_complex": "Bedford-Nostrand Avs (G)",
+    "geoid": "36047024100",
+    "ntaname": "Bedford-Stuyvesant (West)",
+    "boroname": "Brooklyn",
+    "daytime_routes": "G"
+  },
+  {
+    "station_complex_id": "290",
+    "station_complex": "Classon Av (G)",
+    "geoid": "36047023100",
+    "ntaname": "Clinton Hill",
+    "boroname": "Brooklyn",
+    "daytime_routes": "G"
+  },
+  {
+    "station_complex_id": "291",
+    "station_complex": "Clinton-Washington Avs (G)",
+    "geoid": "36047019700",
+    "ntaname": "Clinton Hill",
+    "boroname": "Brooklyn",
+    "daytime_routes": "G"
+  },
+  {
+    "station_complex_id": "292",
+    "station_complex": "Fulton St (G)",
+    "geoid": "36047003300",
+    "ntaname": "Fort Greene",
+    "boroname": "Brooklyn",
+    "daytime_routes": "G"
+  },
+  {
+    "station_complex_id": "293",
+    "station_complex": "Van Cortlandt Park-242 St (1)",
+    "geoid": "36005028500",
+    "ntaname": "Kingsbridge-Marble Hill",
+    "boroname": "Bronx",
+    "daytime_routes": "1"
+  },
+  {
+    "station_complex_id": "294",
+    "station_complex": "238 St (1)",
+    "geoid": "36005028300",
+    "ntaname": "Kingsbridge-Marble Hill",
+    "boroname": "Bronx",
+    "daytime_routes": "1"
+  },
+  {
+    "station_complex_id": "295",
+    "station_complex": "231 St (1)",
+    "geoid": "36005028300",
+    "ntaname": "Kingsbridge-Marble Hill",
+    "boroname": "Bronx",
+    "daytime_routes": "1"
+  },
+  {
+    "station_complex_id": "296",
+    "station_complex": "Marble Hill-225 St (1)",
+    "geoid": "36061030900",
+    "ntaname": "Kingsbridge-Marble Hill",
+    "boroname": "Manhattan",
+    "daytime_routes": "1"
+  },
+  {
+    "station_complex_id": "297",
+    "station_complex": "215 St (1)",
+    "geoid": "36061029900",
+    "ntaname": "Inwood",
+    "boroname": "Manhattan",
+    "daytime_routes": "1"
+  },
+  {
+    "station_complex_id": "298",
+    "station_complex": "207 St (1)",
+    "geoid": "36061029900",
+    "ntaname": "Inwood",
+    "boroname": "Manhattan",
+    "daytime_routes": "1"
+  },
+  {
+    "station_complex_id": "299",
+    "station_complex": "Dyckman St (1)",
+    "geoid": "36061028300",
+    "ntaname": "Washington Heights (North)",
+    "boroname": "Manhattan",
+    "daytime_routes": "1"
+  },
+  {
+    "station_complex_id": "3",
+    "station_complex": "30 Av (N,W)",
+    "geoid": "36081006300",
+    "ntaname": "Astoria (Central)",
+    "boroname": "Queens",
+    "daytime_routes": "N,W"
+  },
+  {
+    "station_complex_id": "30",
+    "station_complex": "Prospect Av (R)",
+    "geoid": "36047014300",
+    "ntaname": "Sunset Park (West)",
+    "boroname": "Brooklyn",
+    "daytime_routes": "R"
+  },
+  {
+    "station_complex_id": "300",
+    "station_complex": "191 St (1)",
+    "geoid": "36061027700",
+    "ntaname": "Washington Heights (North)",
+    "boroname": "Manhattan",
+    "daytime_routes": "1"
+  },
+  {
+    "station_complex_id": "301",
+    "station_complex": "181 St (1)",
+    "geoid": "36061026900",
+    "ntaname": "Washington Heights (North)",
+    "boroname": "Manhattan",
+    "daytime_routes": "1"
+  },
+  {
+    "station_complex_id": "303",
+    "station_complex": "157 St (1)",
+    "geoid": "36061024100",
+    "ntaname": "Washington Heights (South)",
+    "boroname": "Manhattan",
+    "daytime_routes": "1"
+  },
+  {
+    "station_complex_id": "304",
+    "station_complex": "145 St (1)",
+    "geoid": "36061022900",
+    "ntaname": "Hamilton Heights-Sugar Hill",
+    "boroname": "Manhattan",
+    "daytime_routes": "1"
+  },
+  {
+    "station_complex_id": "305",
+    "station_complex": "137 St-City College (1)",
+    "geoid": "36061022301",
+    "ntaname": "Manhattanville-West Harlem",
+    "boroname": "Manhattan",
+    "daytime_routes": "1"
+  },
+  {
+    "station_complex_id": "306",
+    "station_complex": "125 St (1)",
+    "geoid": "36061021100",
+    "ntaname": "Morningside Heights",
+    "boroname": "Manhattan",
+    "daytime_routes": "1"
+  },
+  {
+    "station_complex_id": "307",
+    "station_complex": "116 St-Columbia University (1)",
+    "geoid": "36061020500",
+    "ntaname": "Morningside Heights",
+    "boroname": "Manhattan",
+    "daytime_routes": "1"
+  },
+  {
+    "station_complex_id": "308",
+    "station_complex": "Cathedral Pkwy (110 St) (1)",
+    "geoid": "36061019500",
+    "ntaname": "Upper West Side-Manhattan Valley",
+    "boroname": "Manhattan",
+    "daytime_routes": "1"
+  },
+  {
+    "station_complex_id": "309",
+    "station_complex": "103 St (1)",
+    "geoid": "36061019100",
+    "ntaname": "Upper West Side-Manhattan Valley",
+    "boroname": "Manhattan",
+    "daytime_routes": "1"
+  },
+  {
+    "station_complex_id": "31",
+    "station_complex": "25 St (R)",
+    "geoid": "36047010100",
+    "ntaname": "Sunset Park (West)",
+    "boroname": "Brooklyn",
+    "daytime_routes": "R"
+  },
+  {
+    "station_complex_id": "310",
+    "station_complex": "96 St (1,2,3)",
+    "geoid": "36061018300",
+    "ntaname": "Upper West Side (Central)",
+    "boroname": "Manhattan",
+    "daytime_routes": "1,2,3"
+  },
+  {
+    "station_complex_id": "311",
+    "station_complex": "86 St (1)",
+    "geoid": "36061017500",
+    "ntaname": "Upper West Side (Central)",
+    "boroname": "Manhattan",
+    "daytime_routes": "1"
+  },
+  {
+    "station_complex_id": "312",
+    "station_complex": "79 St (1)",
+    "geoid": "36061016700",
+    "ntaname": "Upper West Side (Central)",
+    "boroname": "Manhattan",
+    "daytime_routes": "1"
+  },
+  {
+    "station_complex_id": "313",
+    "station_complex": "72 St (1,2,3)",
+    "geoid": "36061015900",
+    "ntaname": "Upper West Side-Lincoln Square",
+    "boroname": "Manhattan",
+    "daytime_routes": "1,2,3"
+  },
+  {
+    "station_complex_id": "314",
+    "station_complex": "66 St-Lincoln Center (1)",
+    "geoid": "36061014900",
+    "ntaname": "Upper West Side-Lincoln Square",
+    "boroname": "Manhattan",
+    "daytime_routes": "1"
+  },
+  {
+    "station_complex_id": "316",
+    "station_complex": "50 St (1)",
+    "geoid": "36061013100",
+    "ntaname": "Midtown-Times Square",
+    "boroname": "Manhattan",
+    "daytime_routes": "1"
+  },
+  {
+    "station_complex_id": "318",
+    "station_complex": "34 St-Penn Station (1,2,3)",
+    "geoid": "36061010100",
+    "ntaname": "Midtown South-Flatiron-Union Square",
+    "boroname": "Manhattan",
+    "daytime_routes": "1,2,3"
+  },
+  {
+    "station_complex_id": "319",
+    "station_complex": "28 St (1)",
+    "geoid": "36061009500",
+    "ntaname": "Midtown South-Flatiron-Union Square",
+    "boroname": "Manhattan",
+    "daytime_routes": "1"
+  },
+  {
+    "station_complex_id": "32",
+    "station_complex": "36 St (D,N,R)",
+    "geoid": "36047008400",
+    "ntaname": "Sunset Park (West)",
+    "boroname": "Brooklyn",
+    "daytime_routes": "D,N,R"
+  },
+  {
+    "station_complex_id": "320",
+    "station_complex": "23 St (1)",
+    "geoid": "36061009100",
+    "ntaname": "Chelsea-Hudson Yards",
+    "boroname": "Manhattan",
+    "daytime_routes": "1"
+  },
+  {
+    "station_complex_id": "321",
+    "station_complex": "18 St (1)",
+    "geoid": "36061008100",
+    "ntaname": "Chelsea-Hudson Yards",
+    "boroname": "Manhattan",
+    "daytime_routes": "1"
+  },
+  {
+    "station_complex_id": "323",
+    "station_complex": "Christopher St-Stonewall (1)",
+    "geoid": "36061007300",
+    "ntaname": "West Village",
+    "boroname": "Manhattan",
+    "daytime_routes": "1"
+  },
+  {
+    "station_complex_id": "324",
+    "station_complex": "Houston St (1)",
+    "geoid": "36061003700",
+    "ntaname": "SoHo-Little Italy-Hudson Square",
+    "boroname": "Manhattan",
+    "daytime_routes": "1"
+  },
+  {
+    "station_complex_id": "325",
+    "station_complex": "Canal St (1)",
+    "geoid": "36061003700",
+    "ntaname": "SoHo-Little Italy-Hudson Square",
+    "boroname": "Manhattan",
+    "daytime_routes": "1"
+  },
+  {
+    "station_complex_id": "326",
+    "station_complex": "Franklin St (1)",
+    "geoid": "36061003300",
+    "ntaname": "Tribeca-Civic Center",
+    "boroname": "Manhattan",
+    "daytime_routes": "1"
+  },
+  {
+    "station_complex_id": "327",
+    "station_complex": "Chambers St (1,2,3)",
+    "geoid": "36061002100",
+    "ntaname": "Tribeca-Civic Center",
+    "boroname": "Manhattan",
+    "daytime_routes": "1,2,3"
+  },
+  {
+    "station_complex_id": "328",
+    "station_complex": "WTC Cortlandt (1)",
+    "geoid": "36061001300",
+    "ntaname": "Financial District-Battery Park City",
+    "boroname": "Manhattan",
+    "daytime_routes": "1"
+  },
+  {
+    "station_complex_id": "329",
+    "station_complex": "Rector St (1)",
+    "geoid": "36061001300",
+    "ntaname": "Financial District-Battery Park City",
+    "boroname": "Manhattan",
+    "daytime_routes": "1"
+  },
+  {
+    "station_complex_id": "33",
+    "station_complex": "45 St (R)",
+    "geoid": "36047008000",
+    "ntaname": "Sunset Park (West)",
+    "boroname": "Brooklyn",
+    "daytime_routes": "R"
+  },
+  {
+    "station_complex_id": "333",
+    "station_complex": "Wall St (2,3)",
+    "geoid": "36061000700",
+    "ntaname": "Financial District-Battery Park City",
+    "boroname": "Manhattan",
+    "daytime_routes": "2,3"
+  },
+  {
+    "station_complex_id": "334",
+    "station_complex": "Clark St (2,3)",
+    "geoid": "36047000501",
+    "ntaname": "Brooklyn Heights",
+    "boroname": "Brooklyn",
+    "daytime_routes": "2,3"
+  },
+  {
+    "station_complex_id": "336",
+    "station_complex": "Hoyt St (2,3)",
+    "geoid": "36047001502",
+    "ntaname": "Downtown Brooklyn-DUMBO-Boerum Hill",
+    "boroname": "Brooklyn",
+    "daytime_routes": "2,3"
+  },
+  {
+    "station_complex_id": "337",
+    "station_complex": "Nevins St (2,3,4,5)",
+    "geoid": "36047003300",
+    "ntaname": "Fort Greene",
+    "boroname": "Brooklyn",
+    "daytime_routes": "2,3,4,5"
+  },
+  {
+    "station_complex_id": "339",
+    "station_complex": "Bergen St (2,3)",
+    "geoid": "36047012902",
+    "ntaname": "Park Slope",
+    "boroname": "Brooklyn",
+    "daytime_routes": "2,3"
+  },
+  {
+    "station_complex_id": "34",
+    "station_complex": "53 St (R)",
+    "geoid": "36047007600",
+    "ntaname": "Sunset Park (West)",
+    "boroname": "Brooklyn",
+    "daytime_routes": "R"
+  },
+  {
+    "station_complex_id": "340",
+    "station_complex": "Grand Army Plaza (2,3)",
+    "geoid": "36047015900",
+    "ntaname": "Park Slope",
+    "boroname": "Brooklyn",
+    "daytime_routes": "2,3"
+  },
+  {
+    "station_complex_id": "341",
+    "station_complex": "Eastern Pkwy-Brooklyn Museum (2,3)",
+    "geoid": "36047017700",
+    "ntaname": "Prospect Park",
+    "boroname": "Brooklyn",
+    "daytime_routes": "2,3"
+  },
+  {
+    "station_complex_id": "343",
+    "station_complex": "Nostrand Av (3)",
+    "geoid": "36047031900",
+    "ntaname": "Crown Heights (South)",
+    "boroname": "Brooklyn",
+    "daytime_routes": "3"
+  },
+  {
+    "station_complex_id": "344",
+    "station_complex": "Kingston Av (3)",
+    "geoid": "36047033702",
+    "ntaname": "Crown Heights (South)",
+    "boroname": "Brooklyn",
+    "daytime_routes": "3"
+  },
+  {
+    "station_complex_id": "345",
+    "station_complex": "Crown Hts-Utica Av (3,4)",
+    "geoid": "36047035102",
+    "ntaname": "Crown Heights (South)",
+    "boroname": "Brooklyn",
+    "daytime_routes": "3,4"
+  },
+  {
+    "station_complex_id": "346",
+    "station_complex": "Sutter Av-Rutland Rd (3)",
+    "geoid": "36047090000",
+    "ntaname": "Brownsville",
+    "boroname": "Brooklyn",
+    "daytime_routes": "3"
+  },
+  {
+    "station_complex_id": "347",
+    "station_complex": "Saratoga Av (3)",
+    "geoid": "36047089400",
+    "ntaname": "Brownsville",
+    "boroname": "Brooklyn",
+    "daytime_routes": "3"
+  },
+  {
+    "station_complex_id": "348",
+    "station_complex": "Rockaway Av (3)",
+    "geoid": "36047091600",
+    "ntaname": "Brownsville",
+    "boroname": "Brooklyn",
+    "daytime_routes": "3"
+  },
+  {
+    "station_complex_id": "349",
+    "station_complex": "Junius St (3)",
+    "geoid": "36047091000",
+    "ntaname": "Brownsville",
+    "boroname": "Brooklyn",
+    "daytime_routes": "3"
+  },
+  {
+    "station_complex_id": "35",
+    "station_complex": "59 St (N,R)",
+    "geoid": "36047007400",
+    "ntaname": "Sunset Park (West)",
+    "boroname": "Brooklyn",
+    "daytime_routes": "N,R"
+  },
+  {
+    "station_complex_id": "350",
+    "station_complex": "Pennsylvania Av (3)",
+    "geoid": "36047112600",
+    "ntaname": "East New York-New Lots",
+    "boroname": "Brooklyn",
+    "daytime_routes": "3"
+  },
+  {
+    "station_complex_id": "351",
+    "station_complex": "Van Siclen Av (3)",
+    "geoid": "36047112400",
+    "ntaname": "East New York-New Lots",
+    "boroname": "Brooklyn",
+    "daytime_routes": "3"
+  },
+  {
+    "station_complex_id": "352",
+    "station_complex": "New Lots Av (3)",
+    "geoid": "36047112400",
+    "ntaname": "East New York-New Lots",
+    "boroname": "Brooklyn",
+    "daytime_routes": "3"
+  },
+  {
+    "station_complex_id": "353",
+    "station_complex": "President St-Medgar Evers College (2,5)",
+    "geoid": "36047031900",
+    "ntaname": "Crown Heights (South)",
+    "boroname": "Brooklyn",
+    "daytime_routes": "2,5"
+  },
+  {
+    "station_complex_id": "354",
+    "station_complex": "Sterling St (2,5)",
+    "geoid": "36047032900",
+    "ntaname": "Prospect Lefferts Gardens-Wingate",
+    "boroname": "Brooklyn",
+    "daytime_routes": "2,5"
+  },
+  {
+    "station_complex_id": "355",
+    "station_complex": "Winthrop St (2,5)",
+    "geoid": "36047080400",
+    "ntaname": "Prospect Lefferts Gardens-Wingate",
+    "boroname": "Brooklyn",
+    "daytime_routes": "2,5"
+  },
+  {
+    "station_complex_id": "356",
+    "station_complex": "Church Av (2,5)",
+    "geoid": "36047082000",
+    "ntaname": "East Flatbush-Erasmus",
+    "boroname": "Brooklyn",
+    "daytime_routes": "2,5"
+  },
+  {
+    "station_complex_id": "357",
+    "station_complex": "Beverly Rd (2,5)",
+    "geoid": "36047082600",
+    "ntaname": "East Flatbush-Erasmus",
+    "boroname": "Brooklyn",
+    "daytime_routes": "2,5"
+  },
+  {
+    "station_complex_id": "358",
+    "station_complex": "Newkirk Av-Little Haiti (2,5)",
+    "geoid": "36047083000",
+    "ntaname": "East Flatbush-Farragut",
+    "boroname": "Brooklyn",
+    "daytime_routes": "2,5"
+  },
+  {
+    "station_complex_id": "359",
+    "station_complex": "Flatbush Av-Brooklyn College (2,5)",
+    "geoid": "36047078601",
+    "ntaname": "Flatbush",
+    "boroname": "Brooklyn",
+    "daytime_routes": "2,5"
+  },
+  {
+    "station_complex_id": "36",
+    "station_complex": "Bay Ridge Av (R)",
+    "geoid": "36047006800",
+    "ntaname": "Bay Ridge",
+    "boroname": "Brooklyn",
+    "daytime_routes": "R"
+  },
+  {
+    "station_complex_id": "360",
+    "station_complex": "Pelham Bay Park (6)",
+    "geoid": "36005030000",
+    "ntaname": "Pelham Bay-Country Club-City Island",
+    "boroname": "Bronx",
+    "daytime_routes": "6"
+  },
+  {
+    "station_complex_id": "361",
+    "station_complex": "Buhre Av (6)",
+    "geoid": "36005026601",
+    "ntaname": "Pelham Bay-Country Club-City Island",
+    "boroname": "Bronx",
+    "daytime_routes": "6"
+  },
+  {
+    "station_complex_id": "362",
+    "station_complex": "Middletown Rd (6)",
+    "geoid": "36005026601",
+    "ntaname": "Pelham Bay-Country Club-City Island",
+    "boroname": "Bronx",
+    "daytime_routes": "6"
+  },
+  {
+    "station_complex_id": "363",
+    "station_complex": "Westchester Sq-E Tremont Av (6)",
+    "geoid": "36005020000",
+    "ntaname": "Westchester Square",
+    "boroname": "Bronx",
+    "daytime_routes": "6"
+  },
+  {
+    "station_complex_id": "364",
+    "station_complex": "Zerega Av (6)",
+    "geoid": "36005009600",
+    "ntaname": "Westchester Square",
+    "boroname": "Bronx",
+    "daytime_routes": "6"
+  },
+  {
+    "station_complex_id": "365",
+    "station_complex": "Castle Hill Av (6)",
+    "geoid": "36005020601",
+    "ntaname": "Westchester Square",
+    "boroname": "Bronx",
+    "daytime_routes": "6"
+  },
+  {
+    "station_complex_id": "366",
+    "station_complex": "Parkchester (6)",
+    "geoid": "36005007200",
+    "ntaname": "Castle Hill-Unionport",
+    "boroname": "Bronx",
+    "daytime_routes": "6"
+  },
+  {
+    "station_complex_id": "367",
+    "station_complex": "St Lawrence Av (6)",
+    "geoid": "36005007000",
+    "ntaname": "Soundview-Bruckner-Bronx River",
+    "boroname": "Bronx",
+    "daytime_routes": "6"
+  },
+  {
+    "station_complex_id": "368",
+    "station_complex": "Morrison Av-Soundview (6)",
+    "geoid": "36005004800",
+    "ntaname": "Soundview-Bruckner-Bronx River",
+    "boroname": "Bronx",
+    "daytime_routes": "6"
+  },
+  {
+    "station_complex_id": "369",
+    "station_complex": "Elder Av (6)",
+    "geoid": "36005005400",
+    "ntaname": "Soundview-Bruckner-Bronx River",
+    "boroname": "Bronx",
+    "daytime_routes": "6"
+  },
+  {
+    "station_complex_id": "37",
+    "station_complex": "77 St (R)",
+    "geoid": "36047013600",
+    "ntaname": "Bay Ridge",
+    "boroname": "Brooklyn",
+    "daytime_routes": "R"
+  },
+  {
+    "station_complex_id": "370",
+    "station_complex": "Whitlock Av (6)",
+    "geoid": "36005012102",
+    "ntaname": "Longwood",
+    "boroname": "Bronx",
+    "daytime_routes": "6"
+  },
+  {
+    "station_complex_id": "371",
+    "station_complex": "Hunts Point Av (6)",
+    "geoid": "36005011900",
+    "ntaname": "Longwood",
+    "boroname": "Bronx",
+    "daytime_routes": "6"
+  },
+  {
+    "station_complex_id": "372",
+    "station_complex": "Longwood Av (6)",
+    "geoid": "36005008500",
+    "ntaname": "Longwood",
+    "boroname": "Bronx",
+    "daytime_routes": "6"
+  },
+  {
+    "station_complex_id": "373",
+    "station_complex": "E 149 St (6)",
+    "geoid": "36005008300",
+    "ntaname": "Longwood",
+    "boroname": "Bronx",
+    "daytime_routes": "6"
+  },
+  {
+    "station_complex_id": "374",
+    "station_complex": "E 143 St-St Mary's St (6)",
+    "geoid": "36005003100",
+    "ntaname": "Mott Haven-Port Morris",
+    "boroname": "Bronx",
+    "daytime_routes": "6"
+  },
+  {
+    "station_complex_id": "375",
+    "station_complex": "Cypress Av (6)",
+    "geoid": "36005002702",
+    "ntaname": "Mott Haven-Port Morris",
+    "boroname": "Bronx",
+    "daytime_routes": "6"
+  },
+  {
+    "station_complex_id": "376",
+    "station_complex": "Brook Av (6)",
+    "geoid": "36005003900",
+    "ntaname": "Mott Haven-Port Morris",
+    "boroname": "Bronx",
+    "daytime_routes": "6"
+  },
+  {
+    "station_complex_id": "377",
+    "station_complex": "3 Av-138 St (6)",
+    "geoid": "36005002300",
+    "ntaname": "Mott Haven-Port Morris",
+    "boroname": "Bronx",
+    "daytime_routes": "6"
+  },
+  {
+    "station_complex_id": "378",
+    "station_complex": "Woodlawn (4)",
+    "geoid": "36005043101",
+    "ntaname": "Norwood",
+    "boroname": "Bronx",
+    "daytime_routes": "4"
+  },
+  {
+    "station_complex_id": "379",
+    "station_complex": "Mosholu Pkwy (4)",
+    "geoid": "36005042100",
+    "ntaname": "Norwood",
+    "boroname": "Bronx",
+    "daytime_routes": "4"
+  },
+  {
+    "station_complex_id": "38",
+    "station_complex": "86 St (R)",
+    "geoid": "36047006000",
+    "ntaname": "Bay Ridge",
+    "boroname": "Brooklyn",
+    "daytime_routes": "R"
+  },
+  {
+    "station_complex_id": "380",
+    "station_complex": "Bedford Park Blvd-Lehman College (4)",
+    "geoid": "36005040900",
+    "ntaname": "Bedford Park",
+    "boroname": "Bronx",
+    "daytime_routes": "4"
+  },
+  {
+    "station_complex_id": "381",
+    "station_complex": "Kingsbridge Rd (4)",
+    "geoid": "36005040304",
+    "ntaname": "Bedford Park",
+    "boroname": "Bronx",
+    "daytime_routes": "4"
+  },
+  {
+    "station_complex_id": "382",
+    "station_complex": "Fordham Rd (4)",
+    "geoid": "36005040100",
+    "ntaname": "University Heights (North)-Fordham",
+    "boroname": "Bronx",
+    "daytime_routes": "4"
+  },
+  {
+    "station_complex_id": "383",
+    "station_complex": "183 St (4)",
+    "geoid": "36005023900",
+    "ntaname": "Fordham Heights",
+    "boroname": "Bronx",
+    "daytime_routes": "4"
+  },
+  {
+    "station_complex_id": "384",
+    "station_complex": "Burnside Av (4)",
+    "geoid": "36005024300",
+    "ntaname": "University Heights (South)-Morris Heights",
+    "boroname": "Bronx",
+    "daytime_routes": "4"
+  },
+  {
+    "station_complex_id": "385",
+    "station_complex": "176 St (4)",
+    "geoid": "36005021700",
+    "ntaname": "University Heights (South)-Morris Heights",
+    "boroname": "Bronx",
+    "daytime_routes": "4"
+  },
+  {
+    "station_complex_id": "386",
+    "station_complex": "Mt Eden Av (4)",
+    "geoid": "36005022702",
+    "ntaname": "Mount Eden-Claremont (West)",
+    "boroname": "Bronx",
+    "daytime_routes": "4"
+  },
+  {
+    "station_complex_id": "387",
+    "station_complex": "170 St (4)",
+    "geoid": "36005022101",
+    "ntaname": "Mount Eden-Claremont (West)",
+    "boroname": "Bronx",
+    "daytime_routes": "4"
+  },
+  {
+    "station_complex_id": "388",
+    "station_complex": "167 St (4)",
+    "geoid": "36005019700",
+    "ntaname": "Concourse-Concourse Village",
+    "boroname": "Bronx",
+    "daytime_routes": "4"
+  },
+  {
+    "station_complex_id": "39",
+    "station_complex": "Bay Ridge-95 St (R)",
+    "geoid": "36047005400",
+    "ntaname": "Bay Ridge",
+    "boroname": "Brooklyn",
+    "daytime_routes": "R"
+  },
+  {
+    "station_complex_id": "391",
+    "station_complex": "138 St-Grand Concourse (4,5)",
+    "geoid": "36005005100",
+    "ntaname": "Mott Haven-Port Morris",
+    "boroname": "Bronx",
+    "daytime_routes": "4,5"
+  },
+  {
+    "station_complex_id": "392",
+    "station_complex": "125 St (4,5,6)",
+    "geoid": "36061019600",
+    "ntaname": "East Harlem (North)",
+    "boroname": "Manhattan",
+    "daytime_routes": "4,5,6"
+  },
+  {
+    "station_complex_id": "393",
+    "station_complex": "116 St (6)",
+    "geoid": "36061018200",
+    "ntaname": "East Harlem (North)",
+    "boroname": "Manhattan",
+    "daytime_routes": "6"
+  },
+  {
+    "station_complex_id": "394",
+    "station_complex": "110 St (6)",
+    "geoid": "36061017200",
+    "ntaname": "East Harlem (South)",
+    "boroname": "Manhattan",
+    "daytime_routes": "6"
+  },
+  {
+    "station_complex_id": "395",
+    "station_complex": "103 St (6)",
+    "geoid": "36061016600",
+    "ntaname": "East Harlem (South)",
+    "boroname": "Manhattan",
+    "daytime_routes": "6"
+  },
+  {
+    "station_complex_id": "396",
+    "station_complex": "96 St (6)",
+    "geoid": "36061015801",
+    "ntaname": "Upper East Side-Carnegie Hill",
+    "boroname": "Manhattan",
+    "daytime_routes": "6"
+  },
+  {
+    "station_complex_id": "397",
+    "station_complex": "86 St (4,5,6)",
+    "geoid": "36061014801",
+    "ntaname": "Upper East Side-Carnegie Hill",
+    "boroname": "Manhattan",
+    "daytime_routes": "4,5,6"
+  },
+  {
+    "station_complex_id": "398",
+    "station_complex": "77 St (6)",
+    "geoid": "36061012800",
+    "ntaname": "Upper East Side-Carnegie Hill",
+    "boroname": "Manhattan",
+    "daytime_routes": "6"
+  },
+  {
+    "station_complex_id": "399",
+    "station_complex": "68 St-Hunter College (6)",
+    "geoid": "36061012000",
+    "ntaname": "Upper East Side-Carnegie Hill",
+    "boroname": "Manhattan",
+    "daytime_routes": "6"
+  },
+  {
+    "station_complex_id": "4",
+    "station_complex": "Broadway (N,W)",
+    "geoid": "36081005900",
+    "ntaname": "Astoria (Central)",
+    "boroname": "Queens",
+    "daytime_routes": "N,W"
+  },
+  {
+    "station_complex_id": "403",
+    "station_complex": "33 St (6)",
+    "geoid": "36061007400",
+    "ntaname": "Midtown South-Flatiron-Union Square",
+    "boroname": "Manhattan",
+    "daytime_routes": "6"
+  },
+  {
+    "station_complex_id": "404",
+    "station_complex": "28 St (6)",
+    "geoid": "36061006800",
+    "ntaname": "Gramercy",
+    "boroname": "Manhattan",
+    "daytime_routes": "6"
+  },
+  {
+    "station_complex_id": "405",
+    "station_complex": "23 St-Baruch College (6)",
+    "geoid": "36061005600",
+    "ntaname": "Midtown South-Flatiron-Union Square",
+    "boroname": "Manhattan",
+    "daytime_routes": "6"
+  },
+  {
+    "station_complex_id": "407",
+    "station_complex": "Astor Pl (6)",
+    "geoid": "36061005700",
+    "ntaname": "Greenwich Village",
+    "boroname": "Manhattan",
+    "daytime_routes": "6"
+  },
+  {
+    "station_complex_id": "409",
+    "station_complex": "Spring St (6)",
+    "geoid": "36061004500",
+    "ntaname": "SoHo-Little Italy-Hudson Square",
+    "boroname": "Manhattan",
+    "daytime_routes": "6"
+  },
+  {
+    "station_complex_id": "41",
+    "station_complex": "7 Av (B,Q)",
+    "geoid": "36047016100",
+    "ntaname": "Prospect Heights",
+    "boroname": "Brooklyn",
+    "daytime_routes": "B,Q"
+  },
+  {
+    "station_complex_id": "413",
+    "station_complex": "Wall St (4,5)",
+    "geoid": "36061000700",
+    "ntaname": "Financial District-Battery Park City",
+    "boroname": "Manhattan",
+    "daytime_routes": "4,5"
+  },
+  {
+    "station_complex_id": "414",
+    "station_complex": "Bowling Green (4,5)",
+    "geoid": "36061001300",
+    "ntaname": "Financial District-Battery Park City",
+    "boroname": "Manhattan",
+    "daytime_routes": "4,5"
+  },
+  {
+    "station_complex_id": "416",
+    "station_complex": "Wakefield-241 St (2)",
+    "geoid": "36005043400",
+    "ntaname": "Wakefield-Woodlawn",
+    "boroname": "Bronx",
+    "daytime_routes": "2"
+  },
+  {
+    "station_complex_id": "417",
+    "station_complex": "Nereid Av (2,5)",
+    "geoid": "36005041800",
+    "ntaname": "Wakefield-Woodlawn",
+    "boroname": "Bronx",
+    "daytime_routes": "2,5"
+  },
+  {
+    "station_complex_id": "418",
+    "station_complex": "233 St (2,5)",
+    "geoid": "36005042200",
+    "ntaname": "Wakefield-Woodlawn",
+    "boroname": "Bronx",
+    "daytime_routes": "2,5"
+  },
+  {
+    "station_complex_id": "419",
+    "station_complex": "225 St (2,5)",
+    "geoid": "36005040800",
+    "ntaname": "Williamsbridge-Olinville",
+    "boroname": "Bronx",
+    "daytime_routes": "2,5"
+  },
+  {
+    "station_complex_id": "42",
+    "station_complex": "Prospect Park (B,Q,S)",
+    "geoid": "36047032700",
+    "ntaname": "Prospect Lefferts Gardens-Wingate",
+    "boroname": "Brooklyn",
+    "daytime_routes": "B,Q,S"
+  },
+  {
+    "station_complex_id": "420",
+    "station_complex": "219 St (2,5)",
+    "geoid": "36005039200",
+    "ntaname": "Williamsbridge-Olinville",
+    "boroname": "Bronx",
+    "daytime_routes": "2,5"
+  },
+  {
+    "station_complex_id": "421",
+    "station_complex": "Gun Hill Rd (2,5)",
+    "geoid": "36005037800",
+    "ntaname": "Williamsbridge-Olinville",
+    "boroname": "Bronx",
+    "daytime_routes": "2,5"
+  },
+  {
+    "station_complex_id": "422",
+    "station_complex": "Burke Av (2,5)",
+    "geoid": "36005033602",
+    "ntaname": "Williamsbridge-Olinville",
+    "boroname": "Bronx",
+    "daytime_routes": "2,5"
+  },
+  {
+    "station_complex_id": "423",
+    "station_complex": "Allerton Av (2,5)",
+    "geoid": "36005033801",
+    "ntaname": "Allerton",
+    "boroname": "Bronx",
+    "daytime_routes": "2,5"
+  },
+  {
+    "station_complex_id": "424",
+    "station_complex": "Pelham Pkwy (2,5)",
+    "geoid": "36005022401",
+    "ntaname": "Pelham Parkway-Van Nest",
+    "boroname": "Bronx",
+    "daytime_routes": "2,5"
+  },
+  {
+    "station_complex_id": "425",
+    "station_complex": "Bronx Park East (2,5)",
+    "geoid": "36005022000",
+    "ntaname": "West Farms",
+    "boroname": "Bronx",
+    "daytime_routes": "2,5"
+  },
+  {
+    "station_complex_id": "426",
+    "station_complex": "E 180 St (2,5)",
+    "geoid": "36005022000",
+    "ntaname": "West Farms",
+    "boroname": "Bronx",
+    "daytime_routes": "2,5"
+  },
+  {
+    "station_complex_id": "427",
+    "station_complex": "West Farms Sq-E Tremont Av (2,5)",
+    "geoid": "36005036100",
+    "ntaname": "West Farms",
+    "boroname": "Bronx",
+    "daytime_routes": "2,5"
+  },
+  {
+    "station_complex_id": "428",
+    "station_complex": "174 St (2,5)",
+    "geoid": "36005016100",
+    "ntaname": "Crotona Park East",
+    "boroname": "Bronx",
+    "daytime_routes": "2,5"
+  },
+  {
+    "station_complex_id": "429",
+    "station_complex": "Freeman St (2,5)",
+    "geoid": "36005012500",
+    "ntaname": "Crotona Park East",
+    "boroname": "Bronx",
+    "daytime_routes": "2,5"
+  },
+  {
+    "station_complex_id": "43",
+    "station_complex": "Parkside Av (Q)",
+    "geoid": "36047079802",
+    "ntaname": "Prospect Lefferts Gardens-Wingate",
+    "boroname": "Brooklyn",
+    "daytime_routes": "Q"
+  },
+  {
+    "station_complex_id": "430",
+    "station_complex": "Simpson St (2,5)",
+    "geoid": "36005015900",
+    "ntaname": "Longwood",
+    "boroname": "Bronx",
+    "daytime_routes": "2,5"
+  },
+  {
+    "station_complex_id": "431",
+    "station_complex": "Intervale Av (2,5)",
+    "geoid": "36005008700",
+    "ntaname": "Longwood",
+    "boroname": "Bronx",
+    "daytime_routes": "2,5"
+  },
+  {
+    "station_complex_id": "432",
+    "station_complex": "Prospect Av (2,5)",
+    "geoid": "36005007900",
+    "ntaname": "Melrose",
+    "boroname": "Bronx",
+    "daytime_routes": "2,5"
+  },
+  {
+    "station_complex_id": "433",
+    "station_complex": "Jackson Av (2,5)",
+    "geoid": "36005007500",
+    "ntaname": "Melrose",
+    "boroname": "Bronx",
+    "daytime_routes": "2,5"
+  },
+  {
+    "station_complex_id": "434",
+    "station_complex": "3 Av-149 St (2,5)",
+    "geoid": "36005006500",
+    "ntaname": "Melrose",
+    "boroname": "Bronx",
+    "daytime_routes": "2,5"
+  },
+  {
+    "station_complex_id": "436",
+    "station_complex": "Harlem-148 St (3)",
+    "geoid": "36061023600",
+    "ntaname": "Harlem (North)",
+    "boroname": "Manhattan",
+    "daytime_routes": "3"
+  },
+  {
+    "station_complex_id": "437",
+    "station_complex": "145 St (3)",
+    "geoid": "36061023200",
+    "ntaname": "Harlem (North)",
+    "boroname": "Manhattan",
+    "daytime_routes": "3"
+  },
+  {
+    "station_complex_id": "438",
+    "station_complex": "135 St (2,3)",
+    "geoid": "36061022800",
+    "ntaname": "Harlem (North)",
+    "boroname": "Manhattan",
+    "daytime_routes": "2,3"
+  },
+  {
+    "station_complex_id": "439",
+    "station_complex": "125 St (2,3)",
+    "geoid": "36061022200",
+    "ntaname": "Harlem (South)",
+    "boroname": "Manhattan",
+    "daytime_routes": "2,3"
+  },
+  {
+    "station_complex_id": "44",
+    "station_complex": "Church Av (B,Q)",
+    "geoid": "36047050600",
+    "ntaname": "Flatbush (West)-Ditmas Park-Parkville",
+    "boroname": "Brooklyn",
+    "daytime_routes": "B,Q"
+  },
+  {
+    "station_complex_id": "440",
+    "station_complex": "116 St (2,3)",
+    "geoid": "36061019000",
+    "ntaname": "Harlem (South)",
+    "boroname": "Manhattan",
+    "daytime_routes": "2,3"
+  },
+  {
+    "station_complex_id": "441",
+    "station_complex": "110 St-Malcolm X Plaza (2,3)",
+    "geoid": "36061018600",
+    "ntaname": "Harlem (South)",
+    "boroname": "Manhattan",
+    "daytime_routes": "2,3"
+  },
+  {
+    "station_complex_id": "442",
+    "station_complex": "Eastchester-Dyre Av (5)",
+    "geoid": "36005048401",
+    "ntaname": "Eastchester-Edenwald-Baychester",
+    "boroname": "Bronx",
+    "daytime_routes": "5"
+  },
+  {
+    "station_complex_id": "443",
+    "station_complex": "Baychester Av (5)",
+    "geoid": "36005046208",
+    "ntaname": "Eastchester-Edenwald-Baychester",
+    "boroname": "Bronx",
+    "daytime_routes": "5"
+  },
+  {
+    "station_complex_id": "444",
+    "station_complex": "Gun Hill Rd (5)",
+    "geoid": "36005035000",
+    "ntaname": "Pelham Gardens",
+    "boroname": "Bronx",
+    "daytime_routes": "5"
+  },
+  {
+    "station_complex_id": "445",
+    "station_complex": "Pelham Pkwy (5)",
+    "geoid": "36005032600",
+    "ntaname": "Pelham Gardens",
+    "boroname": "Bronx",
+    "daytime_routes": "5"
+  },
+  {
+    "station_complex_id": "446",
+    "station_complex": "Morris Park (5)",
+    "geoid": "36005024800",
+    "ntaname": "Morris Park",
+    "boroname": "Bronx",
+    "daytime_routes": "5"
+  },
+  {
+    "station_complex_id": "447",
+    "station_complex": "Flushing-Main St (7)",
+    "geoid": "36081087100",
+    "ntaname": "Flushing-Willets Point",
+    "boroname": "Queens",
+    "daytime_routes": "7"
+  },
+  {
+    "station_complex_id": "448",
+    "station_complex": "Mets-Willets Point (7)",
+    "geoid": "36081038302",
+    "ntaname": "Flushing Meadows-Corona Park",
+    "boroname": "Queens",
+    "daytime_routes": "7"
+  },
+  {
+    "station_complex_id": "449",
+    "station_complex": "111 St (7)",
+    "geoid": "36081040102",
+    "ntaname": "North Corona",
+    "boroname": "Queens",
+    "daytime_routes": "7"
+  },
+  {
+    "station_complex_id": "45",
+    "station_complex": "Beverley Rd (Q)",
+    "geoid": "36047152200",
+    "ntaname": "Flatbush (West)-Ditmas Park-Parkville",
+    "boroname": "Brooklyn",
+    "daytime_routes": "Q"
+  },
+  {
+    "station_complex_id": "450",
+    "station_complex": "103 St-Corona Plaza (7)",
+    "geoid": "36081040501",
+    "ntaname": "Corona",
+    "boroname": "Queens",
+    "daytime_routes": "7"
+  },
+  {
+    "station_complex_id": "451",
+    "station_complex": "Junction Blvd (7)",
+    "geoid": "36081046500",
+    "ntaname": "Elmhurst",
+    "boroname": "Queens",
+    "daytime_routes": "7"
+  },
+  {
+    "station_complex_id": "452",
+    "station_complex": "90 St-Elmhurst Av (7)",
+    "geoid": "36081027701",
+    "ntaname": "Jackson Heights",
+    "boroname": "Queens",
+    "daytime_routes": "7"
+  },
+  {
+    "station_complex_id": "453",
+    "station_complex": "82 St-Jackson Hts (7)",
+    "geoid": "36081028300",
+    "ntaname": "Jackson Heights",
+    "boroname": "Queens",
+    "daytime_routes": "7"
+  },
+  {
+    "station_complex_id": "455",
+    "station_complex": "69 St (7)",
+    "geoid": "36081026300",
+    "ntaname": "Woodside",
+    "boroname": "Queens",
+    "daytime_routes": "7"
+  },
+  {
+    "station_complex_id": "456",
+    "station_complex": "61 St-Woodside (7)",
+    "geoid": "36081026100",
+    "ntaname": "Woodside",
+    "boroname": "Queens",
+    "daytime_routes": "7"
+  },
+  {
+    "station_complex_id": "457",
+    "station_complex": "52 St (7)",
+    "geoid": "36081025302",
+    "ntaname": "Sunnyside",
+    "boroname": "Queens",
+    "daytime_routes": "7"
+  },
+  {
+    "station_complex_id": "458",
+    "station_complex": "46 St-Bliss St (7)",
+    "geoid": "36081025301",
+    "ntaname": "Sunnyside",
+    "boroname": "Queens",
+    "daytime_routes": "7"
+  },
+  {
+    "station_complex_id": "459",
+    "station_complex": "40 St-Lowery St (7)",
+    "geoid": "36081018101",
+    "ntaname": "Sunnyside",
+    "boroname": "Queens",
+    "daytime_routes": "7"
+  },
+  {
+    "station_complex_id": "46",
+    "station_complex": "Cortelyou Rd (Q)",
+    "geoid": "36047052000",
+    "ntaname": "Flatbush (West)-Ditmas Park-Parkville",
+    "boroname": "Brooklyn",
+    "daytime_routes": "Q"
+  },
+  {
+    "station_complex_id": "460",
+    "station_complex": "33 St-Rawson St (7)",
+    "geoid": "36081017902",
+    "ntaname": "Sunnyside",
+    "boroname": "Queens",
+    "daytime_routes": "7"
+  },
+  {
+    "station_complex_id": "461",
+    "station_complex": "Queensboro Plaza (7,N,W)",
+    "geoid": "36081001902",
+    "ntaname": "Long Island City-Hunters Point",
+    "boroname": "Queens",
+    "daytime_routes": "7,N,W"
+  },
+  {
+    "station_complex_id": "463",
+    "station_complex": "Hunters Point Av (7)",
+    "geoid": "36081000104",
+    "ntaname": "Long Island City-Hunters Point",
+    "boroname": "Queens",
+    "daytime_routes": "7"
+  },
+  {
+    "station_complex_id": "464",
+    "station_complex": "Vernon Blvd-Jackson Av (7)",
+    "geoid": "36081000701",
+    "ntaname": "Long Island City-Hunters Point",
+    "boroname": "Queens",
+    "daytime_routes": "7"
+  },
+  {
+    "station_complex_id": "47",
+    "station_complex": "Newkirk Plaza (B,Q)",
+    "geoid": "36047052000",
+    "ntaname": "Flatbush (West)-Ditmas Park-Parkville",
+    "boroname": "Brooklyn",
+    "daytime_routes": "B,Q"
+  },
+  {
+    "station_complex_id": "471",
+    "station_complex": "34 St-Hudson Yards (7)",
+    "geoid": "36061009903",
+    "ntaname": "Chelsea-Hudson Yards",
+    "boroname": "Manhattan",
+    "daytime_routes": "7"
+  },
+  {
+    "station_complex_id": "475",
+    "station_complex": "96 St (Q)",
+    "geoid": "36061015602",
+    "ntaname": "East Harlem (South)",
+    "boroname": "Manhattan",
+    "daytime_routes": "Q"
+  },
+  {
+    "station_complex_id": "476",
+    "station_complex": "86 St (Q)",
+    "geoid": "36061014601",
+    "ntaname": "Upper East Side-Yorkville",
+    "boroname": "Manhattan",
+    "daytime_routes": "Q"
+  },
+  {
+    "station_complex_id": "477",
+    "station_complex": "72 St (Q)",
+    "geoid": "36061012602",
+    "ntaname": "Upper East Side-Lenox Hill-Roosevelt Island",
+    "boroname": "Manhattan",
+    "daytime_routes": "Q"
+  },
+  {
+    "station_complex_id": "48",
+    "station_complex": "Avenue H (Q)",
+    "geoid": "36047053200",
+    "ntaname": "Midwood",
+    "boroname": "Brooklyn",
+    "daytime_routes": "Q"
+  },
+  {
+    "station_complex_id": "49",
+    "station_complex": "Avenue J (Q)",
+    "geoid": "36047053200",
+    "ntaname": "Midwood",
+    "boroname": "Brooklyn",
+    "daytime_routes": "Q"
+  },
+  {
+    "station_complex_id": "5",
+    "station_complex": "36 Av (N,W)",
+    "geoid": "36081005300",
+    "ntaname": "Astoria (Central)",
+    "boroname": "Queens",
+    "daytime_routes": "N,W"
+  },
+  {
+    "station_complex_id": "50",
+    "station_complex": "Avenue M (Q)",
+    "geoid": "36047076800",
+    "ntaname": "Midwood",
+    "boroname": "Brooklyn",
+    "daytime_routes": "Q"
+  },
+  {
+    "station_complex_id": "501",
+    "station_complex": "St George (SIR)",
+    "geoid": "36085000300",
+    "ntaname": "St. George-New Brighton",
+    "boroname": "Staten Island",
+    "daytime_routes": "SIR"
+  },
+  {
+    "station_complex_id": "502",
+    "station_complex": "Tompkinsville (SIR)",
+    "geoid": "36085002100",
+    "ntaname": "Tompkinsville-Stapleton-Clifton-Fox Hills",
+    "boroname": "Staten Island",
+    "daytime_routes": "SIR"
+  },
+  {
+    "station_complex_id": "51",
+    "station_complex": "Kings Hwy (B,Q)",
+    "geoid": "36047055200",
+    "ntaname": "Madison",
+    "boroname": "Brooklyn",
+    "daytime_routes": "B,Q"
+  },
+  {
+    "station_complex_id": "52",
+    "station_complex": "Avenue U (Q)",
+    "geoid": "36047058000",
+    "ntaname": "Madison",
+    "boroname": "Brooklyn",
+    "daytime_routes": "Q"
+  },
+  {
+    "station_complex_id": "53",
+    "station_complex": "Neck Rd (Q)",
+    "geoid": "36047058600",
+    "ntaname": "Sheepshead Bay-Manhattan Beach-Gerritsen Beach",
+    "boroname": "Brooklyn",
+    "daytime_routes": "Q"
+  },
+  {
+    "station_complex_id": "54",
+    "station_complex": "Sheepshead Bay (B,Q)",
+    "geoid": "36047060600",
+    "ntaname": "Sheepshead Bay-Manhattan Beach-Gerritsen Beach",
+    "boroname": "Brooklyn",
+    "daytime_routes": "B,Q"
+  },
+  {
+    "station_complex_id": "55",
+    "station_complex": "Brighton Beach (B,Q)",
+    "geoid": "36047036002",
+    "ntaname": "Brighton Beach",
+    "boroname": "Brooklyn",
+    "daytime_routes": "B,Q"
+  },
+  {
+    "station_complex_id": "56",
+    "station_complex": "Ocean Pkwy (Q)",
+    "geoid": "36047036200",
+    "ntaname": "Brighton Beach",
+    "boroname": "Brooklyn",
+    "daytime_routes": "Q"
+  },
+  {
+    "station_complex_id": "57",
+    "station_complex": "W 8 St-NY Aquarium (F,Q)",
+    "geoid": "36047035400",
+    "ntaname": "Coney Island-Sea Gate",
+    "boroname": "Brooklyn",
+    "daytime_routes": "F,Q"
+  },
+  {
+    "station_complex_id": "58",
+    "station_complex": "Coney Island-Stillwell Av (D,F,N,Q)",
+    "geoid": "36047035000",
+    "ntaname": "Coney Island-Sea Gate",
+    "boroname": "Brooklyn",
+    "daytime_routes": "D,F,N,Q"
+  },
+  {
+    "station_complex_id": "59",
+    "station_complex": "9 Av (D)",
+    "geoid": "36047011000",
+    "ntaname": "Sunset Park (East)-Borough Park (West)",
+    "boroname": "Brooklyn",
+    "daytime_routes": "D"
+  },
+  {
+    "station_complex_id": "6",
+    "station_complex": "39 Av-Dutch Kills (N,W)",
+    "geoid": "36081003100",
+    "ntaname": "Queensbridge-Ravenswood-Dutch Kills",
+    "boroname": "Queens",
+    "daytime_routes": "N,W"
+  },
+  {
+    "station_complex_id": "60",
+    "station_complex": "Fort Hamilton Pkwy (D)",
+    "geoid": "36047011200",
+    "ntaname": "Sunset Park (East)-Borough Park (West)",
+    "boroname": "Brooklyn",
+    "daytime_routes": "D"
+  },
+  {
+    "station_complex_id": "601",
+    "station_complex": "14 St/6 Av (1,2,3,L,F,M)",
+    "geoid": "36061008100",
+    "ntaname": "Chelsea-Hudson Yards",
+    "boroname": "Manhattan",
+    "daytime_routes": "1,2,3,F,L,M"
+  },
+  {
+    "station_complex_id": "602",
+    "station_complex": "14 St-Union Sq (4,5,6,L,N,Q,R,W)",
+    "geoid": "36061005200",
+    "ntaname": "Midtown South-Flatiron-Union Square",
+    "boroname": "Manhattan",
+    "daytime_routes": "4,5,6,L,N,Q,R,W"
+  },
+  {
+    "station_complex_id": "603",
+    "station_complex": "149 St-Grand Concourse (2,4,5)",
+    "geoid": "36005005100",
+    "ntaname": "Mott Haven-Port Morris",
+    "boroname": "Bronx",
+    "daytime_routes": "2,4,5"
+  },
+  {
+    "station_complex_id": "604",
+    "station_complex": "161 St-Yankee Stadium (4,B,D)",
+    "geoid": "36005019500",
+    "ntaname": "Concourse-Concourse Village",
+    "boroname": "Bronx",
+    "daytime_routes": "4,B,D"
+  },
+  {
+    "station_complex_id": "605",
+    "station_complex": "168 St-Washington Hts (1,A,C)",
+    "geoid": "36061025100",
+    "ntaname": "Washington Heights (South)",
+    "boroname": "Manhattan",
+    "daytime_routes": "1,A,C"
+  },
+  {
+    "station_complex_id": "606",
+    "station_complex": "Court Sq-23 St (7,E,F,G)",
+    "geoid": "36081001901",
+    "ntaname": "Long Island City-Hunters Point",
+    "boroname": "Queens",
+    "daytime_routes": "7,E,F,G"
+  },
+  {
+    "station_complex_id": "607",
+    "station_complex": "34 St-Herald Sq (B,D,F,M,N,Q,R,W)",
+    "geoid": "36061010100",
+    "ntaname": "Midtown South-Flatiron-Union Square",
+    "boroname": "Manhattan",
+    "daytime_routes": "B,D,F,M,N,Q,R,W"
+  },
+  {
+    "station_complex_id": "608",
+    "station_complex": "4 Av-9 St (F,G,R)",
+    "geoid": "36047012100",
+    "ntaname": "Carroll Gardens-Cobble Hill-Gowanus-Red Hook",
+    "boroname": "Brooklyn",
+    "daytime_routes": "F,G,R"
+  },
+  {
+    "station_complex_id": "609",
+    "station_complex": "42 St-Bryant Pk/5 Av (7,B,D,F,M)",
+    "geoid": "36061008400",
+    "ntaname": "Midtown-Times Square",
+    "boroname": "Manhattan",
+    "daytime_routes": "7,B,D,F,M"
+  },
+  {
+    "station_complex_id": "61",
+    "station_complex": "50 St (D)",
+    "geoid": "36047022000",
+    "ntaname": "Borough Park",
+    "boroname": "Brooklyn",
+    "daytime_routes": "D"
+  },
+  {
+    "station_complex_id": "610",
+    "station_complex": "Grand Central-42 St (4,5,6,7,S)",
+    "geoid": "36061009200",
+    "ntaname": "East Midtown-Turtle Bay",
+    "boroname": "Manhattan",
+    "daytime_routes": "4,5,6,7,S"
+  },
+  {
+    "station_complex_id": "611",
+    "station_complex": "Times Sq-42 St/Port Authority Bus Terminal (1,2,3,7,A,C,E,N,Q,R,W,S)",
+    "geoid": "36061011300",
+    "ntaname": "Midtown-Times Square",
+    "boroname": "Manhattan",
+    "daytime_routes": "1,2,3,7,A,C,E,N,Q,R,S,W"
+  },
+  {
+    "station_complex_id": "612",
+    "station_complex": "Lexington Av/51-53 Sts (6,E,F)",
+    "geoid": "36061010000",
+    "ntaname": "East Midtown-Turtle Bay",
+    "boroname": "Manhattan",
+    "daytime_routes": "6,E,F"
+  },
+  {
+    "station_complex_id": "613",
+    "station_complex": "Lexington Av/59 St (4,5,6,N,R,W)",
+    "geoid": "36061011402",
+    "ntaname": "Upper East Side-Carnegie Hill",
+    "boroname": "Manhattan",
+    "daytime_routes": "4,5,6,N,R,W"
+  },
+  {
+    "station_complex_id": "614",
+    "station_complex": "59 St-Columbus Circle (1,A,C,B,D)",
+    "geoid": "36061014500",
+    "ntaname": "Upper West Side-Lincoln Square",
+    "boroname": "Manhattan",
+    "daytime_routes": "1,A,B,C,D"
+  },
+  {
+    "station_complex_id": "615",
+    "station_complex": "62 St/New Utrecht Av (D,N)",
+    "geoid": "36047025000",
+    "ntaname": "Bensonhurst",
+    "boroname": "Brooklyn",
+    "daytime_routes": "D,N"
+  },
+  {
+    "station_complex_id": "616",
+    "station_complex": "Jackson Hts-Roosevelt Av/74 St-Broadway (7,E,F,M,R)",
+    "geoid": "36081026700",
+    "ntaname": "Elmhurst",
+    "boroname": "Queens",
+    "daytime_routes": "7,E,F,M,R"
+  },
+  {
+    "station_complex_id": "617",
+    "station_complex": "Atlantic Av-Barclays Ctr (2,3,4,5,B,D,N,Q,R)",
+    "geoid": "36047012901",
+    "ntaname": "Park Slope",
+    "boroname": "Brooklyn",
+    "daytime_routes": "2,3,4,5,B,D,N,Q,R"
+  },
+  {
+    "station_complex_id": "618",
+    "station_complex": "14 St/8 Av (A,C,E,L)",
+    "geoid": "36061008300",
+    "ntaname": "Chelsea-Hudson Yards",
+    "boroname": "Manhattan",
+    "daytime_routes": "A,C,E,L"
+  },
+  {
+    "station_complex_id": "619",
+    "station_complex": "Broadway-Lafayette St/Bleecker St (6,B,D,F,M)",
+    "geoid": "36061005502",
+    "ntaname": "Greenwich Village",
+    "boroname": "Manhattan",
+    "daytime_routes": "6,B,D,F,M"
+  },
+  {
+    "station_complex_id": "62",
+    "station_complex": "55 St (D)",
+    "geoid": "36047024000",
+    "ntaname": "Borough Park",
+    "boroname": "Brooklyn",
+    "daytime_routes": "D"
+  },
+  {
+    "station_complex_id": "620",
+    "station_complex": "Borough Hall/Court St (2,3,4,5,R)",
+    "geoid": "36047001100",
+    "ntaname": "Downtown Brooklyn-DUMBO-Boerum Hill",
+    "boroname": "Brooklyn",
+    "daytime_routes": "2,3,4,5,R"
+  },
+  {
+    "station_complex_id": "621",
+    "station_complex": "Broadway Junction (A,C,J,Z,L)",
+    "geoid": "36047036700",
+    "ntaname": "Ocean Hill",
+    "boroname": "Brooklyn",
+    "daytime_routes": "A,C,J,L,Z"
+  },
+  {
+    "station_complex_id": "622",
+    "station_complex": "Brooklyn Bridge-City Hall/Chambers St (4,5,6,J,Z)",
+    "geoid": "36061002901",
+    "ntaname": "Tribeca-Civic Center",
+    "boroname": "Manhattan",
+    "daytime_routes": "4,5,6,J,Z"
+  },
+  {
+    "station_complex_id": "623",
+    "station_complex": "Canal St (6,J,Z,N,Q,R,W)",
+    "geoid": "36061004500",
+    "ntaname": "SoHo-Little Italy-Hudson Square",
+    "boroname": "Manhattan",
+    "daytime_routes": "6,J,N,Q,R,W,Z"
+  },
+  {
+    "station_complex_id": "624",
+    "station_complex": "Chambers St/WTC/Park Place/Cortlandt St (2,3,A,C,E,R,W)",
+    "geoid": "36061002100",
+    "ntaname": "Tribeca-Civic Center",
+    "boroname": "Manhattan",
+    "daytime_routes": "2,3,A,C,E,R,W"
+  },
+  {
+    "station_complex_id": "625",
+    "station_complex": "Delancey St-Essex St (F,M,J,Z)",
+    "geoid": "36061001800",
+    "ntaname": "Lower East Side",
+    "boroname": "Manhattan",
+    "daytime_routes": "F,J,M,Z"
+  },
+  {
+    "station_complex_id": "626",
+    "station_complex": "Franklin Av-Medgar Evers College/Botanic Garden (2,3,4,5,S)",
+    "geoid": "36047021300",
+    "ntaname": "Crown Heights (South)",
+    "boroname": "Brooklyn",
+    "daytime_routes": "2,3,4,5,S"
+  },
+  {
+    "station_complex_id": "627",
+    "station_complex": "Franklin Av (C,S)",
+    "geoid": "36047022700",
+    "ntaname": "Bedford-Stuyvesant (West)",
+    "boroname": "Brooklyn",
+    "daytime_routes": "C,S"
+  },
+  {
+    "station_complex_id": "628",
+    "station_complex": "Fulton St (2,3,4,5,A,C,J,Z)",
+    "geoid": "36061001502",
+    "ntaname": "Financial District-Battery Park City",
+    "boroname": "Manhattan",
+    "daytime_routes": "2,3,4,5,A,C,J,Z"
+  },
+  {
+    "station_complex_id": "629",
+    "station_complex": "Metropolitan Av/Lorimer St (G,L)",
+    "geoid": "36047051300",
+    "ntaname": "Williamsburg",
+    "boroname": "Brooklyn",
+    "daytime_routes": "G,L"
+  },
+  {
+    "station_complex_id": "630",
+    "station_complex": "Myrtle-Wyckoff Avs (M,L)",
+    "geoid": "36047043900",
+    "ntaname": "Bushwick (East)",
+    "boroname": "Brooklyn",
+    "daytime_routes": "L,M"
+  },
+  {
+    "station_complex_id": "635",
+    "station_complex": "Whitehall St-South Ferry (1,R,W)",
+    "geoid": "36061000900",
+    "ntaname": "Financial District-Battery Park City",
+    "boroname": "Manhattan",
+    "daytime_routes": "1,R,W"
+  },
+  {
+    "station_complex_id": "636",
+    "station_complex": "Jay St-MetroTech (A,C,F,R)",
+    "geoid": "36047001100",
+    "ntaname": "Downtown Brooklyn-DUMBO-Boerum Hill",
+    "boroname": "Brooklyn",
+    "daytime_routes": "A,C,F,R"
+  },
+  {
+    "station_complex_id": "64",
+    "station_complex": "71 St (D)",
+    "geoid": "36047019000",
+    "ntaname": "Bensonhurst",
+    "boroname": "Brooklyn",
+    "daytime_routes": "D"
+  },
+  {
+    "station_complex_id": "65",
+    "station_complex": "79 St (D)",
+    "geoid": "36047018200",
+    "ntaname": "Bensonhurst",
+    "boroname": "Brooklyn",
+    "daytime_routes": "D"
+  },
+  {
+    "station_complex_id": "66",
+    "station_complex": "18 Av (D)",
+    "geoid": "36047027800",
+    "ntaname": "Bensonhurst",
+    "boroname": "Brooklyn",
+    "daytime_routes": "D"
+  },
+  {
+    "station_complex_id": "67",
+    "station_complex": "20 Av (D)",
+    "geoid": "36047028800",
+    "ntaname": "Bensonhurst",
+    "boroname": "Brooklyn",
+    "daytime_routes": "D"
+  },
+  {
+    "station_complex_id": "68",
+    "station_complex": "Bay Pkwy (D)",
+    "geoid": "36047029600",
+    "ntaname": "Gravesend (West)",
+    "boroname": "Brooklyn",
+    "daytime_routes": "D"
+  },
+  {
+    "station_complex_id": "69",
+    "station_complex": "25 Av (D)",
+    "geoid": "36047029800",
+    "ntaname": "Gravesend (West)",
+    "boroname": "Brooklyn",
+    "daytime_routes": "D"
+  },
+  {
+    "station_complex_id": "70",
+    "station_complex": "Bay 50 St (D)",
+    "geoid": "36047030600",
+    "ntaname": "Gravesend (South)",
+    "boroname": "Brooklyn",
+    "daytime_routes": "D"
+  },
+  {
+    "station_complex_id": "71",
+    "station_complex": "8 Av (N)",
+    "geoid": "36047011800",
+    "ntaname": "Sunset Park (Central)",
+    "boroname": "Brooklyn",
+    "daytime_routes": "N"
+  },
+  {
+    "station_complex_id": "72",
+    "station_complex": "Fort Hamilton Pkwy (N)",
+    "geoid": "36047021400",
+    "ntaname": "Borough Park",
+    "boroname": "Brooklyn",
+    "daytime_routes": "N"
+  },
+  {
+    "station_complex_id": "74",
+    "station_complex": "18 Av (N)",
+    "geoid": "36047024800",
+    "ntaname": "Bensonhurst",
+    "boroname": "Brooklyn",
+    "daytime_routes": "N"
+  },
+  {
+    "station_complex_id": "75",
+    "station_complex": "20 Av (N)",
+    "geoid": "36047025400",
+    "ntaname": "Bensonhurst",
+    "boroname": "Brooklyn",
+    "daytime_routes": "N"
+  },
+  {
+    "station_complex_id": "76",
+    "station_complex": "Bay Pkwy (N)",
+    "geoid": "36047043200",
+    "ntaname": "Bensonhurst",
+    "boroname": "Brooklyn",
+    "daytime_routes": "N"
+  },
+  {
+    "station_complex_id": "77",
+    "station_complex": "Kings Hwy (N)",
+    "geoid": "36047042600",
+    "ntaname": "Gravesend (West)",
+    "boroname": "Brooklyn",
+    "daytime_routes": "N"
+  },
+  {
+    "station_complex_id": "78",
+    "station_complex": "Avenue U (N)",
+    "geoid": "36047040000",
+    "ntaname": "Gravesend (West)",
+    "boroname": "Brooklyn",
+    "daytime_routes": "N"
+  },
+  {
+    "station_complex_id": "79",
+    "station_complex": "86 St (N)",
+    "geoid": "36047038600",
+    "ntaname": "Gravesend (East)-Homecrest",
+    "boroname": "Brooklyn",
+    "daytime_routes": "N"
+  },
+  {
+    "station_complex_id": "8",
+    "station_complex": "5 Av/59 St (N,R,W)",
+    "geoid": "36061014300",
+    "ntaname": "Central Park",
+    "boroname": "Manhattan",
+    "daytime_routes": "N,R,W"
+  },
+  {
+    "station_complex_id": "80",
+    "station_complex": "121 St (J,Z)",
+    "geoid": "36081014400",
+    "ntaname": "Richmond Hill",
+    "boroname": "Queens",
+    "daytime_routes": "J,Z"
+  },
+  {
+    "station_complex_id": "81",
+    "station_complex": "111 St (J)",
+    "geoid": "36081012400",
+    "ntaname": "Richmond Hill",
+    "boroname": "Queens",
+    "daytime_routes": "J"
+  },
+  {
+    "station_complex_id": "82",
+    "station_complex": "104 St (J,Z)",
+    "geoid": "36081002600",
+    "ntaname": "Richmond Hill",
+    "boroname": "Queens",
+    "daytime_routes": "J,Z"
+  },
+  {
+    "station_complex_id": "83",
+    "station_complex": "Woodhaven Blvd (J,Z)",
+    "geoid": "36081002200",
+    "ntaname": "Woodhaven",
+    "boroname": "Queens",
+    "daytime_routes": "J,Z"
+  },
+  {
+    "station_complex_id": "84",
+    "station_complex": "85 St-Forest Pkwy (J)",
+    "geoid": "36081001200",
+    "ntaname": "Woodhaven",
+    "boroname": "Queens",
+    "daytime_routes": "J"
+  },
+  {
+    "station_complex_id": "85",
+    "station_complex": "75 St-Elderts Ln (J,Z)",
+    "geoid": "36081000400",
+    "ntaname": "Woodhaven",
+    "boroname": "Queens",
+    "daytime_routes": "J,Z"
+  },
+  {
+    "station_complex_id": "86",
+    "station_complex": "Cypress Hills (J)",
+    "geoid": "36047118201",
+    "ntaname": "Cypress Hills",
+    "boroname": "Brooklyn",
+    "daytime_routes": "J"
+  },
+  {
+    "station_complex_id": "87",
+    "station_complex": "Crescent St (J,Z)",
+    "geoid": "36047117800",
+    "ntaname": "Cypress Hills",
+    "boroname": "Brooklyn",
+    "daytime_routes": "J,Z"
+  },
+  {
+    "station_complex_id": "88",
+    "station_complex": "Norwood Av (J,Z)",
+    "geoid": "36047117400",
+    "ntaname": "Cypress Hills",
+    "boroname": "Brooklyn",
+    "daytime_routes": "J,Z"
+  },
+  {
+    "station_complex_id": "89",
+    "station_complex": "Cleveland St (J)",
+    "geoid": "36047116800",
+    "ntaname": "Cypress Hills",
+    "boroname": "Brooklyn",
+    "daytime_routes": "J"
+  },
+  {
+    "station_complex_id": "9",
+    "station_complex": "57 St-7 Av (N,Q,R,W)",
+    "geoid": "36061013700",
+    "ntaname": "Midtown-Times Square",
+    "boroname": "Manhattan",
+    "daytime_routes": "N,Q,R,W"
+  },
+  {
+    "station_complex_id": "90",
+    "station_complex": "Van Siclen Av (J,Z)",
+    "geoid": "36047119800",
+    "ntaname": "East New York (North)",
+    "boroname": "Brooklyn",
+    "daytime_routes": "J,Z"
+  },
+  {
+    "station_complex_id": "91",
+    "station_complex": "Alabama Av (J,Z)",
+    "geoid": "36047119800",
+    "ntaname": "East New York (North)",
+    "boroname": "Brooklyn",
+    "daytime_routes": "J,Z"
+  },
+  {
+    "station_complex_id": "93",
+    "station_complex": "Chauncey St (J,Z)",
+    "geoid": "36047036900",
+    "ntaname": "Ocean Hill",
+    "boroname": "Brooklyn",
+    "daytime_routes": "J,Z"
+  },
+  {
+    "station_complex_id": "94",
+    "station_complex": "Halsey St (J)",
+    "geoid": "36047039700",
+    "ntaname": "Bushwick (East)",
+    "boroname": "Brooklyn",
+    "daytime_routes": "J"
+  },
+  {
+    "station_complex_id": "95",
+    "station_complex": "Gates Av (J,Z)",
+    "geoid": "36047039700",
+    "ntaname": "Bushwick (East)",
+    "boroname": "Brooklyn",
+    "daytime_routes": "J,Z"
+  },
+  {
+    "station_complex_id": "96",
+    "station_complex": "Kosciuszko St (J)",
+    "geoid": "36047028900",
+    "ntaname": "Bedford-Stuyvesant (East)",
+    "boroname": "Brooklyn",
+    "daytime_routes": "J"
+  },
+  {
+    "station_complex_id": "97",
+    "station_complex": "Myrtle Av (M,J,Z)",
+    "geoid": "36047028700",
+    "ntaname": "Bedford-Stuyvesant (East)",
+    "boroname": "Brooklyn",
+    "daytime_routes": "J,M,Z"
+  },
+  {
+    "station_complex_id": "98",
+    "station_complex": "Flushing Av (M,J)",
+    "geoid": "36047028501",
+    "ntaname": "Bedford-Stuyvesant (East)",
+    "boroname": "Brooklyn",
+    "daytime_routes": "J,M"
+  },
+  {
+    "station_complex_id": "99",
+    "station_complex": "Lorimer St (M,J)",
+    "geoid": "36047049100",
+    "ntaname": "East Williamsburg",
+    "boroname": "Brooklyn",
+    "daytime_routes": "J,M"
+  },
+  {
+    "station_complex_id": "TRAM1",
+    "station_complex": "RI Tramway (Manhattan)",
+    "geoid": "36061011000",
+    "ntaname": "Upper East Side-Lenox Hill-Roosevelt Island",
+    "boroname": "Manhattan",
+    "daytime_routes": ""
+  },
+  {
+    "station_complex_id": "TRAM2",
+    "station_complex": "RI Tramway (Roosevelt)",
+    "geoid": "36061023804",
+    "ntaname": "Upper East Side-Lenox Hill-Roosevelt Island",
+    "boroname": "Manhattan",
+    "daytime_routes": ""
+  }
+]
