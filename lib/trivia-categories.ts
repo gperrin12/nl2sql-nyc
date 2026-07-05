@@ -2,6 +2,11 @@
  * Trivia category catalog + session diversity (one plan per 10-question run).
  */
 
+import {
+  isTemplatedMetricId,
+  METRIC_TEMPLATES,
+} from "@/lib/trivia-metric-templates";
+
 export type TriviaDeck = "mta" | "311" | "grab-bag";
 
 export const DEFAULT_TRIVIA_DECK: TriviaDeck = "mta";
@@ -149,6 +154,11 @@ export const TRIVIA_CATEGORY_DEFS: TriviaCategoryDef[] = [
     family: "transit",
     label: "busiest subway line by total ridership at its stations in 2025 (approximate — multi-line stations counted toward each line they serve)",
   },
+  ...METRIC_TEMPLATES.map((t) => ({
+    id: t.id,
+    family: t.family,
+    label: t.label,
+  })),
   // Cross-dataset angles
   {
     id: "compare-boroughs",
@@ -327,9 +337,15 @@ export type TriviaSessionConstraints = {
   categoryId?: string;
   /** Prior question texts in this session — model must not repeat. */
   excludeQuestions?: string[];
+  /** Prior correct-answer labels this session — templated path re-rolls; model path soft-excludes. */
+  excludeAnswers?: string[];
   /** Families already used this session (hint for model). */
   usedFamilies?: string[];
 };
+
+export function isTemplatedMetricCategory(id: string): boolean {
+  return isTemplatedMetricId(id);
+}
 
 export function pickCategoryForRequest(
   constraints?: TriviaSessionConstraints

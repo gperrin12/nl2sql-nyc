@@ -10,6 +10,7 @@ import {
   buildSessionCategoryPlan,
   categoriesForDeck,
 } from "@/lib/trivia-categories";
+import { EXCLUDE_ANSWERS_WINDOW } from "@/lib/trivia-session";
 import { generateVerifiedTriviaQuestion } from "@/lib/trivia-generate-verified";
 
 // Re-exported so server callers can keep importing constants from lib/trivia-room.
@@ -122,36 +123,36 @@ export async function buildLockedQuestionSet(
   const questions: TriviaRoomQuestion[] = [];
   let lastFailure: string | null = null;
 
-  for (
-    let round = 0;
-    round < MAX_BUILD_ROUNDS && questions.length < length;
-    round++
-  ) {
-    const remaining = length - questions.length;
-    const settled = await Promise.all(
-      Array.from({ length: remaining }, (_, i) => {
-        // Keep category variety across rounds by continuing through the plan.
-        const planIndex = (questions.length + i) % plan.length;
-        return generateOneRoomQuestion(plan[planIndex]);
-      })
-    );
+  while (questions.length < length) {
+    const categoryId = plan[questions.length % plan.length];
+    const excludeQuestions = questions.map((q) => q.question);
+    const excludeAnswers = questions
+      .map((q) => q.choices[q.correctIndex])
+      .slice(-EXCLUDE_ANSWERS_WINDOW);
 
-    for (const r of settled) {
-      if (r.ok) questions.push(r.question);
-      else lastFailure = r.reason;
+    let got = false;
+    for (let attempt = 0; attempt < MAX_BUILD_ROUNDS && !got; attempt++) {
+      const r = await generateOneRoomQuestion(categoryId, {
+        excludeQuestions: excludeQuestions.length ? excludeQuestions : undefined,
+        excludeAnswers: excludeAnswers.length ? excludeAnswers : undefined,
+      });
+      if (r.ok) {
+        questions.push(r.question);
+        got = true;
+      } else {
+        lastFailure = r.reason;
+      }
     }
+
+    if (!got) break;
   }
 
   if (questions.length === 0) {
-    // Surface the underlying reason (e.g. Anthropic/Athena failure) instead of
-    // a blanket failure — otherwise this is undebuggable.
     throw new Error(
       `Failed to generate any trivia questions for the room: ${lastFailure ?? "unknown error"}`
     );
   }
 
-  // Never exceed the requested count (rounds are sized to the shortfall, so this
-  // is just a safety clamp).
   return questions.slice(0, length);
 }
 
@@ -160,12 +161,15 @@ type RoomQuestionResult =
   | { ok: false; reason: string };
 
 async function generateOneRoomQuestion(
-  categoryId: string | undefined
+  categoryId: string | undefined,
+  session?: { excludeQuestions?: string[]; excludeAnswers?: string[] }
 ): Promise<RoomQuestionResult> {
   try {
     const result = await generateVerifiedTriviaQuestion({
       deck: "grab-bag",
       categoryId,
+      excludeQuestions: session?.excludeQuestions,
+      excludeAnswers: session?.excludeAnswers,
       mode: "room",
     });
     if (!result.ok) {

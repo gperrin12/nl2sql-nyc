@@ -8,11 +8,15 @@ import {
   type TriviaSessionConstraints,
 } from "@/lib/trivia-categories";
 
+/** Prior winning option labels passed to generation to avoid repeat answers. */
+export const EXCLUDE_ANSWERS_WINDOW = 6;
+
 export type TriviaSessionState = {
   deck: TriviaDeck;
   categoryPlan: string[];
   planIndex: number;
   recentQuestions: string[];
+  recentAnswers: string[];
   usedFamilies: string[];
 };
 
@@ -27,6 +31,7 @@ export function createTriviaSessionState(
     ),
     planIndex: 0,
     recentQuestions: [],
+    recentAnswers: [],
     usedFamilies: [],
   };
 }
@@ -42,6 +47,10 @@ export function constraintsFromSession(
       state.recentQuestions.length > 0
         ? [...state.recentQuestions]
         : undefined,
+    excludeAnswers:
+      state.recentAnswers.length > 0
+        ? state.recentAnswers.slice(-EXCLUDE_ANSWERS_WINDOW)
+        : undefined,
     usedFamilies:
       state.usedFamilies.length > 0 ? [...state.usedFamilies] : undefined,
   };
@@ -51,7 +60,8 @@ export function constraintsFromSession(
 export function recordTriviaQuestionShown(
   state: TriviaSessionState,
   question: string,
-  categoryId?: string
+  categoryId?: string,
+  correctAnswer?: string
 ): TriviaSessionState {
   const def = categoryId ? getTriviaCategoryById(categoryId) : undefined;
   const usedFamilies = def
@@ -62,10 +72,18 @@ export function recordTriviaQuestionShown(
     -TRIVIA_SESSION_LENGTH
   );
 
+  const recentAnswers =
+    correctAnswer != null && correctAnswer.trim() !== ""
+      ? [...state.recentAnswers, correctAnswer.trim()].slice(
+          -EXCLUDE_ANSWERS_WINDOW
+        )
+      : state.recentAnswers;
+
   return {
     ...state,
     planIndex: Math.min(state.planIndex + 1, state.categoryPlan.length),
     recentQuestions,
+    recentAnswers,
     usedFamilies,
   };
 }
