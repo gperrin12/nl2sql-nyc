@@ -11,6 +11,7 @@ import {
   TLC_TRIP_FILTER_PROMPT_RULE,
   TLC_ZONE_MIN_PICKUPS_PROMPT_RULE,
 } from "@/lib/tlc-trip-filters";
+import { extractJsonText } from "@/lib/extract-json-text";
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 // claude-3-5-haiku-20241022 was retired by Anthropic on 2026-02-19; claude-haiku-4-5
@@ -91,9 +92,7 @@ SCHEMA:
 ${renderTriviaSchemaForPrompt()}`;
 
 function parseTriviaJson(text: string): TriviaQuestionPayload {
-  const trimmed = text.trim();
-  const fenced = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/i);
-  const raw = fenced ? fenced[1].trim() : trimmed;
+  const raw = extractJsonText(text);
   const parsed = JSON.parse(raw) as unknown;
   return TriviaQuestionSchema.parse(parsed);
 }
