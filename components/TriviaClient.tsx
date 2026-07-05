@@ -1,18 +1,18 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { AppNav } from "@/components/AppNav";
 import { CrtWelcome } from "@/components/CrtWelcome";
 import { SqlDisplay } from "@/components/SqlDisplay";
 import { TriviaGameOver } from "@/components/trivia/TriviaGameOver";
+import { TriviaHome } from "@/components/trivia/TriviaHome";
 import { TriviaNamePicker } from "@/components/trivia/TriviaNamePicker";
 import { TriviaLeaderboard } from "@/components/trivia/TriviaLeaderboard";
 import { useTriviaHiScores } from "@/lib/hooks/useTriviaHiScores";
 import { useTriviaQuestion } from "@/lib/hooks/useTriviaQuestion";
 import { useTriviaScore } from "@/lib/hooks/useTriviaScore";
 import {
-  DEFAULT_TRIVIA_DECK,
   TRIVIA_DECK_LABELS,
   TRIVIA_DECK_OPTIONS,
   type TriviaDeck,
@@ -26,36 +26,60 @@ import {
 
 const LABELS = ["A", "B", "C", "D"] as const;
 
-type GamePhase = "playing" | "gameover" | "name" | "leaderboard";
+/** Solo home screen defaults to MTA regardless of DEFAULT_TRIVIA_DECK (multiplayer may differ). */
+const SOLO_DEFAULT_DECK: TriviaDeck = "mta";
+
+type GamePhase = "home" | "playing" | "gameover" | "name" | "leaderboard";
 
 export function TriviaClient() {
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
-  const [phase, setPhase] = useState<GamePhase>("playing");
+  const [phase, setPhase] = useState<GamePhase>("home");
   const [sessionCorrect, setSessionCorrect] = useState(0);
   const [sessionAnswered, setSessionAnswered] = useState(0);
   const [newEntryId, setNewEntryId] = useState<string | null>(null);
   const [sessionKey, setSessionKey] = useState(0);
-  const [deck, setDeck] = useState<TriviaDeck>(DEFAULT_TRIVIA_DECK);
-  const sessionRef = useRef(createTriviaSessionState(DEFAULT_TRIVIA_DECK));
+  const [deck, setDeck] = useState<TriviaDeck>(SOLO_DEFAULT_DECK);
+  const sessionRef = useRef(createTriviaSessionState(SOLO_DEFAULT_DECK));
+  const deckDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const resetSession = useCallback((nextDeck: TriviaDeck) => {
     sessionRef.current = createTriviaSessionState(nextDeck);
     setSessionKey((k) => k + 1);
-    setPhase("playing");
+    setPhase("home");
     setSessionCorrect(0);
     setSessionAnswered(0);
     setNewEntryId(null);
     setSelectedIndex(null);
   }, []);
 
+  useEffect(() => {
+    return () => {
+      if (deckDebounceRef.current) clearTimeout(deckDebounceRef.current);
+    };
+  }, []);
+
   const handleDeckChange = useCallback(
     (nextDeck: TriviaDeck) => {
       if (nextDeck === deck) return;
       setDeck(nextDeck);
-      resetSession(nextDeck);
+
+      if (phase !== "home") {
+        resetSession(nextDeck);
+        return;
+      }
+
+      if (deckDebounceRef.current) clearTimeout(deckDebounceRef.current);
+      deckDebounceRef.current = setTimeout(() => {
+        resetSession(nextDeck);
+        deckDebounceRef.current = null;
+      }, 350);
     },
-    [deck, resetSession]
+    [deck, phase, resetSession]
   );
+
+  const handleStart = useCallback(() => {
+    setPhase("playing");
+  }, []);
 
   const getSessionConstraints = useCallback(
     () => constraintsFromSession(sessionRef.current),
@@ -155,26 +179,68 @@ export function TriviaClient() {
     sessionAnswered === TRIVIA_SESSION_LENGTH && answered;
   const showQuestion =
     sessionAnswered < TRIVIA_SESSION_LENGTH || isLastQuestion;
+  const sessionDeck = sessionRef.current.deck;
+  const homePrefetchReady = !!data && deck === sessionDeck;
+  const homePrefetching =
+    !homePrefetchReady && (loading || advancing || deck !== sessionDeck);
 
   return (
     <main className="crt-root max-w-3xl mx-auto p-6 space-y-6">
       <AppNav />
 
-      <CrtWelcome productName="NL2SQL NYC Trivia">
-        <p className="text-[var(--muted)] text-sm">
-          nyc civic data trivia :: taxi · 311 · crashes · census · subway
-        </p>
-      </CrtWelcome>
+      {phase !== "home" && (
+        <CrtWelcome productName="NL2SQL NYC Trivia">
+          <p className="text-[var(--muted)] text-sm">
+            nyc civic data trivia :: taxi · 311 · crashes · census · subway
+          </p>
+        </CrtWelcome>
+      )}
 
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <TriviaPageHeader deck={deck} onDeckChange={handleDeckChange} />
-        <Link
-          href="/trivia/live"
-          className="rounded-md border-2 border-[var(--accent)] px-4 py-2 text-xs font-medium text-[var(--accent)] hover:bg-[var(--accent)] hover:text-black transition-colors font-mono uppercase tracking-wide"
-        >
-          ▶ Play with friends
-        </Link>
-      </div>
+      {phase === "playing" && (
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <TriviaPageHeader deck={deck} onDeckChange={handleDeckChange} />
+          <Link
+            href="/trivia/live"
+            className="rounded-md border-2 border-[var(--accent)] px-4 py-2 text-xs font-medium text-[var(--accent)] hover:bg-[var(--accent)] hover:text-black transition-colors font-mono uppercase tracking-wide"
+          >
+            ▶ Play with friends
+          </Link>
+        </div>
+      )}
+
+      {phase === "home" && error && (
+        <div className="space-y-3">
+          <div className="rounded-lg border border-[var(--error)]/40 bg-[var(--error)]/10 px-4 py-3 text-sm text-[var(--error)]">
+            {error}
+            <button
+              type="button"
+              onClick={() => void retry()}
+              className="ml-3 underline hover:no-underline"
+            >
+              Retry
+            </button>
+          </div>
+          {errorSql && (
+            <div className="space-y-1">
+              <p className="text-[10px] uppercase tracking-wide text-[var(--muted)] px-1">
+                Last attempted SQL
+              </p>
+              <SqlDisplay sql={errorSql} defaultCollapsed={false} />
+            </div>
+          )}
+        </div>
+      )}
+
+      {phase === "home" && (
+        <TriviaHome
+          deck={deck}
+          onDeckChange={handleDeckChange}
+          onStart={handleStart}
+          prefetching={homePrefetching}
+          prefetchReady={homePrefetchReady}
+          onViewLeaderboard={viewLeaderboard}
+        />
+      )}
 
       {phase === "gameover" && (
         <TriviaGameOver
