@@ -305,9 +305,21 @@ export function HomeClient() {
 
   return (
     <main className="crt-root max-w-6xl mx-auto p-6 space-y-6">
-      <BootHeader />
-
       <AppNav />
+
+      <CrtWelcome>
+        <p className="text-[var(--muted)] text-sm">
+          natural language {"->"} athena sql :: mta subway ridership · taxi trips
+          · 311 requests · nypd collisions · acs census tracts
+        </p>
+        <p className="text-[var(--muted)] text-sm">
+          <span className="text-[var(--muted)]">tables: </span>
+          <span className="font-mono text-[var(--text)]/80">
+            mta_turnstile · gtp_tlc_data · nyc_311 · nypd_collisions ·
+            census_tract_demographics
+          </span>
+        </p>
+      </CrtWelcome>
 
       {/* Tab switcher — DOS function-key style */}
       <div
@@ -464,26 +476,6 @@ async function consumeAgentSse(
       }
     }
   }
-}
-
-function BootHeader() {
-  return (
-    <div className="space-y-3">
-      <CrtWelcome>
-        <p className="text-[var(--muted)] text-sm">
-          natural language {"->"} athena sql :: mta subway ridership · taxi trips
-          · 311 requests · nypd collisions · acs census tracts
-        </p>
-        <p className="text-[var(--muted)] text-sm">
-          <span className="text-[var(--muted)]">tables: </span>
-          <span className="font-mono text-[var(--text)]/80">
-            mta_turnstile · gtp_tlc_data · nyc_311 · nypd_collisions ·
-            census_tract_demographics
-          </span>
-        </p>
-      </CrtWelcome>
-    </div>
-  );
 }
 
 function RepairPrompt({

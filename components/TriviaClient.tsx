@@ -158,7 +158,7 @@ export function TriviaClient() {
     <main className="crt-root max-w-3xl mx-auto p-6 space-y-6">
       <AppNav />
 
-      <CrtWelcome>
+      <CrtWelcome productName="NL2SQL NYC Trivia">
         <p className="text-[var(--muted)] text-sm">
           nyc civic data trivia :: taxi · 311 · crashes · census · subway
         </p>

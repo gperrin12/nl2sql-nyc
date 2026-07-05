@@ -7,9 +7,12 @@ import type { ReactNode } from "react";
  */
 export function CrtWelcome({
   flag = true,
+  productName = "NL2SQL",
   children,
 }: {
   flag?: boolean;
+  /** Highlighted product name after "Welcome to" (default: NL2SQL). */
+  productName?: string;
   children?: ReactNode;
 }) {
   return (
@@ -18,7 +21,7 @@ export function CrtWelcome({
         <p className="text-base">
           <span className="crt-spark">✻</span>{" "}
           <span className="text-[var(--text)]">Welcome to </span>
-          <span className="text-[var(--accent)] font-semibold">NL2SQL</span>
+          <span className="text-[var(--accent)] font-semibold">{productName}</span>
           {flag && (
             <span
               className="crt-flag ml-2"
