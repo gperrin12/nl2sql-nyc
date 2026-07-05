@@ -20,7 +20,7 @@ export async function GET() {
 
   const client = await pool.connect();
   try {
-    const [costTrend, latency, errorRates, scoreTrend, routing] = await Promise.all([
+    const [costTrend, latency, errorRates, scoreTrend, routing, costByBackend] = await Promise.all([
       // Query 1: Cost trend (30 days, by day)
       client.query(`
         SELECT
@@ -133,6 +133,29 @@ export async function GET() {
         GROUP BY route
         ORDER BY count DESC
       `),
+      // Query 6: Cost by backend (30 days) — nl2sql vs rag vs trivia-solo vs trivia-room, etc.
+      client.query(`
+        WITH by_backend AS (
+          SELECT
+            COALESCE(backend, 'unknown') AS backend,
+            COUNT(*)::int AS query_count,
+            COALESCE(SUM(cost_usd), 0)::float8 AS total_cost_usd
+          FROM nl2sql.query_runs
+          WHERE created_at >= NOW() - INTERVAL '30 days'
+            AND cost_usd IS NOT NULL
+          GROUP BY 1
+        )
+        SELECT
+          backend,
+          query_count,
+          total_cost_usd,
+          ROUND(
+            (100.0 * total_cost_usd / NULLIF(SUM(total_cost_usd) OVER (), 0))::numeric,
+            2
+          )::float8 AS pct
+        FROM by_backend
+        ORDER BY total_cost_usd DESC
+      `),
     ]);
 
     return NextResponse.json({
@@ -141,6 +164,7 @@ export async function GET() {
       errorRates: errorRates.rows,
       scoreTrend: scoreTrend.rows,
       routing: routing.rows,
+      costByBackend: costByBackend.rows,
     });
   } catch (e) {
     const detail = e instanceof Error ? e.message : String(e);

@@ -125,14 +125,24 @@ export const TRIVIA_CATEGORY_DEFS: TriviaCategoryDef[] = [
     label: "busiest subway station complexes by total ridership in 2025 (SUM(ridership), not row counts)",
   },
   {
-    id: "transit-omny-share",
+    id: "transit-outer-borough-station",
     family: "transit",
-    label: "OMNY vs MetroCard ridership share by borough in 2025 (payment_method)",
+    label: "busiest subway station complex OUTSIDE Manhattan by total ridership in 2025",
   },
   {
-    id: "transit-fair-fare",
+    id: "transit-date-ridership",
     family: "transit",
-    label: "Fair Fare ridership share across boroughs in 2025 (fare_class_category LIKE '%Fair Fare%')",
+    label: "highest subway ridership by station or borough on a specific notable 2025 date (holiday, storm, parade, event day)",
+  },
+  {
+    id: "transit-neighborhood",
+    family: "transit",
+    label: "highest subway ridership by NYC neighborhood (NTA) in 2025, via station lat/lon → census tract spatial join",
+  },
+  {
+    id: "transit-census-neighborhood",
+    family: "transit",
+    label: "highest subway ridership among neighborhoods meeting a census filter (e.g. high-income tracts, majority-Spanish-speaking) in 2025",
   },
   // Cross-dataset angles
   {
@@ -208,12 +218,37 @@ export function getCategoryGenerationHint(categoryId: string): string | undefine
     "transit-busiest-station":
       "mta_turnstile: rank by SUM(TRY_CAST(ridership AS DOUBLE)) — NEVER COUNT(*) (rows are fare-class buckets). " +
       "answer_label = station_complex (GROUP BY station_complex_id). Filter year = '2025'.",
-    "transit-omny-share":
-      "mta_turnstile: payment_method is lowercase 'omny'/'metrocard'; SUM(TRY_CAST(ridership AS DOUBLE)) per borough. " +
-      "borough is Title Case ('Manhattan') — never UPPER(). Filter year = '2025'.",
-    "transit-fair-fare":
-      "mta_turnstile: Fair Fare share = SUM(ridership) WHERE fare_class_category LIKE '%Fair Fare%' over SUM(ridership) all classes, by borough. " +
-      "TRY_CAST(ridership AS DOUBLE); borough Title Case; year = '2025'.",
+    "transit-outer-borough-station":
+      "mta_turnstile: SUM(TRY_CAST(ridership AS DOUBLE)) by station_complex WHERE year = '2025' " +
+      "AND borough <> 'Manhattan' (borough is Title Case — never UPPER()). GROUP BY station_complex_id; " +
+      "answer_label = MIN(station_complex). NEVER COUNT(*). Do NOT reference payment_method or fare_class_category.",
+    "transit-date-ridership":
+      "mta_turnstile: pick ONE real notable 2025 date and NAME it in the question (e.g. NYC Marathon Sunday, " +
+      "July 4, a major snowstorm day, New Year's Day). Filter DATE(TRY_CAST(transit_timestamp AS TIMESTAMP)) = DATE '2025-MM-DD' " +
+      "AND year = '2025' AND month = 'MM' (include the month partition literal for pruning). Rank station_complex " +
+      "(or borough) by SUM(TRY_CAST(ridership AS DOUBLE)) DESC. answer_label = station_complex or borough. " +
+      "For a more surprising winner, rank stations/boroughs and consider excluding Manhattan. No payment_method / fare_class_category.",
+    "transit-neighborhood":
+      "mta_turnstile → NYC neighborhood (NTA). Aggregate to STATION level FIRST — never spatial-join raw hourly rows " +
+      "(millions of rows × 2,300 polygons is far too slow):\n" +
+      "WITH stn AS (SELECT station_complex_id, MIN(station_complex) AS station_complex, " +
+      "AVG(latitude) AS lat, AVG(longitude) AS lon, SUM(TRY_CAST(ridership AS DOUBLE)) AS rides " +
+      "FROM mta_turnstile WHERE year = '2025' AND latitude IS NOT NULL AND longitude IS NOT NULL " +
+      "GROUP BY station_complex_id)\n" +
+      "Then point-in-polygon each station into census_tracts ct: " +
+      "ST_CONTAINS(ST_GEOMETRY_FROM_TEXT(ct.geometry_wkt), ST_Point(stn.lon, stn.lat)) — longitude FIRST " +
+      "(ST_Point(lat, lon) matches ZERO tracts, silently). Roll up SUM(rides) by ct.ntaname; ORDER BY 2 DESC LIMIT 4. " +
+      "answer_label = ct.ntaname. Qualify ct.ntaname / ct.geoid (AMBIGUOUS_NAME).",
+    "transit-census-neighborhood":
+      "Same station-first aggregation + spatial join into census_tracts ct as transit-neighborhood, then " +
+      "LEFT JOIN census_tract_demographics demo ON TRIM(CAST(ct.geoid AS VARCHAR)) = TRIM(CAST(demo.geoid AS VARCHAR)). " +
+      "Filter neighborhoods by ONE real demographic column — open lib/schemas.ts, read the census_tract_demographics " +
+      "column list, and use an ACTUAL column name; do NOT invent one. Parse ACS strings with " +
+      "TRY_CAST(TRIM(REGEXP_REPLACE(demo.median_household_income_2023, ',', '')) AS DOUBLE) — trim the VARCHAR " +
+      "before casting, never TRIM(TRY_CAST(... AS DOUBLE)). Never gate on TRY_CAST(... AS BIGINT) IS NOT NULL. " +
+      "State the census filter in the question text (e.g. 'Among neighborhoods where median household income tops $100k, " +
+      "which had the highest 2025 subway ridership?'). Use median_household_income_2023 or lang_lim_eng_spanish_2023 " +
+      "as example filters — both are real columns. answer_label = ct.ntaname; metric = SUM(rides) DESC LIMIT 4.",
   };
   return hints[categoryId];
 }

@@ -60,6 +60,9 @@ export function checkSql(rawSql: string): GuardrailResult {
     };
   }
 
+  const trimNumeric = checkTrimOnNumeric(stripped);
+  if (trimNumeric) return trimNumeric;
+
   if (
     /\bSUBSTRING\s*\(\s*(?:(?:\w+)\.)?(tpep_pickup_datetime|tpep_dropoff_datetime|created_date|closed_date|crash_date|pickup_datetime|dropoff_datetime)\b/i.test(
       stripped
@@ -77,4 +80,94 @@ export function checkSql(rawSql: string): GuardrailResult {
   }
 
   return { ok: true, sql: fixWarehouseDateCasts(stripped) };
+}
+
+/** TRIM() in Athena/Trino accepts only char/varchar — not DOUBLE/BIGINT aggregates. */
+function checkTrimOnNumeric(sql: string): GuardrailResult | null {
+  const trimIssues = findTrimOnNumericIssues(sql);
+  if (trimIssues.length === 0) return null;
+  return { ok: false, reason: trimIssues[0] };
+}
+
+const NUMERIC_CAST_TYPES =
+  /\bAS\s+(?:DOUBLE|BIGINT|INTEGER|INT|REAL|FLOAT|DECIMAL)\b/i;
+
+/** CTE/SELECT aliases that are always numeric aggregates in trivia SQL. */
+const TRIM_NUMERIC_ALIAS = /^(?:\w+\.)?(?:rides|total_rides|metric)\s*$/i;
+
+/** Extract inner text of a balanced (...) group starting at `openIndex` ('('). */
+function extractBalancedParenContent(sql: string, openIndex: number): string | null {
+  if (sql[openIndex] !== "(") return null;
+
+  let depth = 0;
+  let inString = false;
+
+  for (let i = openIndex; i < sql.length; i++) {
+    const ch = sql[i];
+    if (inString) {
+      if (ch === "'") inString = false;
+      continue;
+    }
+    if (ch === "'") {
+      inString = true;
+      continue;
+    }
+    if (ch === "(") depth++;
+    else if (ch === ")") {
+      depth--;
+      if (depth === 0) return sql.slice(openIndex + 1, i);
+    }
+  }
+  return null;
+}
+
+/** All TRIM(...) argument spans in SQL (handles nested parentheses). */
+function findTrimArguments(sql: string): string[] {
+  const args: string[] = [];
+  const re = /\bTRIM\s*\(/gi;
+  let match: RegExpExecArray | null;
+  while ((match = re.exec(sql)) !== null) {
+    const openIndex = match.index + match[0].length - 1;
+    const inner = extractBalancedParenContent(sql, openIndex);
+    if (inner != null) args.push(inner.trim());
+  }
+  return args;
+}
+
+function findTrimOnNumericIssues(sql: string): string[] {
+  const issues: string[] = [];
+
+  for (const inner of findTrimArguments(sql)) {
+    if (/^(?:TRY_)?CAST\s*\(/i.test(inner) && NUMERIC_CAST_TYPES.test(inner)) {
+      issues.push(
+        "TRIM() on a numeric CAST/TRY_CAST is invalid in Athena (FUNCTION_NOT_FOUND). " +
+          "Trim VARCHAR first, then parse: TRY_CAST(TRIM(REGEXP_REPLACE(col, ',', '')) AS DOUBLE). " +
+          "For geoid joins use TRIM(CAST(geoid AS VARCHAR))."
+      );
+      continue;
+    }
+
+    if (/^(?:SUM|AVG|MIN|MAX|COUNT)\s*\(/i.test(inner)) {
+      issues.push(
+        "TRIM() on an aggregate (SUM/AVG/MIN/MAX/COUNT) is invalid — aggregates are numeric. " +
+          "Use the numeric expression directly in ORDER BY / WHERE, or CAST to VARCHAR only if you need text."
+      );
+      continue;
+    }
+
+    if (/^(?:\w+\.)?(?:latitude|longitude|\blat\b|\blon\b)\s*$/i.test(inner)) {
+      issues.push(
+        "TRIM() on latitude/longitude is invalid (they are DOUBLE). Use them directly in ST_Point(longitude, latitude)."
+      );
+      continue;
+    }
+
+    if (TRIM_NUMERIC_ALIAS.test(inner)) {
+      issues.push(
+        `TRIM() on ${inner} is invalid — that alias is a numeric aggregate. Use it directly in ORDER BY / WHERE.`
+      );
+    }
+  }
+
+  return issues;
 }

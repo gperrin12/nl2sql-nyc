@@ -22,6 +22,11 @@ const RATE_LIKE =
 const MIN_DIRECTION_RE =
   /\b(lowest|fewest|smallest|minimum|bottom|fastest|quickest|shortest)\b|(?<!at\s)\bleast\b/i;
 
+const MTA_FARE_TYPE_RE =
+  /\b(omny|metro\s?card|fair\s?fare|full\s?fare|reduced\s?fare|fare[\s_-]?class(?:\s+category)?|payment\s?method)\b/i;
+
+const MTA_FARE_COLUMN_RE = /\b(payment_method|fare_class_category)\b/i;
+
 const DATASET_PATTERNS: { id: Dataset; re: RegExp }[] = [
   { id: "311", re: /\b311\b|complaint|service request|rodent|noise complaint/i },
   { id: "collisions", re: /\bcollision|crash|motor vehicle|injur(y|ies)|nypd/i },
@@ -87,6 +92,31 @@ function isAllowedDemographicRate(question: string, datasets: Set<Dataset>): boo
   return /\b(per capita|per resident|per 1,?000|per thousand|population|residents?)\b/i.test(
     question
   );
+}
+
+export function checkMtaFareTypeBanned(question: string): TriviaSenseResult {
+  if (MTA_FARE_TYPE_RE.test(question)) {
+    return {
+      ok: false,
+      reason:
+        "Fare-type and payment-method questions (OMNY vs MetroCard, Fair Fare, fare class) are disabled. " +
+        "Ask a ridership-magnitude question instead — busiest station, busiest neighborhood, or highest ridership " +
+        "on a specific date — ranked by SUM(ridership).",
+    };
+  }
+  return { ok: true };
+}
+
+export function checkMtaFareColumnsBanned(sql: string): TriviaSenseResult {
+  if (MTA_FARE_COLUMN_RE.test(sql)) {
+    return {
+      ok: false,
+      reason:
+        "SQL references payment_method or fare_class_category, which are disabled for trivia. " +
+        "Rank by SUM(TRY_CAST(ridership AS DOUBLE)) grouped by station_complex, borough, or neighborhood instead.",
+    };
+  }
+  return { ok: true };
 }
 
 /**
@@ -201,6 +231,9 @@ export function validateTriviaQuestionSense(
         "Ask a highest/most/top ranking instead.",
     };
   }
+
+  const fareType = checkMtaFareTypeBanned(q);
+  if (!fareType.ok) return fareType;
 
   const cross = checkCrossDatasetRate(q);
   if (!cross.ok) return cross;

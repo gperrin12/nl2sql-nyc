@@ -90,6 +90,7 @@ export function TriviaClient() {
     loading,
     advancing,
     error,
+    errorSql,
     prefetchReady,
     advance,
     retry,
@@ -158,7 +159,7 @@ export function TriviaClient() {
     <main className="crt-root max-w-3xl mx-auto p-6 space-y-6">
       <AppNav />
 
-      <CrtWelcome>
+      <CrtWelcome productName="NL2SQL NYC Trivia">
         <p className="text-[var(--muted)] text-sm">
           nyc civic data trivia :: taxi · 311 · crashes · census · subway
         </p>
@@ -221,15 +222,25 @@ export function TriviaClient() {
       )}
 
       {phase === "playing" && error && (
-        <div className="rounded-lg border border-[var(--error)]/40 bg-[var(--error)]/10 px-4 py-3 text-sm text-[var(--error)]">
-          {error}
-          <button
-            type="button"
-            onClick={() => void retry()}
-            className="ml-3 underline hover:no-underline"
-          >
-            Retry
-          </button>
+        <div className="space-y-3">
+          <div className="rounded-lg border border-[var(--error)]/40 bg-[var(--error)]/10 px-4 py-3 text-sm text-[var(--error)]">
+            {error}
+            <button
+              type="button"
+              onClick={() => void retry()}
+              className="ml-3 underline hover:no-underline"
+            >
+              Retry
+            </button>
+          </div>
+          {errorSql && (
+            <div className="space-y-1">
+              <p className="text-[10px] uppercase tracking-wide text-[var(--muted)] px-1">
+                Last attempted SQL
+              </p>
+              <SqlDisplay sql={errorSql} defaultCollapsed={false} />
+            </div>
+          )}
         </div>
       )}
 

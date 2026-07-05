@@ -4,10 +4,20 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 const links = [
-  { href: "/", label: "Home" },
+  { href: "/", label: "Trivia" },
+  { href: "/query", label: "Query" },
   { href: "/dashboard", label: "Eval Dashboard" },
-  { href: "/trivia", label: "Trivia" },
 ] as const;
+
+function isActive(pathname: string, href: (typeof links)[number]["href"]): boolean {
+  if (href === "/") {
+    return pathname === "/" || pathname.startsWith("/trivia/");
+  }
+  if (href === "/dashboard") {
+    return pathname === "/dashboard" || pathname.startsWith("/dashboard/");
+  }
+  return pathname === href;
+}
 
 export function AppNav() {
   const pathname = usePathname();
@@ -15,10 +25,7 @@ export function AppNav() {
   return (
     <nav className="flex items-center gap-4 text-sm border-b border-[var(--border)] pb-3 mb-4">
       {links.map(({ href, label }) => {
-        const active =
-          href === "/dashboard"
-            ? pathname === "/dashboard" || pathname.startsWith("/dashboard/")
-            : pathname === href;
+        const active = isActive(pathname, href);
         return (
           <Link
             key={href}

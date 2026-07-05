@@ -10,8 +10,20 @@
 import { startQuery } from "@/lib/athena";
 import { waitForAthenaResults } from "@/lib/athena-wait";
 import { checkSql } from "@/lib/guardrails";
-import { generateTriviaQuestion } from "@/lib/trivia";
+import { recordTriviaGeneration } from "@/lib/record-query-run";
 import {
+  addUsage,
+  buildTokenSummary,
+  computeCostUsd,
+  createAccumulator,
+} from "@/lib/query-run-tokens";
+import {
+  generateTriviaQuestion,
+  getTriviaModel,
+  TriviaGenerationError,
+} from "@/lib/trivia";
+import {
+  checkMtaFareColumnsBanned,
   formatTriviaSenseFeedback,
   validateTriviaQuestionSense,
 } from "@/lib/trivia-sense";
@@ -40,6 +52,8 @@ export type VerifiedTriviaSession = {
   categoryId?: string;
   excludeQuestions?: string[];
   usedFamilies?: string[];
+  /** Which surface triggered this generation — logged as backend "trivia-solo" / "trivia-room". */
+  mode?: "solo" | "room";
 };
 
 export type VerifiedTriviaQuestion = {
@@ -69,6 +83,25 @@ export async function generateVerifiedTriviaQuestion(
 ): Promise<VerifiedTriviaResult> {
   let lastSql: string | undefined;
   let lastFeedback: string | undefined;
+  const mode = session.mode ?? "solo";
+  const tokenAcc = createAccumulator();
+  const model = getTriviaModel();
+
+  const logFailure = (attempts: number, question?: string) => {
+    void recordTriviaGeneration({
+      mode,
+      question: question ?? "(trivia question generation failed)",
+      sql: lastSql,
+      model,
+      athenaState: "FAILED",
+      errorReason: lastFeedback ?? "Unknown failure",
+      tokensUsed: buildTokenSummary(tokenAcc),
+      costUsd: computeCostUsd(tokenAcc.input_tokens, tokenAcc.output_tokens, model),
+      categoryId: session.categoryId,
+      deck: session.deck,
+      attempts,
+    });
+  };
 
   for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
     let generated;
@@ -84,12 +117,25 @@ export async function generateVerifiedTriviaQuestion(
         previousSql: lastSql,
       });
     } catch (e) {
+      if (e instanceof TriviaGenerationError) {
+        addUsage(tokenAcc, {
+          input_tokens: e.usage.inputTokens,
+          output_tokens: e.usage.outputTokens,
+        });
+      }
+      lastFeedback = errorMessage(e);
+      logFailure(attempt + 1);
       return {
         ok: false,
         error: "Failed to generate trivia question",
         detail: errorMessage(e),
       };
     }
+
+    addUsage(tokenAcc, {
+      input_tokens: generated.usage.inputTokens,
+      output_tokens: generated.usage.outputTokens,
+    });
 
     const sense = validateTriviaQuestionSense(generated.question, generated.sql);
     if (!sense.ok) {
@@ -105,13 +151,30 @@ export async function generateVerifiedTriviaQuestion(
       continue;
     }
 
+    const mtaFareSql = checkMtaFareColumnsBanned(guard.sql);
+    if (!mtaFareSql.ok) {
+      lastSql = guard.sql;
+      lastFeedback = mtaFareSql.reason;
+      continue;
+    }
+
     let results;
     try {
       const executionId = await startQuery(guard.sql);
       results = await waitForAthenaResults(executionId, { pollMs: 400 });
     } catch (e) {
       lastSql = guard.sql;
-      lastFeedback = `Athena error: ${errorMessage(e)}`;
+      const athenaMsg = errorMessage(e);
+      if (/FUNCTION_NOT_FOUND.*\btrim\b/i.test(athenaMsg)) {
+        lastFeedback =
+          "Athena rejected TRIM() on a numeric value (DOUBLE/BIGINT). " +
+          "TRIM is VARCHAR-only: TRY_CAST(TRIM(REGEXP_REPLACE(acs_col, ',', '')) AS DOUBLE) for census; " +
+          "TRIM(CAST(geoid AS VARCHAR)) for geoid joins; never TRIM(TRY_CAST(... AS DOUBLE)), TRIM(SUM(...)), or TRIM(latitude). " +
+          `Original error: ${athenaMsg}`;
+        console.warn("[trivia] TRIM on numeric — rejected SQL:\n", guard.sql);
+      } else {
+        lastFeedback = `Athena error: ${athenaMsg}`;
+      }
       continue;
     }
 
@@ -194,6 +257,26 @@ export async function generateVerifiedTriviaQuestion(
       optionsRealignedFromAthena
     );
 
+    void recordTriviaGeneration({
+      mode,
+      question: generated.question,
+      sql: guard.sql,
+      model: generated.model,
+      athenaState: "SUCCEEDED",
+      scannedBytes: results.scannedBytes,
+      runtimeMs: results.executionTimeMs,
+      rowCount: results.rows.length,
+      tokensUsed: buildTokenSummary(tokenAcc),
+      costUsd: computeCostUsd(
+        tokenAcc.input_tokens,
+        tokenAcc.output_tokens,
+        generated.model
+      ),
+      categoryId: generated.categoryId,
+      deck: session.deck,
+      attempts: attempt + 1,
+    });
+
     return {
       ok: true,
       question: {
@@ -215,6 +298,8 @@ export async function generateVerifiedTriviaQuestion(
       },
     };
   }
+
+  logFailure(MAX_ATTEMPTS);
 
   return {
     ok: false,

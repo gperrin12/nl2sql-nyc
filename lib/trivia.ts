@@ -11,9 +11,12 @@ import {
   TLC_TRIP_FILTER_PROMPT_RULE,
   TLC_ZONE_MIN_PICKUPS_PROMPT_RULE,
 } from "@/lib/tlc-trip-filters";
+import { extractJsonText } from "@/lib/extract-json-text";
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-const DEFAULT_TRIVIA_MODEL = "claude-3-5-haiku-20241022";
+// claude-3-5-haiku-20241022 was retired by Anthropic on 2026-02-19; claude-haiku-4-5
+// (alias for claude-haiku-4-5-20251001) is the current replacement.
+const DEFAULT_TRIVIA_MODEL = "claude-haiku-4-5";
 
 const TriviaQuestionSchema = z.object({
   question: z.string().min(12).max(500),
@@ -26,6 +29,19 @@ const TriviaQuestionSchema = z.object({
 });
 
 export type TriviaQuestionPayload = z.infer<typeof TriviaQuestionSchema>;
+
+/** Thrown on generation/parse failure; carries usage so failed attempts still count toward cost tracking. */
+export class TriviaGenerationError extends Error {
+  usage: { inputTokens: number; outputTokens: number };
+  constructor(
+    message: string,
+    usage: { inputTokens: number; outputTokens: number }
+  ) {
+    super(message);
+    this.name = "TriviaGenerationError";
+    this.usage = usage;
+  }
+}
 
 const TRIVIA_SYSTEM = `You write pub-trivia multiple-choice questions for NYC open data. Every question MUST be answerable by running one Athena SQL query you provide.
 
@@ -43,7 +59,7 @@ OPTIONS ↔ SQL (mandatory workflow):
 3. correctIndex points to whichever option equals the TOP row's answer_label after ORDER BY metric DESC.
 4. The question text must ask about the same entities as answer_label (if SQL returns taxi zone names, options and question are about those zones).
 
-ALLOWED TABLES ONLY: nyc_311, nypd_collisions, gtp_tlc_data, taxi_zones, census_tracts, census_tract_demographics.
+ALLOWED TABLES ONLY: nyc_311, nypd_collisions, gtp_tlc_data, taxi_zones, census_tracts, census_tract_demographics, mta_turnstile.
 
 SQL RULES (critical):
 - Partitioned tables (gtp_tlc_data, nypd_collisions, nyc_311): always filter year (and month when practical). year/month are VARCHAR — use quoted literals (year = '2025').
@@ -54,6 +70,7 @@ SQL RULES (critical):
 - options[correctIndex] text must match Athena output exactly (same spelling/casing as returned: BROOKLYN vs Brooklyn vs Manhattan).
 - TRY_CAST for numeric math on VARCHAR columns; nyc_311.borough is UPPERCASE ('BROOKLYN'); taxi_zones.borough is Title Case ('Manhattan').
 - TLC joins: TRY_CAST(pulocationid AS BIGINT) = TRY_CAST(locationid AS BIGINT); never TRIM(locationid).
+- TRIM() is VARCHAR-only in Athena: TRIM(CAST(geoid AS VARCHAR)) or TRY_CAST(TRIM(REGEXP_REPLACE(acs_col, ',', '')) AS DOUBLE) for census strings — never TRIM(TRY_CAST(... AS DOUBLE)), TRIM(latitude/longitude), or TRIM(SUM(...)).
 - Never SUBSTRING on timestamp columns — use day_of_week() for weekday/weekend.
 - ${TLC_TRIP_FILTER_PROMPT_RULE}
 - ${TLC_ZONE_MIN_PICKUPS_PROMPT_RULE}
@@ -76,9 +93,7 @@ SCHEMA:
 ${renderTriviaSchemaForPrompt()}`;
 
 function parseTriviaJson(text: string): TriviaQuestionPayload {
-  const trimmed = text.trim();
-  const fenced = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/i);
-  const raw = fenced ? fenced[1].trim() : trimmed;
+  const raw = extractJsonText(text);
   const parsed = JSON.parse(raw) as unknown;
   return TriviaQuestionSchema.parse(parsed);
 }
@@ -107,6 +122,62 @@ function buildUserPrompt(
   return content;
 }
 
+/** Resolved trivia model (same fallback chain used inside generateTriviaQuestion), for cost logging when generation fails before a response is returned. */
+export function getTriviaModel(): string {
+  return (
+    process.env.TRIVIA_CLAUDE_MODEL ??
+    process.env.CLAUDE_MODEL ??
+    DEFAULT_TRIVIA_MODEL
+  );
+}
+
+function isModelNotFoundError(e: unknown): boolean {
+  if (e instanceof Anthropic.NotFoundError) return true;
+  // Belt-and-suspenders: match by status in case the SDK's error class
+  // hierarchy changes across versions.
+  return (
+    e instanceof Anthropic.APIError &&
+    e.status === 404 &&
+    /model/i.test(e.message)
+  );
+}
+
+/**
+ * Anthropic model IDs are pinned snapshots that eventually get retired (see
+ * https://platform.claude.com/docs/en/about-claude/model-deprecations) — there is
+ * no "always latest" alias to fall back on. A misconfigured/stale TRIVIA_CLAUDE_MODEL
+ * or CLAUDE_MODEL env var (e.g. on a hosting provider that wasn't updated) would
+ * otherwise silently fail every trivia generation with a 404. Retry once against
+ * DEFAULT_TRIVIA_MODEL (the model this codebase ships and keeps current) so a
+ * stale env var degrades gracefully instead of taking trivia down entirely.
+ */
+async function createTriviaCompletion(
+  model: string,
+  userContent: string
+): Promise<{ response: Anthropic.Messages.Message; model: string }> {
+  const request = (m: string) =>
+    client.messages.create({
+      model: m,
+      max_tokens: 1024,
+      ...CLAUDE_DETERMINISTIC_SAMPLING,
+      temperature: 0,
+      system: TRIVIA_SYSTEM,
+      messages: [{ role: "user", content: userContent }],
+    });
+
+  try {
+    return { response: await request(model), model };
+  } catch (e) {
+    if (!isModelNotFoundError(e) || model === DEFAULT_TRIVIA_MODEL) throw e;
+
+    console.warn(
+      `[trivia] model "${model}" returned 404 (likely retired/misconfigured) — ` +
+        `retrying once with fallback "${DEFAULT_TRIVIA_MODEL}"`
+    );
+    return { response: await request(DEFAULT_TRIVIA_MODEL), model: DEFAULT_TRIVIA_MODEL };
+  }
+}
+
 export async function generateTriviaQuestion(options?: {
   category?: string;
   categoryId?: string;
@@ -114,12 +185,14 @@ export async function generateTriviaQuestion(options?: {
   feedback?: string;
   previousSql?: string;
 }): Promise<
-  TriviaQuestionPayload & { model: string; categoryId: string; categoryLabel: string }
+  TriviaQuestionPayload & {
+    model: string;
+    categoryId: string;
+    categoryLabel: string;
+    usage: { inputTokens: number; outputTokens: number };
+  }
 > {
-  const model =
-    process.env.TRIVIA_CLAUDE_MODEL ??
-    process.env.CLAUDE_MODEL ??
-    DEFAULT_TRIVIA_MODEL;
+  const model = getTriviaModel();
 
   const sessionConstraints: TriviaSessionConstraints = {
     deck: options?.session?.deck,
@@ -138,25 +211,29 @@ export async function generateTriviaQuestion(options?: {
       `\n\nPrevious SQL failed or was rejected:\n${options.previousSql ?? "(none)"}\n\nFeedback:\n${options.feedback}\n\nGenerate a different question with corrected SQL.`;
   }
 
-  const response = await client.messages.create({
+  const { response, model: modelUsed } = await createTriviaCompletion(
     model,
-    max_tokens: 1024,
-    ...CLAUDE_DETERMINISTIC_SAMPLING,
-    temperature: 0,
-    system: TRIVIA_SYSTEM,
-    messages: [{ role: "user", content: userContent }],
-  });
+    userContent
+  );
+
+  const usage = {
+    inputTokens: response.usage.input_tokens,
+    outputTokens: response.usage.output_tokens,
+  };
 
   const textBlock = response.content.find((b) => b.type === "text");
   if (!textBlock || textBlock.type !== "text") {
-    throw new Error("Claude returned no text content");
+    throw new TriviaGenerationError("Claude returned no text content", usage);
   }
 
   try {
     const payload = parseTriviaJson(textBlock.text);
-    return { ...payload, model, categoryId, categoryLabel };
+    return { ...payload, model: modelUsed, categoryId, categoryLabel, usage };
   } catch (e) {
     const detail = e instanceof Error ? e.message : String(e);
-    throw new Error(`Invalid trivia JSON from model: ${detail}`);
+    throw new TriviaGenerationError(
+      `Invalid trivia JSON from model: ${detail}`,
+      usage
+    );
   }
 }
