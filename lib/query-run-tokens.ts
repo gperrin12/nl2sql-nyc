@@ -32,10 +32,11 @@ export type CostProjection = {
 export const PRICING: Record<string, { input: number; output: number }> = {
   "claude-sonnet-4-6": { input: 3.0, output: 15.0 },
   "claude-sonnet-4-5": { input: 3.0, output: 15.0 },
-  "claude-haiku-4-5": { input: 0.8, output: 4.0 },
+  "claude-haiku-4-5": { input: 1.0, output: 5.0 },
   "claude-opus-4-6": { input: 15.0, output: 75.0 },
-  // Trivia generator defaults (lib/trivia.ts / TRIVIA_CLAUDE_MODEL) — without an
-  // exact entry these previously fell back to Sonnet pricing (3.75x too expensive).
+  // Retired models (see https://platform.claude.com/docs/en/about-claude/model-deprecations)
+  // kept here so historical query_runs cost math stays accurate for rows logged
+  // before the model was replaced (lib/trivia.ts DEFAULT_TRIVIA_MODEL).
   "claude-3-5-haiku-20241022": { input: 0.8, output: 4.0 },
   "claude-3-5-sonnet-20241022": { input: 3.0, output: 15.0 },
   "claude-3-5-sonnet-20240620": { input: 3.0, output: 15.0 },
@@ -43,7 +44,7 @@ export const PRICING: Record<string, { input: number; output: number }> = {
 
 /** Family fallback (by substring) for model strings not in PRICING verbatim. */
 const FAMILY_FALLBACK: { match: RegExp; prices: { input: number; output: number } }[] = [
-  { match: /haiku/i, prices: { input: 0.8, output: 4.0 } },
+  { match: /haiku/i, prices: { input: 1.0, output: 5.0 } },
   { match: /opus/i, prices: { input: 15.0, output: 75.0 } },
   { match: /sonnet/i, prices: { input: 3.0, output: 15.0 } },
 ];

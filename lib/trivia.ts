@@ -13,7 +13,9 @@ import {
 } from "@/lib/tlc-trip-filters";
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-const DEFAULT_TRIVIA_MODEL = "claude-3-5-haiku-20241022";
+// claude-3-5-haiku-20241022 was retired by Anthropic on 2026-02-19; claude-haiku-4-5
+// (alias for claude-haiku-4-5-20251001) is the current replacement.
+const DEFAULT_TRIVIA_MODEL = "claude-haiku-4-5";
 
 const TriviaQuestionSchema = z.object({
   question: z.string().min(12).max(500),
@@ -129,6 +131,53 @@ export function getTriviaModel(): string {
   );
 }
 
+function isModelNotFoundError(e: unknown): boolean {
+  if (e instanceof Anthropic.NotFoundError) return true;
+  // Belt-and-suspenders: match by status in case the SDK's error class
+  // hierarchy changes across versions.
+  return (
+    e instanceof Anthropic.APIError &&
+    e.status === 404 &&
+    /model/i.test(e.message)
+  );
+}
+
+/**
+ * Anthropic model IDs are pinned snapshots that eventually get retired (see
+ * https://platform.claude.com/docs/en/about-claude/model-deprecations) — there is
+ * no "always latest" alias to fall back on. A misconfigured/stale TRIVIA_CLAUDE_MODEL
+ * or CLAUDE_MODEL env var (e.g. on a hosting provider that wasn't updated) would
+ * otherwise silently fail every trivia generation with a 404. Retry once against
+ * DEFAULT_TRIVIA_MODEL (the model this codebase ships and keeps current) so a
+ * stale env var degrades gracefully instead of taking trivia down entirely.
+ */
+async function createTriviaCompletion(
+  model: string,
+  userContent: string
+): Promise<{ response: Anthropic.Messages.Message; model: string }> {
+  const request = (m: string) =>
+    client.messages.create({
+      model: m,
+      max_tokens: 1024,
+      ...CLAUDE_DETERMINISTIC_SAMPLING,
+      temperature: 0,
+      system: TRIVIA_SYSTEM,
+      messages: [{ role: "user", content: userContent }],
+    });
+
+  try {
+    return { response: await request(model), model };
+  } catch (e) {
+    if (!isModelNotFoundError(e) || model === DEFAULT_TRIVIA_MODEL) throw e;
+
+    console.warn(
+      `[trivia] model "${model}" returned 404 (likely retired/misconfigured) — ` +
+        `retrying once with fallback "${DEFAULT_TRIVIA_MODEL}"`
+    );
+    return { response: await request(DEFAULT_TRIVIA_MODEL), model: DEFAULT_TRIVIA_MODEL };
+  }
+}
+
 export async function generateTriviaQuestion(options?: {
   category?: string;
   categoryId?: string;
@@ -162,14 +211,10 @@ export async function generateTriviaQuestion(options?: {
       `\n\nPrevious SQL failed or was rejected:\n${options.previousSql ?? "(none)"}\n\nFeedback:\n${options.feedback}\n\nGenerate a different question with corrected SQL.`;
   }
 
-  const response = await client.messages.create({
+  const { response, model: modelUsed } = await createTriviaCompletion(
     model,
-    max_tokens: 1024,
-    ...CLAUDE_DETERMINISTIC_SAMPLING,
-    temperature: 0,
-    system: TRIVIA_SYSTEM,
-    messages: [{ role: "user", content: userContent }],
-  });
+    userContent
+  );
 
   const usage = {
     inputTokens: response.usage.input_tokens,
@@ -183,7 +228,7 @@ export async function generateTriviaQuestion(options?: {
 
   try {
     const payload = parseTriviaJson(textBlock.text);
-    return { ...payload, model, categoryId, categoryLabel, usage };
+    return { ...payload, model: modelUsed, categoryId, categoryLabel, usage };
   } catch (e) {
     const detail = e instanceof Error ? e.message : String(e);
     throw new TriviaGenerationError(

@@ -150,7 +150,7 @@ export async function GET() {
           query_count,
           total_cost_usd,
           ROUND(
-            100.0 * total_cost_usd / NULLIF(SUM(total_cost_usd) OVER (), 0),
+            (100.0 * total_cost_usd / NULLIF(SUM(total_cost_usd) OVER (), 0))::numeric,
             2
           )::float8 AS pct
         FROM by_backend
