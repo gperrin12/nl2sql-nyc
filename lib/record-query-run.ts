@@ -1,10 +1,12 @@
 import { writeTokensToQueryRunByExecutionId } from "@/lib/query-run-tokens";
+import type { TokenSummary } from "@/lib/query-run-tokens";
 import type { SqlGenerationResult } from "@/lib/claude";
 import type { JudgeResult } from "@/lib/judge";
 import { judgeDetailFromResult } from "@/lib/judge-detail";
 import {
   beginQueryRun,
   finalizeQueryRun,
+  insertQueryRun,
   insertQueryRunStart,
   updateQueryRun,
   updateQueryRunJudge,
@@ -87,6 +89,57 @@ export async function recordQueryRunTokens(
   } catch (e) {
     console.warn(
       "[query-runs] token update failed:",
+      e instanceof Error ? e.message : e
+    );
+  }
+}
+
+/**
+ * Log one trivia question generation (solo or room) on nl2sql.query_runs,
+ * tagged backend "trivia-solo" / "trivia-room". Distinct from the nl2sql chat
+ * logging above: trivia has no incremental Athena polling step, so this logs a
+ * single terminal row (success or exhausted-retries failure) with the full
+ * token/cost total across every generate+verify attempt. Fire-and-forget —
+ * never throws into the trivia generation path.
+ */
+export async function recordTriviaGeneration(input: {
+  mode: "solo" | "room";
+  question: string;
+  sql?: string | null;
+  model?: string | null;
+  athenaState: "SUCCEEDED" | "FAILED";
+  errorReason?: string | null;
+  executionId?: string | null;
+  scannedBytes?: number | null;
+  runtimeMs?: number | null;
+  rowCount?: number | null;
+  tokensUsed: TokenSummary;
+  costUsd: number;
+  categoryId?: string | null;
+  deck?: string | null;
+  attempts: number;
+}): Promise<void> {
+  try {
+    await insertQueryRun({
+      question: input.question,
+      sql: input.sql,
+      model: input.model,
+      backend: input.mode === "room" ? "trivia-room" : "trivia-solo",
+      executionId: input.executionId,
+      athenaState: input.athenaState,
+      errorReason: input.errorReason,
+      scannedBytes: input.scannedBytes,
+      runtimeMs: input.runtimeMs,
+      rowCount: input.rowCount,
+      tokensUsed: input.tokensUsed,
+      costUsd: input.costUsd,
+      triviaCategory: input.categoryId,
+      triviaDeck: input.deck,
+      generationAttempts: input.attempts,
+    });
+  } catch (e) {
+    console.warn(
+      "[query-runs] trivia generation log failed:",
       e instanceof Error ? e.message : e
     );
   }

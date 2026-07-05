@@ -55,12 +55,20 @@ type RoutingRow = {
   pct: number;
 };
 
+type CostByBackendRow = {
+  backend: string;
+  query_count: number;
+  total_cost_usd: number;
+  pct: number;
+};
+
 type DashboardMetrics = {
   costTrend: CostTrendRow[];
   latency: LatencyRow[];
   errorRates: ErrorRateRow[];
   scoreTrend: ScoreTrendRow[];
   routing: RoutingRow[];
+  costByBackend: CostByBackendRow[];
 };
 
 const COLORS = [
@@ -79,6 +87,21 @@ const TOOLTIP_STYLE: CSSProperties = {
   fontSize: "12px",
   color: "var(--text)",
 };
+
+const BACKEND_LABELS: Record<string, string> = {
+  "trivia-solo": "Trivia (solo)",
+  "trivia-room": "Trivia (room)",
+  agent: "nl2sql (agent)",
+  claude: "nl2sql (direct)",
+  repair: "nl2sql (repair)",
+  rag: "RAG",
+  hybrid: "Hybrid",
+  unknown: "Unlabeled",
+};
+
+function formatBackendLabel(backend: string): string {
+  return BACKEND_LABELS[backend] ?? backend;
+}
 
 const ERROR_CATEGORY_LABELS: Record<string, string> = {
   success: "Success",
@@ -202,6 +225,15 @@ export function DashboardChartsClient() {
   );
 
   const routingData = metrics?.routing ?? [];
+
+  const costByBackendData = useMemo(
+    () =>
+      (metrics?.costByBackend ?? []).map((row) => ({
+        ...row,
+        label: formatBackendLabel(row.backend),
+      })),
+    [metrics?.costByBackend]
+  );
 
   const axisDayProps = {
     tick: { fill: "var(--muted)", fontSize: 11 },
@@ -464,6 +496,54 @@ export function DashboardChartsClient() {
               </ResponsiveContainer>
             </div>
           </section>
+
+          <ChartCard
+            title="Cost by backend"
+            subtitle="Last 30 days · nl2sql vs trivia vs other surfaces"
+          >
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart
+                data={costByBackendData}
+                layout="vertical"
+                margin={{ top: 8, right: 24, left: 8, bottom: 4 }}
+              >
+                <CartesianGrid stroke="var(--border)" strokeOpacity={0.3} />
+                <XAxis
+                  type="number"
+                  tick={{ fill: "var(--muted)", fontSize: 11 }}
+                  tickFormatter={(v) => formatUsd(Number(v))}
+                />
+                <YAxis
+                  type="category"
+                  dataKey="label"
+                  tick={{ fill: "var(--muted)", fontSize: 11 }}
+                  width={120}
+                />
+                <Tooltip
+                  contentStyle={TOOLTIP_STYLE}
+                  formatter={(value, _name, item) => {
+                    const row = item.payload as CostByBackendRow & { label: string };
+                    return [
+                      `${formatUsd(Number(value))} (${row.pct}% · ${row.query_count} runs)`,
+                      row.label,
+                    ];
+                  }}
+                />
+                <Bar dataKey="total_cost_usd" name="Total cost" radius={[0, 4, 4, 0]}>
+                  {costByBackendData.map((entry) => (
+                    <Cell
+                      key={entry.backend}
+                      fill={
+                        entry.backend.startsWith("trivia")
+                          ? COLORS[4]
+                          : COLORS[0]
+                      }
+                    />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </ChartCard>
         </div>
       )}
     </main>

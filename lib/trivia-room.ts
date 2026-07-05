@@ -166,6 +166,7 @@ async function generateOneRoomQuestion(
     const result = await generateVerifiedTriviaQuestion({
       deck: "grab-bag",
       categoryId,
+      mode: "room",
     });
     if (!result.ok) {
       return { ok: false, reason: result.detail || result.error };

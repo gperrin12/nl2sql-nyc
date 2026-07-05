@@ -55,6 +55,14 @@ export type QueryRunInsert = {
   appVersion?: string | null;
   /** Prompt variant (nl2sql.prompt_versions.version_name) used for generation. */
   promptVersion?: string | null;
+  /** Token usage / cost at insert time (trivia logs this in one shot; nl2sql patches it later via writeTokensToQueryRun). */
+  tokensUsed?: TokenSummary | null;
+  costUsd?: number | null;
+  /** Trivia-only: category id (lib/trivia-categories.ts) and deck (mta/311/grab-bag). */
+  triviaCategory?: string | null;
+  triviaDeck?: string | null;
+  /** Trivia-only: how many generate+verify attempts this row represents (lib/trivia-generate-verified.ts). */
+  generationAttempts?: number | null;
 };
 
 export type QueryRunUpdate = {
@@ -96,6 +104,9 @@ export type QueryRunRow = {
   hallucination_type: string | null;
   hallucinations: unknown;
   judge_detail: unknown;
+  trivia_category: string | null;
+  trivia_deck: string | null;
+  generation_attempts: number | null;
 };
 
 export function parseJudgeOverall(raw: string | null | undefined): number | null {
@@ -269,13 +280,18 @@ export async function insertQueryRun(input: QueryRunInsert): Promise<string | nu
   const appVersion = (input.appVersion ?? getAppVersion()).slice(0, 128);
   const hallucinations = hallucinationsJson(input.hallucinations);
 
+  const tokensUsedJson =
+    input.tokensUsed != null ? JSON.stringify(input.tokensUsed) : null;
+
   const result = await pool.query<{ id: string }>(
     `INSERT INTO nl2sql.query_runs (
       question, sql, model, backend, execution_id, athena_state,
       error_reason, hallucination_type, hallucinations,
       scanned_bytes, runtime_ms, row_count, trace_json, app_version,
-      prompt_version
-    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11, $12, $13::jsonb, $14, $15)
+      prompt_version, tokens_used, cost_usd,
+      trivia_category, trivia_deck, generation_attempts
+    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11, $12, $13::jsonb, $14, $15,
+      $16::jsonb, $17, $18, $19, $20)
     RETURNING id`,
     [
       input.question.trim(),
@@ -293,6 +309,11 @@ export async function insertQueryRun(input: QueryRunInsert): Promise<string | nu
       traceJson,
       appVersion,
       input.promptVersion ?? null,
+      tokensUsedJson,
+      input.costUsd ?? null,
+      input.triviaCategory ?? null,
+      input.triviaDeck ?? null,
+      input.generationAttempts ?? null,
     ]
   );
 
@@ -493,7 +514,10 @@ const QUERY_RUN_SELECT = `
   cost_usd::text,
   hallucination_type,
   hallucinations,
-  judge_detail`;
+  judge_detail,
+  trivia_category,
+  trivia_deck,
+  generation_attempts`;
 
 function hasEvaluableSql(sql: string | null | undefined): boolean {
   return sql != null && /\b(SELECT|WITH)\b/i.test(sql);
@@ -639,6 +663,30 @@ export async function listLatestQueryRunsPerQuestion(
         LIMIT $1`,
         [safeLimit]
       );
+
+  return result.rows;
+}
+
+/** Recent runs for a backend prefix (e.g. "trivia" matches "trivia-solo"/"trivia-room"). */
+export async function listQueryRunsByBackendPrefix(
+  backendPrefix: string,
+  limit = 100
+): Promise<QueryRunRow[]> {
+  if (!isDatabaseConfigured()) return [];
+
+  const pool = getPgPool();
+  if (!pool) return [];
+
+  const safeLimit = Math.min(Math.max(1, limit), 500);
+
+  const result = await pool.query<QueryRunRow>(
+    `SELECT ${QUERY_RUN_SELECT}
+    FROM nl2sql.query_runs
+    WHERE backend LIKE $1
+    ORDER BY created_at DESC
+    LIMIT $2`,
+    [`${backendPrefix}%`, safeLimit]
+  );
 
   return result.rows;
 }

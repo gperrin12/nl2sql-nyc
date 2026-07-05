@@ -34,7 +34,27 @@ export const PRICING: Record<string, { input: number; output: number }> = {
   "claude-sonnet-4-5": { input: 3.0, output: 15.0 },
   "claude-haiku-4-5": { input: 0.8, output: 4.0 },
   "claude-opus-4-6": { input: 15.0, output: 75.0 },
+  // Trivia generator defaults (lib/trivia.ts / TRIVIA_CLAUDE_MODEL) — without an
+  // exact entry these previously fell back to Sonnet pricing (3.75x too expensive).
+  "claude-3-5-haiku-20241022": { input: 0.8, output: 4.0 },
+  "claude-3-5-sonnet-20241022": { input: 3.0, output: 15.0 },
+  "claude-3-5-sonnet-20240620": { input: 3.0, output: 15.0 },
 };
+
+/** Family fallback (by substring) for model strings not in PRICING verbatim. */
+const FAMILY_FALLBACK: { match: RegExp; prices: { input: number; output: number } }[] = [
+  { match: /haiku/i, prices: { input: 0.8, output: 4.0 } },
+  { match: /opus/i, prices: { input: 15.0, output: 75.0 } },
+  { match: /sonnet/i, prices: { input: 3.0, output: 15.0 } },
+];
+
+function pricesForModel(model: string): { input: number; output: number } {
+  const exact = PRICING[model];
+  if (exact) return exact;
+  const family = FAMILY_FALLBACK.find((f) => f.match.test(model));
+  if (family) return family.prices;
+  return PRICING["claude-sonnet-4-6"];
+}
 
 export function createAccumulator(): TokenAccumulator {
   return { input_tokens: 0, output_tokens: 0, model_call_count: 0 };
@@ -55,7 +75,7 @@ export function computeCostUsd(
   outputTokens: number,
   model: string = "claude-sonnet-4-6"
 ): number {
-  const prices = PRICING[model] ?? PRICING["claude-sonnet-4-6"];
+  const prices = pricesForModel(model);
   return (
     (inputTokens / 1_000_000) * prices.input +
     (outputTokens / 1_000_000) * prices.output

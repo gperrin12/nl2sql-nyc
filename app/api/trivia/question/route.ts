@@ -26,7 +26,10 @@ export async function POST(req: NextRequest) {
     sessionBody = {};
   }
 
-  const result = await generateVerifiedTriviaQuestion(sessionBody);
+  const result = await generateVerifiedTriviaQuestion({
+    ...sessionBody,
+    mode: "solo",
+  });
 
   if (!result.ok) {
     return NextResponse.json(

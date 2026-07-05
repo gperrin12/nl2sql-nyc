@@ -27,6 +27,19 @@ const TriviaQuestionSchema = z.object({
 
 export type TriviaQuestionPayload = z.infer<typeof TriviaQuestionSchema>;
 
+/** Thrown on generation/parse failure; carries usage so failed attempts still count toward cost tracking. */
+export class TriviaGenerationError extends Error {
+  usage: { inputTokens: number; outputTokens: number };
+  constructor(
+    message: string,
+    usage: { inputTokens: number; outputTokens: number }
+  ) {
+    super(message);
+    this.name = "TriviaGenerationError";
+    this.usage = usage;
+  }
+}
+
 const TRIVIA_SYSTEM = `You write pub-trivia multiple-choice questions for NYC open data. Every question MUST be answerable by running one Athena SQL query you provide.
 
 OUTPUT — strict JSON only (no markdown, no code fences, no commentary). Keys:
@@ -107,6 +120,15 @@ function buildUserPrompt(
   return content;
 }
 
+/** Resolved trivia model (same fallback chain used inside generateTriviaQuestion), for cost logging when generation fails before a response is returned. */
+export function getTriviaModel(): string {
+  return (
+    process.env.TRIVIA_CLAUDE_MODEL ??
+    process.env.CLAUDE_MODEL ??
+    DEFAULT_TRIVIA_MODEL
+  );
+}
+
 export async function generateTriviaQuestion(options?: {
   category?: string;
   categoryId?: string;
@@ -114,12 +136,14 @@ export async function generateTriviaQuestion(options?: {
   feedback?: string;
   previousSql?: string;
 }): Promise<
-  TriviaQuestionPayload & { model: string; categoryId: string; categoryLabel: string }
+  TriviaQuestionPayload & {
+    model: string;
+    categoryId: string;
+    categoryLabel: string;
+    usage: { inputTokens: number; outputTokens: number };
+  }
 > {
-  const model =
-    process.env.TRIVIA_CLAUDE_MODEL ??
-    process.env.CLAUDE_MODEL ??
-    DEFAULT_TRIVIA_MODEL;
+  const model = getTriviaModel();
 
   const sessionConstraints: TriviaSessionConstraints = {
     deck: options?.session?.deck,
@@ -147,16 +171,24 @@ export async function generateTriviaQuestion(options?: {
     messages: [{ role: "user", content: userContent }],
   });
 
+  const usage = {
+    inputTokens: response.usage.input_tokens,
+    outputTokens: response.usage.output_tokens,
+  };
+
   const textBlock = response.content.find((b) => b.type === "text");
   if (!textBlock || textBlock.type !== "text") {
-    throw new Error("Claude returned no text content");
+    throw new TriviaGenerationError("Claude returned no text content", usage);
   }
 
   try {
     const payload = parseTriviaJson(textBlock.text);
-    return { ...payload, model, categoryId, categoryLabel };
+    return { ...payload, model, categoryId, categoryLabel, usage };
   } catch (e) {
     const detail = e instanceof Error ? e.message : String(e);
-    throw new Error(`Invalid trivia JSON from model: ${detail}`);
+    throw new TriviaGenerationError(
+      `Invalid trivia JSON from model: ${detail}`,
+      usage
+    );
   }
 }
