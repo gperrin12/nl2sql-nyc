@@ -247,6 +247,46 @@ describe("resolveTriviaProofFromResults — multi-row (ranking) answers", () => 
   });
 });
 
+describe("resolveTriviaProofFromResults — scientific-notation metrics", () => {
+  it("ranks by true magnitude when Athena returns DOUBLE sums in E-notation", () => {
+    const rows = [
+      { answer_label: "Manhattan", omny_rides: "5.96581327E8" },
+      { answer_label: "Brooklyn", omny_rides: "2.32025371E8" },
+      { answer_label: "Queens", omny_rides: "1.45418171E8" },
+      { answer_label: "Bronx", omny_rides: "6.4374369E7" },
+    ];
+    const result = resolveTriviaProofFromResults(OPTIONS, 0, {
+      columns: ["answer_label", "omny_rides"],
+      rows,
+    });
+    expect(result?.proof.winnerLabel).toBe("Manhattan");
+    expect(OPTIONS[result!.correctIndex]).toBe("Manhattan");
+    expect(result?.proof.correctedFromModel).toBe(false);
+  });
+
+  it("does not let a smaller E7 value beat a larger E8 value", () => {
+    const rows = [
+      { answer_label: "Manhattan", omny_rides: "5.96581327E8" },
+      { answer_label: "Bronx", omny_rides: "6.4374369E7" },
+    ];
+    const result = resolveTriviaProofFromResults(OPTIONS, 0, {
+      columns: ["answer_label", "omny_rides"],
+      rows,
+    });
+    expect(result?.proof.winnerLabel).toBe("Manhattan");
+  });
+});
+
+describe("cellMatchesOption — numeric formats", () => {
+  it("matches scientific notation against a plain integer", () => {
+    expect(cellMatchesOption("6.4374369E7", "64374369")).toBe(true);
+  });
+
+  it("does not spuriously match distinct numbers via substring", () => {
+    expect(cellMatchesOption("232025371", "23")).toBe(false);
+  });
+});
+
 // ---------------------------------------------------------------------------
 // optionsThemeMismatch
 // ---------------------------------------------------------------------------

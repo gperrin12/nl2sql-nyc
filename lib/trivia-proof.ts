@@ -28,8 +28,14 @@ function normalize(s: string): string {
   return s.trim().toLowerCase().replace(/\s+/g, " ");
 }
 
-function digitsOnly(s: string): string {
-  return s.replace(/[^\d.-]/g, "");
+function parseNumeric(value: string | null | undefined): number | null {
+  if (value == null) return null;
+  // Keep digits, sign, decimal point, and scientific-notation exponent (e/E).
+  // Strip only thousands separators, currency, percent, and whitespace.
+  const cleaned = String(value).replace(/[,$%\s]/g, "");
+  if (cleaned === "" || cleaned === "-" || cleaned === "+") return null;
+  const n = Number(cleaned);
+  return Number.isFinite(n) ? n : null;
 }
 
 export function cellMatchesOption(
@@ -40,17 +46,20 @@ export function cellMatchesOption(
   const c = normalize(cell);
   const o = normalize(option);
   if (c === o) return true;
-  if (c.includes(o) || o.includes(c)) return true;
-  const dCell = digitsOnly(cell);
-  const dOpt = digitsOnly(option);
-  if (dCell.length > 0 && dOpt.length > 0 && dCell === dOpt) return true;
-  return false;
-}
 
-function parseNumeric(value: string | null | undefined): number | null {
-  if (value == null || value === "") return null;
-  const n = Number(digitsOnly(value));
-  return Number.isNaN(n) ? null : n;
+  // Numeric comparison first: handles scientific notation (6.4374369E7) vs plain
+  // integers (64374369), and prevents spurious substring matches between numbers.
+  const nCell = parseNumeric(cell);
+  const nOpt = parseNumeric(option);
+  if (nCell !== null && nOpt !== null) {
+    if (nCell === nOpt) return true;
+    const denom = Math.max(Math.abs(nCell), Math.abs(nOpt), 1);
+    return Math.abs(nCell - nOpt) / denom < 1e-6;
+  }
+
+  // Text fallback: label containment (e.g. "Queens" vs "Queens/Long Island City").
+  if (c.includes(o) || o.includes(c)) return true;
+  return false;
 }
 
 type RankingWinner = {
@@ -182,18 +191,41 @@ function findOrderedWinner(
   if (labelValue == null || labelValue === "") return null;
 
   const row0Metric = parseNumeric(rows[0][metricColumn]);
+  if (row0Metric === null) return null;
+
+  // Trust the SQL's ORDER BY: if the metric column is non-increasing across the
+  // returned rows, the query already ranked them and row 0 is the winner.
+  let prev = Infinity;
+  let descending = true;
+  let parsedCount = 0;
+  for (const row of rows) {
+    const n = parseNumeric(row[metricColumn]);
+    if (n === null) continue;
+    if (n > prev) {
+      descending = false;
+      break;
+    }
+    prev = n;
+    parsedCount++;
+  }
+
+  if (descending && parsedCount >= 2) {
+    return {
+      rowIndex: 0,
+      labelColumn,
+      labelValue,
+      metricColumn,
+      metricValue: rows[0][metricColumn] ?? "",
+    };
+  }
+
+  // Fallback: accept row 0 only if it parses as the maximum value.
   let bestVal = -Infinity;
-  for (let i = 0; i < rows.length; i++) {
-    const n = parseNumeric(rows[i][metricColumn]);
+  for (const row of rows) {
+    const n = parseNumeric(row[metricColumn]);
     if (n !== null && n > bestVal) bestVal = n;
   }
-  if (
-    row0Metric === null ||
-    !Number.isFinite(bestVal) ||
-    row0Metric !== bestVal
-  ) {
-    return null;
-  }
+  if (!Number.isFinite(bestVal) || row0Metric !== bestVal) return null;
 
   return {
     rowIndex: 0,
