@@ -10,6 +10,7 @@ const BodySchema = z.object({
   deck: z.enum(["mta", "311", "grab-bag"]).optional(),
   categoryId: z.string().optional(),
   excludeQuestions: z.array(z.string()).optional(),
+  excludeAnswers: z.array(z.string()).optional(),
   usedFamilies: z.array(z.string()).optional(),
 });
 

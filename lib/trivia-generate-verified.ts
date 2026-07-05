@@ -10,6 +10,8 @@
 import { startQuery } from "@/lib/athena";
 import { waitForAthenaResults } from "@/lib/athena-wait";
 import { injectStationCrosswalk } from "@/lib/station-crosswalk";
+import { isTemplatedMetricCategory } from "@/lib/trivia-categories";
+import { generateTemplatedMetricQuestion } from "@/lib/trivia-metric-templates";
 import { checkSql } from "@/lib/guardrails";
 import { recordTriviaGeneration } from "@/lib/record-query-run";
 import {
@@ -52,6 +54,7 @@ export type VerifiedTriviaSession = {
   deck?: "mta" | "311" | "grab-bag";
   categoryId?: string;
   excludeQuestions?: string[];
+  excludeAnswers?: string[];
   usedFamilies?: string[];
   /** Which surface triggered this generation — logged as backend "trivia-solo" / "trivia-room". */
   mode?: "solo" | "room";
@@ -104,6 +107,39 @@ export async function generateVerifiedTriviaQuestion(
     });
   };
 
+  const categoryId = session.categoryId;
+  if (categoryId && isTemplatedMetricCategory(categoryId)) {
+    try {
+      const q = await generateTemplatedMetricQuestion(categoryId, {
+        session: { excludeAnswers: session.excludeAnswers },
+      });
+      void recordTriviaGeneration({
+        mode,
+        question: q.question,
+        sql: q.sql,
+        model: q.model,
+        athenaState: "SUCCEEDED",
+        scannedBytes: q.scannedBytes,
+        runtimeMs: q.runtimeMs,
+        rowCount: q.results.rows.length,
+        tokensUsed: buildTokenSummary(tokenAcc),
+        costUsd: 0,
+        categoryId: q.categoryId,
+        deck: session.deck,
+        attempts: 1,
+      });
+      return { ok: true, question: q };
+    } catch (e) {
+      lastFeedback = errorMessage(e);
+      logFailure(1);
+      return {
+        ok: false,
+        error: "Could not produce a verified trivia question",
+        detail: lastFeedback,
+      };
+    }
+  }
+
   for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
     let generated;
     try {
@@ -112,6 +148,7 @@ export async function generateVerifiedTriviaQuestion(
           deck: session.deck,
           categoryId: session.categoryId,
           excludeQuestions: session.excludeQuestions,
+          excludeAnswers: session.excludeAnswers,
           usedFamilies: session.usedFamilies,
         },
         feedback: lastFeedback,

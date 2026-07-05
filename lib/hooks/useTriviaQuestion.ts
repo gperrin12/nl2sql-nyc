@@ -11,6 +11,7 @@ import {
 export type TriviaQuestionLoadedMeta = {
   question: string;
   categoryId?: string;
+  correctAnswer?: string;
 };
 
 /**
@@ -44,6 +45,7 @@ export function useTriviaQuestion(options?: {
     onLoadedRef.current?.({
       question: data.question,
       categoryId: data.categoryId,
+      correctAnswer: data.options[data.correctIndex],
     });
   }, []);
 

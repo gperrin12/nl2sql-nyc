@@ -119,6 +119,14 @@ function buildUserPrompt(
     }
   }
 
+  if (constraints?.excludeAnswers?.length) {
+    content +=
+      "\n\nDo NOT create a question whose correct answer is any of these (they already came up this " +
+      "session): " +
+      constraints.excludeAnswers.join(", ") +
+      ".";
+  }
+
   return content;
 }
 
@@ -198,6 +206,7 @@ export async function generateTriviaQuestion(options?: {
     deck: options?.session?.deck,
     categoryId: options?.categoryId ?? options?.session?.categoryId,
     excludeQuestions: options?.session?.excludeQuestions,
+    excludeAnswers: options?.session?.excludeAnswers,
     usedFamilies: options?.session?.usedFamilies,
   };
 

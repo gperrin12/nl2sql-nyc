@@ -63,11 +63,12 @@ export function TriviaClient() {
   );
 
   const onQuestionLoaded = useCallback(
-    (meta: { question: string; categoryId?: string }) => {
+    (meta: { question: string; categoryId?: string; correctAnswer?: string }) => {
       sessionRef.current = recordTriviaQuestionShown(
         sessionRef.current,
         meta.question,
-        meta.categoryId
+        meta.categoryId,
+        meta.correctAnswer
       );
     },
     []
