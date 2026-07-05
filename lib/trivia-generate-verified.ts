@@ -9,6 +9,7 @@
 
 import { startQuery } from "@/lib/athena";
 import { waitForAthenaResults } from "@/lib/athena-wait";
+import { injectStationCrosswalk } from "@/lib/station-crosswalk";
 import { checkSql } from "@/lib/guardrails";
 import { recordTriviaGeneration } from "@/lib/record-query-run";
 import {
@@ -160,7 +161,8 @@ export async function generateVerifiedTriviaQuestion(
 
     let results;
     try {
-      const executionId = await startQuery(guard.sql);
+      const executableSql = injectStationCrosswalk(guard.sql);
+      const executionId = await startQuery(executableSql);
       results = await waitForAthenaResults(executionId, { pollMs: 400 });
     } catch (e) {
       lastSql = guard.sql;

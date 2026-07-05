@@ -137,12 +137,17 @@ export const TRIVIA_CATEGORY_DEFS: TriviaCategoryDef[] = [
   {
     id: "transit-neighborhood",
     family: "transit",
-    label: "highest subway ridership by NYC neighborhood (NTA) in 2025, via station lat/lon → census tract spatial join",
+    label: "highest subway ridership by NYC neighborhood (NTA) in 2025",
   },
   {
     id: "transit-census-neighborhood",
     family: "transit",
     label: "highest subway ridership among neighborhoods meeting a census filter (e.g. high-income tracts, majority-Spanish-speaking) in 2025",
+  },
+  {
+    id: "transit-line-ridership",
+    family: "transit",
+    label: "busiest subway line by total ridership at its stations in 2025 (approximate — multi-line stations counted toward each line they serve)",
   },
   // Cross-dataset angles
   {
@@ -229,26 +234,31 @@ export function getCategoryGenerationHint(categoryId: string): string | undefine
       "(or borough) by SUM(TRY_CAST(ridership AS DOUBLE)) DESC. answer_label = station_complex or borough. " +
       "For a more surprising winner, rank stations/boroughs and consider excluding Manhattan. No payment_method / fare_class_category.",
     "transit-neighborhood":
-      "mta_turnstile → NYC neighborhood (NTA). Aggregate to STATION level FIRST — never spatial-join raw hourly rows " +
-      "(millions of rows × 2,300 polygons is far too slow):\n" +
-      "WITH stn AS (SELECT station_complex_id, MIN(station_complex) AS station_complex, " +
-      "AVG(latitude) AS lat, AVG(longitude) AS lon, SUM(TRY_CAST(ridership AS DOUBLE)) AS rides " +
-      "FROM mta_turnstile WHERE year = '2025' AND latitude IS NOT NULL AND longitude IS NOT NULL " +
-      "GROUP BY station_complex_id)\n" +
-      "Then point-in-polygon each station into census_tracts ct: " +
-      "ST_CONTAINS(ST_GEOMETRY_FROM_TEXT(ct.geometry_wkt), ST_Point(stn.lon, stn.lat)) — longitude FIRST " +
-      "(ST_Point(lat, lon) matches ZERO tracts, silently). Roll up SUM(rides) by ct.ntaname; ORDER BY 2 DESC LIMIT 4. " +
-      "answer_label = ct.ntaname. Qualify ct.ntaname / ct.geoid (AMBIGUOUS_NAME).",
+      "A virtual relation station_xwalk(station_complex_id, station_complex, geoid, ntaname, boroname, daytime_routes) " +
+      "is injected automatically — reference it directly; do NOT define it and do NOT write any ST_* spatial functions. " +
+      "SELECT x.ntaname AS answer_label, SUM(TRY_CAST(m.ridership AS DOUBLE)) AS rides " +
+      "FROM mta_turnstile m JOIN station_xwalk x USING (station_complex_id) " +
+      "WHERE m.year = '2025' AND x.ntaname <> '' GROUP BY x.ntaname ORDER BY 2 DESC LIMIT 4. " +
+      "answer_label = x.ntaname. NEVER COUNT(*); no payment_method / fare_class_category.",
     "transit-census-neighborhood":
-      "Same station-first aggregation + spatial join into census_tracts ct as transit-neighborhood, then " +
-      "LEFT JOIN census_tract_demographics demo ON TRIM(CAST(ct.geoid AS VARCHAR)) = TRIM(CAST(demo.geoid AS VARCHAR)). " +
-      "Filter neighborhoods by ONE real demographic column — open lib/schemas.ts, read the census_tract_demographics " +
-      "column list, and use an ACTUAL column name; do NOT invent one. Parse ACS strings with " +
-      "TRY_CAST(TRIM(REGEXP_REPLACE(demo.median_household_income_2023, ',', '')) AS DOUBLE) — trim the VARCHAR " +
-      "before casting, never TRIM(TRY_CAST(... AS DOUBLE)). Never gate on TRY_CAST(... AS BIGINT) IS NOT NULL. " +
-      "State the census filter in the question text (e.g. 'Among neighborhoods where median household income tops $100k, " +
-      "which had the highest 2025 subway ridership?'). Use median_household_income_2023 or lang_lim_eng_spanish_2023 " +
-      "as example filters — both are real columns. answer_label = ct.ntaname; metric = SUM(rides) DESC LIMIT 4.",
+      "Use the injected station_xwalk relation (has geoid) + census_tract_demographics; reference station_xwalk " +
+      "directly, no ST_* functions. JOIN mta_turnstile m ... JOIN station_xwalk x USING (station_complex_id) " +
+      "LEFT JOIN census_tract_demographics demo ON TRIM(CAST(x.geoid AS VARCHAR)) = TRIM(CAST(demo.geoid AS VARCHAR)). " +
+      "Filter tracts by ONE real column from census_tract_demographics — open lib/schemas.ts and use an ACTUAL " +
+      "column name, do NOT invent one. Parse ACS strings with TRY_CAST(TRIM(REGEXP_REPLACE(col, ',', '')) AS DOUBLE); " +
+      "never gate on TRY_CAST(... AS BIGINT) IS NOT NULL. Roll ridership up by x.boroname or x.ntaname; " +
+      "answer_label = that label; metric = SUM(TRY_CAST(m.ridership AS DOUBLE)) DESC LIMIT 4. " +
+      "State the census filter explicitly in the question text.",
+    "transit-line-ridership":
+      "Rank subway lines via the injected station_xwalk relation; reference it directly, no ST_*. Explode routes: " +
+      "CROSS JOIN UNNEST(SPLIT(x.daytime_routes, ',')) AS r(route). " +
+      "SELECT TRIM(r.route) AS answer_label, SUM(TRY_CAST(m.ridership AS DOUBLE)) AS rides " +
+      "FROM mta_turnstile m JOIN station_xwalk x USING (station_complex_id) " +
+      "CROSS JOIN UNNEST(SPLIT(x.daytime_routes, ',')) AS r(route) " +
+      "WHERE m.year = '2025' AND x.daytime_routes <> '' GROUP BY TRIM(r.route) ORDER BY 2 DESC LIMIT 4. " +
+      "answer_label = the route letter/number. MANDATORY honesty: a station serves multiple lines, so this is " +
+      "TOTAL RIDERSHIP AT STATIONS SERVED BY the line and double-counts multi-line stations — the question and " +
+      "explanation must say 'ridership at stations served by' the line, never claim exact per-line boardings. NEVER COUNT(*).",
   };
   return hints[categoryId];
 }
