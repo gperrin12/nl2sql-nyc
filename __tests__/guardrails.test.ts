@@ -142,6 +142,22 @@ describe("checkSql — TRIM() on numeric expressions", () => {
     expect(result).toMatchObject({ ok: false, reason: expect.stringContaining("TRIM()") });
   });
 
+  it("rejects TRIM(TRY_CAST(REGEXP_REPLACE(...)) AS DOUBLE) with nested parens", () => {
+    const result = checkSql(
+      "SELECT ct.ntaname FROM census_tract_demographics demo " +
+        "WHERE TRIM(TRY_CAST(REGEXP_REPLACE(demo.median_household_income_2023, ',', '') AS DOUBLE)) > 100000"
+    );
+    expect(result).toMatchObject({ ok: false, reason: expect.stringContaining("TRIM()") });
+  });
+
+  it("rejects TRIM(rides) on numeric aggregate alias", () => {
+    const result = checkSql(
+      "WITH stn AS (SELECT SUM(TRY_CAST(ridership AS DOUBLE)) AS rides FROM mta_turnstile WHERE year = '2025') " +
+        "SELECT TRIM(rides) FROM stn"
+    );
+    expect(result).toMatchObject({ ok: false, reason: expect.stringContaining("aggregate") });
+  });
+
   it("rejects TRIM(SUM(...))", () => {
     const result = checkSql(
       "SELECT borough AS answer_label, TRIM(SUM(TRY_CAST(ridership AS DOUBLE))) AS rides " +

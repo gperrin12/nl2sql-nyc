@@ -164,7 +164,17 @@ export async function generateVerifiedTriviaQuestion(
       results = await waitForAthenaResults(executionId, { pollMs: 400 });
     } catch (e) {
       lastSql = guard.sql;
-      lastFeedback = `Athena error: ${errorMessage(e)}`;
+      const athenaMsg = errorMessage(e);
+      if (/FUNCTION_NOT_FOUND.*\btrim\b/i.test(athenaMsg)) {
+        lastFeedback =
+          "Athena rejected TRIM() on a numeric value (DOUBLE/BIGINT). " +
+          "TRIM is VARCHAR-only: TRY_CAST(TRIM(REGEXP_REPLACE(acs_col, ',', '')) AS DOUBLE) for census; " +
+          "TRIM(CAST(geoid AS VARCHAR)) for geoid joins; never TRIM(TRY_CAST(... AS DOUBLE)), TRIM(SUM(...)), or TRIM(latitude). " +
+          `Original error: ${athenaMsg}`;
+        console.warn("[trivia] TRIM on numeric — rejected SQL:\n", guard.sql);
+      } else {
+        lastFeedback = `Athena error: ${athenaMsg}`;
+      }
       continue;
     }
 

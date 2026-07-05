@@ -19,6 +19,16 @@ export type TriviaQuestionResponse = {
   runtimeMs: number;
 };
 
+export class TriviaFetchError extends Error {
+  readonly sql?: string;
+
+  constructor(message: string, sql?: string) {
+    super(message);
+    this.name = "TriviaFetchError";
+    this.sql = sql;
+  }
+}
+
 export async function fetchTriviaQuestion(
   session?: TriviaSessionConstraints
 ): Promise<TriviaQuestionResponse> {
@@ -31,9 +41,13 @@ export async function fetchTriviaQuestion(
   const data = (await res.json()) as TriviaQuestionResponse & {
     error?: string;
     detail?: string;
+    sql?: string;
   };
   if (!res.ok) {
-    throw new Error(data.detail ?? data.error ?? "Failed to load question");
+    throw new TriviaFetchError(
+      data.detail ?? data.error ?? "Failed to load question",
+      data.sql
+    );
   }
   return data;
 }

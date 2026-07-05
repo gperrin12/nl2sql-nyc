@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { TriviaSessionConstraints } from "@/lib/trivia-categories";
 import {
   fetchTriviaQuestion,
+  TriviaFetchError,
   type TriviaQuestionResponse,
 } from "@/lib/trivia-fetch";
 
@@ -27,6 +28,7 @@ export function useTriviaQuestion(options?: {
   const [loading, setLoading] = useState(true);
   const [advancing, setAdvancing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [errorSql, setErrorSql] = useState<string | null>(null);
   const [prefetchReady, setPrefetchReady] = useState(false);
 
   const cacheRef = useRef<TriviaQuestionResponse | null>(null);
@@ -83,9 +85,20 @@ export function useTriviaQuestion(options?: {
     [notifyLoaded, startPrefetch]
   );
 
+  const reportError = useCallback((e: unknown) => {
+    if (e instanceof TriviaFetchError) {
+      setError(e.message);
+      setErrorSql(e.sql ?? null);
+      return;
+    }
+    setError(e instanceof Error ? e.message : "Failed to load question");
+    setErrorSql(null);
+  }, []);
+
   const advance = useCallback(async () => {
     const gen = ++advanceGenRef.current;
     setError(null);
+    setErrorSql(null);
 
     const cached = consumeCached();
     if (cached) {
@@ -112,13 +125,13 @@ export function useTriviaQuestion(options?: {
       applyQuestion(data);
     } catch (e) {
       if (gen !== advanceGenRef.current) return;
-      setError(e instanceof Error ? e.message : "Failed to load question");
+      reportError(e);
     } finally {
       if (gen === advanceGenRef.current) {
         setAdvancing(false);
       }
     }
-  }, [applyQuestion, consumeCached, startPrefetch]);
+  }, [applyQuestion, consumeCached, reportError, startPrefetch]);
 
   const sessionKey = options?.sessionKey ?? 0;
 
@@ -130,6 +143,7 @@ export function useTriviaQuestion(options?: {
     setCurrent(null);
     setLoading(true);
     setError(null);
+    setErrorSql(null);
     advanceGenRef.current += 1;
 
     void (async () => {
@@ -141,7 +155,7 @@ export function useTriviaQuestion(options?: {
         startPrefetch();
       } catch (e) {
         if (cancelled) return;
-        setError(e instanceof Error ? e.message : "Failed to load question");
+        reportError(e);
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -151,13 +165,14 @@ export function useTriviaQuestion(options?: {
       cancelled = true;
       advanceGenRef.current += 1;
     };
-  }, [sessionKey, notifyLoaded, startPrefetch]);
+  }, [sessionKey, notifyLoaded, reportError, startPrefetch]);
 
   return {
     current,
     loading,
     advancing,
     error,
+    errorSql,
     prefetchReady,
     advance,
     retry: advance,
