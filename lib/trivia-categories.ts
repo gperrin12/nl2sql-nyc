@@ -244,7 +244,8 @@ export function getCategoryGenerationHint(categoryId: string): string | undefine
       "LEFT JOIN census_tract_demographics demo ON TRIM(CAST(ct.geoid AS VARCHAR)) = TRIM(CAST(demo.geoid AS VARCHAR)). " +
       "Filter neighborhoods by ONE real demographic column — open lib/schemas.ts, read the census_tract_demographics " +
       "column list, and use an ACTUAL column name; do NOT invent one. Parse ACS strings with " +
-      "TRY_CAST(TRIM(REGEXP_REPLACE(col, ',', '')) AS DOUBLE); never gate on TRY_CAST(... AS BIGINT) IS NOT NULL. " +
+      "TRY_CAST(TRIM(REGEXP_REPLACE(demo.median_household_income_2023, ',', '')) AS DOUBLE) — trim the VARCHAR " +
+      "before casting, never TRIM(TRY_CAST(... AS DOUBLE)). Never gate on TRY_CAST(... AS BIGINT) IS NOT NULL. " +
       "State the census filter in the question text (e.g. 'Among neighborhoods where median household income tops $100k, " +
       "which had the highest 2025 subway ridership?'). Use median_household_income_2023 or lang_lim_eng_spanish_2023 " +
       "as example filters — both are real columns. answer_label = ct.ntaname; metric = SUM(rides) DESC LIMIT 4.",

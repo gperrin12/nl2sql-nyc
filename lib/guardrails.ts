@@ -60,6 +60,9 @@ export function checkSql(rawSql: string): GuardrailResult {
     };
   }
 
+  const trimNumeric = checkTrimOnNumeric(stripped);
+  if (trimNumeric) return trimNumeric;
+
   if (
     /\bSUBSTRING\s*\(\s*(?:(?:\w+)\.)?(tpep_pickup_datetime|tpep_dropoff_datetime|created_date|closed_date|crash_date|pickup_datetime|dropoff_datetime)\b/i.test(
       stripped
@@ -77,4 +80,47 @@ export function checkSql(rawSql: string): GuardrailResult {
   }
 
   return { ok: true, sql: fixWarehouseDateCasts(stripped) };
+}
+
+/** TRIM() in Athena/Trino accepts only char/varchar — not DOUBLE/BIGINT aggregates. */
+function checkTrimOnNumeric(sql: string): GuardrailResult | null {
+  if (
+    /\bTRIM\s*\(\s*TRY_CAST\s*\([^)]+\s+AS\s+(?:DOUBLE|BIGINT|INTEGER|INT|REAL|FLOAT|DECIMAL)\b/i.test(
+      sql
+    ) ||
+    /\bTRIM\s*\(\s*CAST\s*\([^)]+\s+AS\s+(?:DOUBLE|BIGINT|INTEGER|INT|REAL|FLOAT|DECIMAL)\b/i.test(
+      sql
+    )
+  ) {
+    return {
+      ok: false,
+      reason:
+        "TRIM() on a numeric CAST/TRY_CAST is invalid in Athena (FUNCTION_NOT_FOUND). " +
+        "Trim VARCHAR first, then parse: TRY_CAST(TRIM(REGEXP_REPLACE(col, ',', '')) AS DOUBLE). " +
+        "For geoid joins use TRIM(CAST(geoid AS VARCHAR)).",
+    };
+  }
+
+  if (/\bTRIM\s*\(\s*(?:SUM|AVG|MIN|MAX|COUNT)\s*\(/i.test(sql)) {
+    return {
+      ok: false,
+      reason:
+        "TRIM() on an aggregate (SUM/AVG/MIN/MAX/COUNT) is invalid — aggregates are numeric. " +
+        "Use the numeric expression directly in ORDER BY / WHERE, or CAST to VARCHAR only if you need text.",
+    };
+  }
+
+  if (
+    /\bTRIM\s*\(\s*(?:\w+\.)?(?:latitude|longitude|\blat\b|\blon\b)\s*\)/i.test(
+      sql
+    )
+  ) {
+    return {
+      ok: false,
+      reason:
+        "TRIM() on latitude/longitude is invalid (they are DOUBLE). Use them directly in ST_Point(longitude, latitude).",
+    };
+  }
+
+  return null;
 }

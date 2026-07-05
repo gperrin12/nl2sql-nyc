@@ -134,6 +134,39 @@ describe("checkSql — TRIM() on zone ID columns", () => {
   });
 });
 
+describe("checkSql — TRIM() on numeric expressions", () => {
+  it("rejects TRIM(TRY_CAST(... AS DOUBLE))", () => {
+    const result = checkSql(
+      "SELECT TRIM(TRY_CAST(ridership AS DOUBLE)) FROM mta_turnstile WHERE year = '2025'"
+    );
+    expect(result).toMatchObject({ ok: false, reason: expect.stringContaining("TRIM()") });
+  });
+
+  it("rejects TRIM(SUM(...))", () => {
+    const result = checkSql(
+      "SELECT borough AS answer_label, TRIM(SUM(TRY_CAST(ridership AS DOUBLE))) AS rides " +
+        "FROM mta_turnstile WHERE year = '2025' GROUP BY borough"
+    );
+    expect(result).toMatchObject({ ok: false, reason: expect.stringContaining("aggregate") });
+  });
+
+  it("rejects TRIM(latitude)", () => {
+    const result = checkSql(
+      "SELECT TRIM(latitude) FROM mta_turnstile WHERE year = '2025'"
+    );
+    expect(result).toMatchObject({ ok: false, reason: expect.stringContaining("latitude") });
+  });
+
+  it("allows TRY_CAST(TRIM(REGEXP_REPLACE(...)) AS DOUBLE)", () => {
+    const sql =
+      "SELECT ct.ntaname AS answer_label, SUM(rides) AS total " +
+      "FROM census_tracts ct " +
+      "JOIN census_tract_demographics demo ON TRIM(CAST(ct.geoid AS VARCHAR)) = TRIM(CAST(demo.geoid AS VARCHAR)) " +
+      "WHERE TRY_CAST(TRIM(REGEXP_REPLACE(demo.median_household_income_2023, ',', '')) AS DOUBLE) > 100000";
+    expect(checkSql(sql).ok).toBe(true);
+  });
+});
+
 describe("checkSql — SUBSTRING() on datetime columns", () => {
   const datetimeCols = [
     "tpep_pickup_datetime",

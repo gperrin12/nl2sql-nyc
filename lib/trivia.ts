@@ -70,6 +70,7 @@ SQL RULES (critical):
 - options[correctIndex] text must match Athena output exactly (same spelling/casing as returned: BROOKLYN vs Brooklyn vs Manhattan).
 - TRY_CAST for numeric math on VARCHAR columns; nyc_311.borough is UPPERCASE ('BROOKLYN'); taxi_zones.borough is Title Case ('Manhattan').
 - TLC joins: TRY_CAST(pulocationid AS BIGINT) = TRY_CAST(locationid AS BIGINT); never TRIM(locationid).
+- TRIM() is VARCHAR-only in Athena: TRIM(CAST(geoid AS VARCHAR)) or TRY_CAST(TRIM(REGEXP_REPLACE(acs_col, ',', '')) AS DOUBLE) for census strings — never TRIM(TRY_CAST(... AS DOUBLE)), TRIM(latitude/longitude), or TRIM(SUM(...)).
 - Never SUBSTRING on timestamp columns — use day_of_week() for weekday/weekend.
 - ${TLC_TRIP_FILTER_PROMPT_RULE}
 - ${TLC_ZONE_MIN_PICKUPS_PROMPT_RULE}
