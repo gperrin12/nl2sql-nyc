@@ -123,37 +123,7 @@ export const TRIVIA_CATEGORY_DEFS: TriviaCategoryDef[] = [
     family: "census",
     label: "311 complaints per capita by borough (census population denominator; say per capita clearly)",
   },
-  // MTA / Transit — subway ridership
-  {
-    id: "transit-busiest-station",
-    family: "transit",
-    label: "busiest subway station complexes by total ridership in 2025 (SUM(ridership), not row counts)",
-  },
-  {
-    id: "transit-outer-borough-station",
-    family: "transit",
-    label: "busiest subway station complex OUTSIDE Manhattan by total ridership in 2025",
-  },
-  {
-    id: "transit-date-ridership",
-    family: "transit",
-    label: "highest subway ridership by station or borough on a specific notable 2025 date (holiday, storm, parade, event day)",
-  },
-  {
-    id: "transit-neighborhood",
-    family: "transit",
-    label: "highest subway ridership by NYC neighborhood (NTA) in 2025",
-  },
-  {
-    id: "transit-census-neighborhood",
-    family: "transit",
-    label: "highest subway ridership among neighborhoods meeting a census filter (e.g. high-income tracts, majority-Spanish-speaking) in 2025",
-  },
-  {
-    id: "transit-line-ridership",
-    family: "transit",
-    label: "busiest subway line by total ridership at its stations in 2025 (approximate — multi-line stations counted toward each line they serve)",
-  },
+  // MTA / Transit — templated metric archetypes (model-free; see lib/trivia-metric-templates.ts)
   ...METRIC_TEMPLATES.map((t) => ({
     id: t.id,
     family: t.family,
@@ -230,45 +200,6 @@ export function getCategoryGenerationHint(categoryId: string): string | undefine
       "Only per-capita / per-1,000-residents 311 rates with census population — never 311 per collision or per taxi trip.",
     "compare-boroughs":
       "Compare boroughs on ONE metric from ONE table (e.g. total 311 count, total collisions) — no cross-dataset ratios.",
-    "transit-busiest-station":
-      "mta_turnstile: rank by SUM(TRY_CAST(ridership AS DOUBLE)) — NEVER COUNT(*) (rows are fare-class buckets). " +
-      "answer_label = station_complex (GROUP BY station_complex_id). Filter year = '2025'.",
-    "transit-outer-borough-station":
-      "mta_turnstile: SUM(TRY_CAST(ridership AS DOUBLE)) by station_complex WHERE year = '2025' " +
-      "AND borough <> 'Manhattan' (borough is Title Case — never UPPER()). GROUP BY station_complex_id; " +
-      "answer_label = MIN(station_complex). NEVER COUNT(*). Do NOT reference payment_method or fare_class_category.",
-    "transit-date-ridership":
-      "mta_turnstile: pick ONE real notable 2025 date and NAME it in the question (e.g. NYC Marathon Sunday, " +
-      "July 4, a major snowstorm day, New Year's Day). Filter DATE(TRY_CAST(transit_timestamp AS TIMESTAMP)) = DATE '2025-MM-DD' " +
-      "AND year = '2025' AND month = 'MM' (include the month partition literal for pruning). Rank station_complex " +
-      "(or borough) by SUM(TRY_CAST(ridership AS DOUBLE)) DESC. answer_label = station_complex or borough. " +
-      "For a more surprising winner, rank stations/boroughs and consider excluding Manhattan. No payment_method / fare_class_category.",
-    "transit-neighborhood":
-      "A virtual relation station_xwalk(station_complex_id, station_complex, geoid, ntaname, boroname, daytime_routes) " +
-      "is injected automatically — reference it directly; do NOT define it and do NOT write any ST_* spatial functions. " +
-      "SELECT x.ntaname AS answer_label, SUM(TRY_CAST(m.ridership AS DOUBLE)) AS rides " +
-      "FROM mta_turnstile m JOIN station_xwalk x USING (station_complex_id) " +
-      "WHERE m.year = '2025' AND x.ntaname <> '' GROUP BY x.ntaname ORDER BY 2 DESC LIMIT 4. " +
-      "answer_label = x.ntaname. NEVER COUNT(*); no payment_method / fare_class_category.",
-    "transit-census-neighborhood":
-      "Use the injected station_xwalk relation (has geoid) + census_tract_demographics; reference station_xwalk " +
-      "directly, no ST_* functions. JOIN mta_turnstile m ... JOIN station_xwalk x USING (station_complex_id) " +
-      "LEFT JOIN census_tract_demographics demo ON TRIM(CAST(x.geoid AS VARCHAR)) = TRIM(CAST(demo.geoid AS VARCHAR)). " +
-      "Filter tracts by ONE real column from census_tract_demographics — open lib/schemas.ts and use an ACTUAL " +
-      "column name, do NOT invent one. Parse ACS strings with TRY_CAST(TRIM(REGEXP_REPLACE(col, ',', '')) AS DOUBLE); " +
-      "never gate on TRY_CAST(... AS BIGINT) IS NOT NULL. Roll ridership up by x.boroname or x.ntaname; " +
-      "answer_label = that label; metric = SUM(TRY_CAST(m.ridership AS DOUBLE)) DESC LIMIT 4. " +
-      "State the census filter explicitly in the question text.",
-    "transit-line-ridership":
-      "Rank subway lines via the injected station_xwalk relation; reference it directly, no ST_*. Explode routes: " +
-      "CROSS JOIN UNNEST(SPLIT(x.daytime_routes, ',')) AS r(route). " +
-      "SELECT TRIM(r.route) AS answer_label, SUM(TRY_CAST(m.ridership AS DOUBLE)) AS rides " +
-      "FROM mta_turnstile m JOIN station_xwalk x USING (station_complex_id) " +
-      "CROSS JOIN UNNEST(SPLIT(x.daytime_routes, ',')) AS r(route) " +
-      "WHERE m.year = '2025' AND x.daytime_routes <> '' GROUP BY TRIM(r.route) ORDER BY 2 DESC LIMIT 4. " +
-      "answer_label = the route letter/number. MANDATORY honesty: a station serves multiple lines, so this is " +
-      "TOTAL RIDERSHIP AT STATIONS SERVED BY the line and double-counts multi-line stations — the question and " +
-      "explanation must say 'ridership at stations served by' the line, never claim exact per-line boardings. NEVER COUNT(*).",
   };
   return hints[categoryId];
 }
