@@ -11,10 +11,12 @@ describe("trivia decks", () => {
     expect(DEFAULT_TRIVIA_DECK).toBe("mta");
   });
 
-  it("filters MTA categories to transit family only", () => {
+  it("MTA deck is all templated transit archetypes", () => {
     const mta = categoriesForDeck("mta");
-    expect(mta.length).toBeGreaterThan(0);
-    expect(mta.every((d) => d.family === "transit")).toBe(true);
+    expect(mta.length).toBe(18);
+    for (const def of mta) {
+      expect(def.family).toBe("transit");
+    }
   });
 
   it("filters 311 categories to 311 families only", () => {
