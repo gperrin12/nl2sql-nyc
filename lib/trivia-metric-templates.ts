@@ -512,13 +512,13 @@ export const METRIC_TEMPLATES: ScopedTemplate[] = [
       `Which subway line had the highest total ridership at the stations it serves in 2025? (Multi-line stations count toward each line they serve.)`,
     buildSql: () => `
       WITH routes AS (
-        SELECT TRIM(r.route) AS route,
+        SELECT TRIM(route) AS route,
                SUM(TRY_CAST(m.ridership AS DOUBLE)) AS rides
         FROM mta_turnstile m
         JOIN station_xwalk x USING (station_complex_id)
-        CROSS JOIN UNNEST(SPLIT(x.daytime_routes, ',')) AS t(r)
+        CROSS JOIN UNNEST(SPLIT(x.daytime_routes, ',')) AS t(route)
         WHERE m.year = '${YEAR}' AND x.daytime_routes <> ''
-        GROUP BY TRIM(r.route)
+        GROUP BY TRIM(route)
       )
       SELECT route AS answer_label, rides
       FROM routes
@@ -540,15 +540,15 @@ export const METRIC_TEMPLATES: ScopedTemplate[] = [
       `Which subway line drew the largest share of weekend ridership at the stations it serves in 2025?`,
     buildSql: () => `
       WITH routes AS (
-        SELECT TRIM(r.route) AS route,
+        SELECT TRIM(route) AS route,
                SUM(TRY_CAST(m.ridership AS DOUBLE)) AS total_rides,
                SUM(CASE WHEN day_of_week(TRY_CAST(m.transit_timestamp AS TIMESTAMP)) IN (6, 7)
                         THEN TRY_CAST(m.ridership AS DOUBLE) ELSE 0 END) AS weekend_rides
         FROM mta_turnstile m
         JOIN station_xwalk x USING (station_complex_id)
-        CROSS JOIN UNNEST(SPLIT(x.daytime_routes, ',')) AS t(r)
+        CROSS JOIN UNNEST(SPLIT(x.daytime_routes, ',')) AS t(route)
         WHERE m.year = '${YEAR}' AND x.daytime_routes <> ''
-        GROUP BY TRIM(r.route)
+        GROUP BY TRIM(route)
         HAVING SUM(TRY_CAST(m.ridership AS DOUBLE)) >= ${RIDE_FLOOR}
       )
       SELECT route AS answer_label,
