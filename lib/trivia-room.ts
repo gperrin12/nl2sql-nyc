@@ -107,7 +107,7 @@ const MAX_BUILD_ROUNDS = 4;
 /**
  * Build a fixed array of `length` verified questions for a room at creation
  * time, running the shared in-process trivia generator/verifier once per slot.
- * Each slot gets a distinct category from the grab-bag session plan for variety.
+ * Each slot gets a distinct category from the MTA session plan for variety.
  *
  * Verification (sense/proof checks + the Athena query) rejects some questions,
  * so the first parallel pass often comes up short. We retry only the shortfall,
@@ -118,7 +118,7 @@ const MAX_BUILD_ROUNDS = 4;
 export async function buildLockedQuestionSet(
   length: number
 ): Promise<TriviaRoomQuestion[]> {
-  const plan = buildSessionCategoryPlan(length, categoriesForDeck("grab-bag"));
+  const plan = buildSessionCategoryPlan(length, categoriesForDeck("mta"));
 
   const questions: TriviaRoomQuestion[] = [];
   let lastFailure: string | null = null;
@@ -166,7 +166,7 @@ async function generateOneRoomQuestion(
 ): Promise<RoomQuestionResult> {
   try {
     const result = await generateVerifiedTriviaQuestion({
-      deck: "grab-bag",
+      deck: "mta",
       categoryId,
       excludeQuestions: session?.excludeQuestions,
       excludeAnswers: session?.excludeAnswers,
