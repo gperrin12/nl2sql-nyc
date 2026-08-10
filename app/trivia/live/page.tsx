@@ -99,7 +99,7 @@ export default function TriviaLiveLandingPage() {
 
       <CrtWelcome>
         <p className="text-[var(--muted)] text-sm">
-          live multiplayer trivia :: create a room, share the code, play together
+          live MTA trivia :: create a room, share the code, play together
         </p>
       </CrtWelcome>
 
@@ -127,8 +127,8 @@ export default function TriviaLiveLandingPage() {
             Host a room
           </h2>
           <p className="text-xs text-[var(--muted)]">
-            Generates a fixed set of questions. Building the deck may take a
-            little while.
+            Generates a fixed set of MTA trivia questions. Building the deck
+            may take a little while.
           </p>
           <input
             type="text"
