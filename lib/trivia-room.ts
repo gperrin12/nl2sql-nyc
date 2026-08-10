@@ -107,6 +107,7 @@ const MAX_BUILD_ROUNDS = 4;
 /**
  * Build a fixed array of `length` verified questions for a room at creation
  * time, running the shared in-process trivia generator/verifier once per attempt.
+ * Categories come from the MTA session plan for variety.
  *
  * Verification (sense/proof checks + Athena) rejects some candidates. When a
  * category keeps failing we advance to the next plan entry and prefer
@@ -117,7 +118,7 @@ const MAX_BUILD_ROUNDS = 4;
 export async function buildLockedQuestionSet(
   length: number
 ): Promise<TriviaRoomQuestion[]> {
-  const plan = buildSessionCategoryPlan(length, categoriesForDeck("grab-bag"));
+  const plan = buildSessionCategoryPlan(length, categoriesForDeck("mta"));
   if (plan.length === 0) {
     throw new Error("Failed to build trivia category plan for the room");
   }
@@ -198,7 +199,7 @@ async function generateOneRoomQuestion(
 ): Promise<RoomQuestionResult> {
   try {
     const result = await generateVerifiedTriviaQuestion({
-      deck: "grab-bag",
+      deck: "mta",
       categoryId,
       excludeQuestions: session?.excludeQuestions,
       excludeAnswers: session?.excludeAnswers,
