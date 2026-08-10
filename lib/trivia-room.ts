@@ -100,60 +100,92 @@ export function shouldAutoReveal({
   return expectedAnswerers > 0 && answeredCount >= expectedAnswerers;
 }
 
-// Initial pass + this many retry rounds to backfill slots that failed
-// verification. Bounded so a persistently failing generator can't loop forever.
+// Per-slot retry multiplier for the global attempt budget. A persistently
+// failing category must not abort the whole deck — we rotate and keep filling.
 const MAX_BUILD_ROUNDS = 4;
 
 /**
  * Build a fixed array of `length` verified questions for a room at creation
- * time, running the shared in-process trivia generator/verifier once per slot.
- * Each slot gets a distinct category from the grab-bag session plan for variety.
+ * time, running the shared in-process trivia generator/verifier once per attempt.
  *
- * Verification (sense/proof checks + the Athena query) rejects some questions,
- * so the first parallel pass often comes up short. We retry only the shortfall,
- * in parallel, over a few bounded rounds until we hit the exact count. If we
- * genuinely can't reach it we return whatever verified (a slightly shorter room
- * beats a failed creation); only a completely empty result throws.
+ * Verification (sense/proof checks + Athena) rejects some candidates. When a
+ * category keeps failing we advance to the next plan entry and prefer
+ * less-failed categories, bounded by `length * MAX_BUILD_ROUNDS` total attempts.
+ * Requires the exact requested length — a short deck is an error, not a
+ * silent success (hosts asked for N questions for their friends).
  */
 export async function buildLockedQuestionSet(
   length: number
 ): Promise<TriviaRoomQuestion[]> {
   const plan = buildSessionCategoryPlan(length, categoriesForDeck("grab-bag"));
+  if (plan.length === 0) {
+    throw new Error("Failed to build trivia category plan for the room");
+  }
 
   const questions: TriviaRoomQuestion[] = [];
   let lastFailure: string | null = null;
+  const failCounts = new Map<string, number>();
+  const maxAttempts = length * MAX_BUILD_ROUNDS;
 
-  while (questions.length < length) {
-    const categoryId = plan[questions.length % plan.length];
+  for (
+    let attempt = 0;
+    attempt < maxAttempts && questions.length < length;
+    attempt++
+  ) {
+    const categoryId = pickNextBuildCategory(plan, failCounts, attempt);
     const excludeQuestions = questions.map((q) => q.question);
     const excludeAnswers = questions
       .map((q) => q.choices[q.correctIndex])
       .slice(-EXCLUDE_ANSWERS_WINDOW);
 
-    let got = false;
-    for (let attempt = 0; attempt < MAX_BUILD_ROUNDS && !got; attempt++) {
-      const r = await generateOneRoomQuestion(categoryId, {
-        excludeQuestions: excludeQuestions.length ? excludeQuestions : undefined,
-        excludeAnswers: excludeAnswers.length ? excludeAnswers : undefined,
-      });
-      if (r.ok) {
-        questions.push(r.question);
-        got = true;
-      } else {
-        lastFailure = r.reason;
-      }
+    const r = await generateOneRoomQuestion(categoryId, {
+      excludeQuestions: excludeQuestions.length ? excludeQuestions : undefined,
+      excludeAnswers: excludeAnswers.length ? excludeAnswers : undefined,
+    });
+
+    if (r.ok) {
+      questions.push(r.question);
+      continue;
     }
 
-    if (!got) break;
-  }
-
-  if (questions.length === 0) {
-    throw new Error(
-      `Failed to generate any trivia questions for the room: ${lastFailure ?? "unknown error"}`
+    lastFailure = r.reason;
+    failCounts.set(categoryId, (failCounts.get(categoryId) ?? 0) + 1);
+    console.warn(
+      `[trivia-room] generation failed category=${categoryId} filled=${questions.length}/${length}: ${r.reason}`
     );
   }
 
-  return questions.slice(0, length);
+  if (questions.length < length) {
+    throw new Error(
+      `Failed to build full trivia question set (${questions.length}/${length}): ${lastFailure ?? "unknown error"}`
+    );
+  }
+
+  return questions;
+}
+
+/**
+ * Rotate through the category plan, preferring ids with fewer prior failures so
+ * a sticky-bad category does not monopolize the attempt budget.
+ */
+export function pickNextBuildCategory(
+  plan: string[],
+  failCounts: Map<string, number>,
+  attempt: number
+): string {
+  let bestId = plan[attempt % plan.length];
+  let bestFails = failCounts.get(bestId) ?? 0;
+
+  for (let i = 0; i < plan.length; i++) {
+    const id = plan[(attempt + i) % plan.length];
+    const fails = failCounts.get(id) ?? 0;
+    if (fails < bestFails) {
+      bestId = id;
+      bestFails = fails;
+    }
+  }
+
+  return bestId;
 }
 
 type RoomQuestionResult =
